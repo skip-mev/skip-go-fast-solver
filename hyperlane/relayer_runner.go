@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
