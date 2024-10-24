@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	bech322 "github.com/cosmos/cosmos-sdk/types/bech32"
+	"github.com/cosmos/cosmos-sdk/types/bech32"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -42,6 +42,13 @@ type OrderFillerConfig struct {
 	// process order fills. Each worker handles filling orders independently to
 	// increase throughput.
 	OrderFillWorkerCount int `yaml:"order_fill_worker_count"`
+
+	// MinFeeBps is the min fee amount the solver is willing to fill in bps.
+	// For example, if an order has an amount in of 100usdc and an amount out
+	// of 99usdc, that is an implied fee to the solver of 1usdc, or a 1%/100bps
+	// fee. Thus, if MinFeeBps is set to 200, and an order comes in with the
+	// above amount in and out, then the solver will ignore it.
+	MinFeeBps int `yaml:"min_fee_bps"`
 }
 
 type MetricsConfig struct {
@@ -130,12 +137,15 @@ type RelayerConfig struct {
 	// ValidatorAnnounceContractAddress is the address of the Hyperlane validator
 	// announce contract used for cross-chain message validation
 	ValidatorAnnounceContractAddress string `yaml:"validator_announce_contract_address"`
+
 	// MerkleHookContractAddress is the address of the Hyperlane merkle hook
 	// contract used for verifying cross-chain message proofs
 	MerkleHookContractAddress string `yaml:"merkle_hook_contract_address"`
 	// MailboxAddress is the address of the Hyperlane mailbox contract used
 	// for sending and receiving cross-chain messages
 	MailboxAddress string `yaml:"mailbox_address"`
+
+	MaxGasPricePct *uint8 `yaml:"max_gas_price_pct"`
 }
 
 // Used to monitor gas balance prometheus metric per chain for the solver addresses
@@ -317,7 +327,7 @@ func (r configReader) GetSolverAddress(domain uint32, environment ChainEnvironme
 	}
 	switch chain.Type {
 	case ChainType_COSMOS:
-		_, addressBytes, err := bech322.DecodeAndConvert(chain.SolverAddress)
+		_, addressBytes, err := bech32.DecodeAndConvert(chain.SolverAddress)
 		if err != nil {
 			return "", nil, err
 		}

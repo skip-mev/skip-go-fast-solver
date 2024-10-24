@@ -250,3 +250,81 @@ func (r *RelayerRunner) findTimeoutsToRelay(ctx context.Context) error {
 	}
 	return nil
 }
+
+// RelayOpts provides users options for how the relayer should be have when
+// relaying a tx.
+type RelayOpts struct {
+	// Profitability provides relaying options regarding how profitable it is to
+	// relay a tx. Typically this would be used when the relayer is relaying a tx
+	// bound for itself, and it should only relay that tx under profitable
+	// conditions (i.e. not pay too much for gas, relative to the value that it is
+	// relaying).
+	Profitability *Profitability
+}
+
+type Profitability struct {
+	// MaxGasPricePct is the max percentage of the total value of the relayed
+	// tx that the relayer is willing to pay in gas fees.
+	MaxGasPricePct uint8
+
+	// TotalRelayValue is the total value of the relayed tx, denominated in uusdc.
+	TotalRelayValue *big.Int
+}
+
+func (opts RelayOpts) validate() error {
+	if opts.Profitability == nil {
+		return nil
+	}
+	if opts.Profitability.TotalRelayValue == nil {
+		return fmt.Errorf("invalid relay options: total relay value undefined")
+	}
+	if opts.Profitability.MaxGasPricePct <= 0 {
+		return fmt.Errorf("invalid relay options: max gas price pct must be > 0")
+	}
+	if opts.Profitability.MaxGasPricePct > 100 {
+		return fmt.Errorf("invalid relay options: max gas price pct must be <= 100")
+	}
+	return nil
+}
+
+// SubmitTxToRelay submits a transaction hash on a source chain to be relayed.
+// This transaction must contain a dispatch message/event that can be relayed
+// by hyperlane. This tx will not be immediately relayed but will be placed in
+// a queue to be eventually relayed.
+func (r *RelayerRunner) SubmitTxToRelay(ctx context.Context, txHash string, sourceChainID string, opts RelayOpts) error {
+	if err := opts.validate(); err != nil {
+		return fmt.Errorf("validating relay opts: %w", err)
+	}
+
+	sourceChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(sourceChainID)
+	if err != nil {
+		return fmt.Errorf("getting source chain config for chainID %s: %w", sourceChainID, err)
+	}
+
+	dispatch, _, err := r.hyperlane.GetHyperlaneDispatch(ctx, sourceChainConfig.HyperlaneDomain, sourceChainID, txHash)
+	if err != nil {
+		return fmt.Errorf("parsing tx results: %w", err)
+	}
+
+	destinationChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(dispatch.DestinationDomain)
+	if err != nil {
+		return fmt.Errorf("getting destination chainID by hyperlane domain %s: %w", dispatch.DestinationDomain, err)
+	}
+
+	insert := db.InsertHyperlaneTransferParams{
+		SourceChainID:      sourceChainID,
+		DestinationChainID: destinationChainID,
+		MessageID:          dispatch.MessageID,
+		MessageSentTx:      txHash,
+		TransferStatus:     dbtypes.TransferStatusPending,
+	}
+	if opts.Profitability != nil {
+		insert.MaxGasPricePct = sql.NullInt64{Int64: int64(opts.Profitability.MaxGasPricePct), Valid: true}
+		insert.TransferValue = sql.NullString{String: opts.Profitability.TotalRelayValue.String(), Valid: true}
+	}
+	if _, err := r.db.InsertHyperlaneTransfer(ctx, insert); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("inserting hyperlane transfer: %w", err)
+	}
+
+	return nil
+}

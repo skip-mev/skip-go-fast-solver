@@ -19,6 +19,8 @@ type HyperlaneTransfer struct {
 	MessageSentTx         string
 	TransferStatus        string
 	TransferStatusMessage sql.NullString
+	TransferValue         sql.NullString
+	MaxGasPricePct        sql.NullInt64
 }
 
 type Order struct {

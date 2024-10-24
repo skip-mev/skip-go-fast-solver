@@ -4,8 +4,10 @@ INSERT INTO hyperlane_transfers (
     destination_chain_id,
     message_id,
     message_sent_tx,
-    transfer_status
-) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING *;
+    transfer_status,
+    transfer_value, 
+    max_gas_price_pct
+) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING *;
 
 -- name: GetAllHyperlaneTransfersWithTransferStatus :many
 SELECT * FROM hyperlane_transfers WHERE transfer_status = ?;
