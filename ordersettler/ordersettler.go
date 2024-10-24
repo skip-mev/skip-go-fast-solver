@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"math/big"
 	"strconv"
+	"sync"
 	"time"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
+	"github.com/skip-mev/go-fast-solver/hyperlane"
 	"github.com/skip-mev/go-fast-solver/ordersettler/types"
 	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
@@ -47,16 +49,21 @@ type Database interface {
 	InTx(ctx context.Context, fn func(ctx context.Context, q db.Querier) error, opts *sql.TxOptions) error
 }
 
+type Relayer interface {
+	SubmitTxToRelay(ctx context.Context, txHash string, sourceChainID string, opts hyperlane.RelayOpts) error
+}
+
 type OrderSettler struct {
 	db            Database
 	clientManager *clientmanager.ClientManager
+	relayer       Relayer
 }
 
-func NewOrderSettler(ctx context.Context, db Database, clientManager *clientmanager.ClientManager) (*OrderSettler, error) {
-
+func NewOrderSettler(ctx context.Context, db Database, clientManager *clientmanager.ClientManager, relayer Relayer) (*OrderSettler, error) {
 	return &OrderSettler{
 		db:            db,
 		clientManager: clientManager,
+		relayer:       relayer,
 	}, nil
 }
 
@@ -200,8 +207,58 @@ func (r *OrderSettler) settleOrders(ctx context.Context) error {
 
 	lmt.Logger(ctx).Info("initiating order settlements", zap.Stringers("batches", toSettle))
 
-	if err = r.SettleBatches(ctx, toSettle); err != nil {
+	txHashes, err := r.SettleBatches(ctx, toSettle)
+	if err != nil {
 		return fmt.Errorf("initiating order settlements: %w", err)
+	}
+
+	lmt.Logger(ctx).Info("order settlements initiated on chain")
+
+	if err := r.relaySettlements(ctx, txHashes, toSettle); err != nil {
+		return fmt.Errorf("relaying settlements: %w", err)
+	}
+
+	lmt.Logger(ctx).Info("submitted order settlements to be relayed")
+
+	return nil
+}
+
+// relaySettlements submits tx hashes for settlements to be relayed from the
+// settlements initiation chain (the orders destination chain), to the payout
+// chain (the orders source chain).
+func (r *OrderSettler) relaySettlements(ctx context.Context, txHashes []string, batches []types.SettlementBatch) error {
+	for i, txHash := range txHashes {
+		// the orders destination chain is where the settlement is initiated
+		settlementInitiationChainID := batches[i].DestinationChainID()
+
+		// the orders source chain is where the settlement is paid out to the solver
+		settlementPayoutChainID := batches[i].SourceChainID()
+
+		totalValue, err := batches[i].TotalValue()
+		if err != nil {
+			return fmt.Errorf("getting total value for batch %s: %w", batches[i].String(), err)
+		}
+
+		settlementPayoutChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(settlementPayoutChainID)
+		if err != nil {
+			return fmt.Errorf("getting chain config for settlement payout chain %s: %w", settlementPayoutChainID, err)
+		}
+
+		var opts hyperlane.RelayOpts
+		if settlementPayoutChainConfig.Relayer.MaxGasPricePct != nil {
+			opts = hyperlane.RelayOpts{
+				Profitability: &hyperlane.Profitability{
+					MaxGasPricePct:  1,
+					TotalRelayValue: totalValue,
+				},
+			}
+		}
+		if err = r.relayer.SubmitTxToRelay(ctx, txHash, settlementInitiationChainID, opts); err != nil {
+			return fmt.Errorf(
+				"submitting settlement tx hash %s to be relayed from chain %s to chain %s: %w",
+				txHash, settlementInitiationChainID, settlementPayoutChainID, err,
+			)
+		}
 	}
 
 	return nil
@@ -294,40 +351,59 @@ func (r *OrderSettler) ShouldInitiateSettlement(ctx context.Context, batch types
 	return value.Cmp(settlementThreshold) >= 0, nil
 }
 
-// SettleBatches tries to settle a list settlement batches and
-// update the individual settlements status's.
-func (r *OrderSettler) SettleBatches(ctx context.Context, batches []types.SettlementBatch) error {
+// SettleBatches tries to settle a list settlement batches and update the
+// individual settlements status's, returning the tx hash for each initiated
+// settlement, in the same order as batches.
+func (r *OrderSettler) SettleBatches(ctx context.Context, batches []types.SettlementBatch) ([]string, error) {
 	g, gCtx := errgroup.WithContext(ctx)
+	hashes := make([]string, len(batches))
+	hashesLock := new(sync.Mutex)
 
-	for _, batch := range batches {
+	for i, batch := range batches {
+		i := i
 		batch := batch
 		g.Go(func() error {
-			return r.SettleBatch(gCtx, batch)
+			hash, err := r.SettleBatch(gCtx, batch)
+			if err != nil {
+				return fmt.Errorf("settling batch from source chain %s to destination chain %s: %w", batch.SourceChainID(), batch.DestinationChainID(), err)
+			}
+
+			hashesLock.Lock()
+			defer hashesLock.Unlock()
+			hashes[i] = hash
+
+			return nil
 		})
 	}
 
-	return g.Wait()
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
+	return hashes, nil
 }
 
 // SettleBatch initiates a settlement on chain for a SettlementBatch.
-func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBatch) error {
+func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBatch) (string, error) {
 	destinationBridgeClient, err := r.clientManager.GetClient(ctx, batch.DestinationChainID())
 	if err != nil {
-		return fmt.Errorf("getting destination bridge client: %w", err)
+		return "", fmt.Errorf("getting destination bridge client: %w", err)
 	}
 	txHash, rawTx, err := destinationBridgeClient.InitiateBatchSettlement(ctx, batch)
 	if err != nil {
-		return fmt.Errorf("initiating batch settlement on chain %s: %w", batch.DestinationChainID(), err)
+		return "", fmt.Errorf("initiating batch settlement on chain %s: %w", batch.DestinationChainID(), err)
 	}
-
 	if rawTx == "" {
-		lmt.Logger(ctx).Error("batch settlement rawTx is empty",
-			zap.String("batchDestinationChainId", batch.DestinationChainID()), zap.Any("batchOrderIDs", batch.OrderIDs()))
-		return fmt.Errorf("empty batch settlement transaction")
+		lmt.Logger(ctx).Error(
+			"batch settlement rawTx is empty",
+			zap.String("batchDestinationChainId", batch.DestinationChainID()),
+			zap.Any("batchOrderIDs", batch.OrderIDs()),
+		)
+		return "", fmt.Errorf("empty batch settlement transaction")
 	}
 
 	if err = recordBatchSettlementSubmittedMetric(ctx, batch); err != nil {
-		return fmt.Errorf("recording batch settlement submitted metrics: %w", err)
+		return "", fmt.Errorf("recording batch settlement submitted metrics: %w", err)
 	}
 
 	err = r.db.InTx(ctx, func(ctx context.Context, q db.Querier) error {
@@ -365,10 +441,10 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 		return nil
 	}, nil)
 	if err != nil {
-		return fmt.Errorf("recording batch settlement result: %w", err)
+		return "", fmt.Errorf("recording batch settlement result: %w", err)
 	}
 
-	return nil
+	return txHash, nil
 }
 
 // recordBatchSettlementSubmittedMetric records a transaction submitted metric for a

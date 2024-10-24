@@ -4,9 +4,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/txverifier"
 	"os/signal"
 	"syscall"
+
+	"github.com/skip-mev/go-fast-solver/txverifier"
 
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/mattn/go-sqlite3"
@@ -76,6 +77,14 @@ func main() {
 
 	evmManager := evmrpc.NewEVMRPCClientManager()
 
+	hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmManager, keyStore)
+	if err != nil {
+		lmt.Logger(ctx).Fatal("creating hyperlane multi client from config", zap.Error(err))
+	}
+
+	relayer := hyperlane.NewRelayer(hype, make(map[string]string))
+	relayerRunner := hyperlane.NewRelayerRunner(db.New(dbConn), hype, relayer)
+
 	eg, ctx := errgroup.WithContext(ctx)
 
 	// Uncomment this section to run a prometheus server for metrics collection
@@ -86,15 +95,6 @@ func main() {
 	//	}
 	//	return nil
 	//})
-
-	eg.Go(func() error {
-		transferMonitor := transfermonitor.NewTransferMonitor(db.New(dbConn), *quickStart)
-		err := transferMonitor.Start(ctx)
-		if err != nil {
-			return fmt.Errorf("creating transfer monitor: %w", err)
-		}
-		return nil
-	})
 
 	eg.Go(func() error {
 		orderFillHandler, err := order_fulfillment_handler.NewOrderFulfillmentHandler(ctx, db.New(dbConn), clientManager)
@@ -117,16 +117,7 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		r, err := txverifier.NewTxVerifier(ctx, db.New(dbConn), clientManager)
-		if err != nil {
-			return err
-		}
-		r.Run(ctx)
-		return nil
-	})
-
-	eg.Go(func() error {
-		r, err := ordersettler.NewOrderSettler(ctx, db.New(dbConn), clientManager)
+		r, err := ordersettler.NewOrderSettler(ctx, db.New(dbConn), clientManager, relayerRunner)
 		if err != nil {
 			return fmt.Errorf("creating order settler: %w", err)
 		}
@@ -144,17 +135,20 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmManager, keyStore)
+		r, err := txverifier.NewTxVerifier(ctx, db.New(dbConn), clientManager)
 		if err != nil {
-			return fmt.Errorf("creating hyperlane multi client from config: %w", err)
+			return err
 		}
+		r.Run(ctx)
+		return nil
+	})
 
-		relayer := hyperlane.NewRelayer(hype, make(map[string]string))
-		err = hyperlane.NewRelayerRunner(db.New(dbConn), hype, relayer).Run(ctx)
+	eg.Go(func() error {
+		transferMonitor := transfermonitor.NewTransferMonitor(db.New(dbConn), *quickStart)
+		err := transferMonitor.Start(ctx)
 		if err != nil {
-			return fmt.Errorf("relaying message: %v", err)
+			return fmt.Errorf("creating transfer monitor: %w", err)
 		}
-
 		return nil
 	})
 
