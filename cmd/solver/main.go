@@ -6,20 +6,24 @@ import (
 	"fmt"
 	"os/signal"
 	"syscall"
+	"time"
 
-	"github.com/skip-mev/go-fast-solver/txverifier"
-
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/skip-mev/go-fast-solver/db/connect"
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
+	"github.com/skip-mev/go-fast-solver/txverifier"
+
 	"github.com/skip-mev/go-fast-solver/fundrebalancer"
 	"github.com/skip-mev/go-fast-solver/hyperlane"
 	"github.com/skip-mev/go-fast-solver/orderfulfiller"
 	"github.com/skip-mev/go-fast-solver/orderfulfiller/order_fulfillment_handler"
 	"github.com/skip-mev/go-fast-solver/ordersettler"
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
+	"github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
 	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
+	"github.com/skip-mev/go-fast-solver/shared/clients/utils"
+
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/evmrpc"
 	"github.com/skip-mev/go-fast-solver/shared/keys"
@@ -76,8 +80,12 @@ func main() {
 	}
 
 	evmManager := evmrpc.NewEVMRPCClientManager()
+	rateLimitedClient := utils.DefaultRateLimitedHTTPClient(3)
+	coingeckoClient := coingecko.NewCoingeckoClient(rateLimitedClient, "https://api.coingecko.com/api/v3/", "")
+	cachedCoinGeckoClient := coingecko.NewCachedPriceClient(coingeckoClient, 15*time.Minute)
+	evmTxPriceOracle := evmrpc.NewOracle(cachedCoinGeckoClient)
 
-	hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmManager, keyStore)
+	hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmManager, keyStore, evmTxPriceOracle)
 	if err != nil {
 		lmt.Logger(ctx).Fatal("creating hyperlane multi client from config", zap.Error(err))
 	}

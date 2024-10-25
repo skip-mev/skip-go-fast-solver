@@ -30,7 +30,7 @@ type MultiClient struct {
 
 // NewMultiClientFromConfig creates a MultiClient that is configured for every
 // chain specific in the config that has a HyperlaneDomain set
-func NewMultiClientFromConfig(ctx context.Context, manager evmrpc.EVMRPCClientManager, keystore keys.KeyStore) (*MultiClient, error) {
+func NewMultiClientFromConfig(ctx context.Context, manager evmrpc.EVMRPCClientManager, keystore keys.KeyStore, oracle ethereum.TxPriceOracle) (*MultiClient, error) {
 	clients := make(map[string]Client)
 	for _, cfg := range config.GetConfigReader(ctx).Config().Chains {
 		if cfg.HyperlaneDomain == "" {
@@ -45,7 +45,7 @@ func NewMultiClientFromConfig(ctx context.Context, manager evmrpc.EVMRPCClientMa
 			}
 			clients[cfg.HyperlaneDomain] = client
 		case config.ChainType_EVM:
-			client, err := ethereum.NewHyperlaneClient(ctx, cfg.HyperlaneDomain, manager, keystore)
+			client, err := ethereum.NewHyperlaneClient(ctx, cfg.HyperlaneDomain, manager, keystore, oracle)
 			if err != nil {
 				return nil, fmt.Errorf("creating cosmos hyperlane client for domain %s: %w", cfg.HyperlaneDomain, err)
 			}

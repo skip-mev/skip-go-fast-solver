@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"sync"
 
 	interchain_security_module "github.com/skip-mev/go-fast-solver/shared/contracts/hyperlane/InterchainSecurityModule"
 	mailbox "github.com/skip-mev/go-fast-solver/shared/contracts/hyperlane/Mailbox"
 	multisig_ism "github.com/skip-mev/go-fast-solver/shared/contracts/hyperlane/MultisigIsm"
+
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -21,6 +24,10 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/signing/evm"
 )
 
+type TxPriceOracle interface {
+	TxFeeUUSDC(ctx context.Context, tx *ethtypes.Transaction) (*big.Int, error)
+}
+
 type HyperlaneClient struct {
 	client          evmrpc.EVMChainRPC
 	chainID         string
@@ -30,12 +37,20 @@ type HyperlaneClient struct {
 
 	ismAddress     *common.Address
 	ismAddressLock sync.RWMutex
+
+	txPriceOracle TxPriceOracle
 }
 
-func NewHyperlaneClient(ctx context.Context, hyperlaneDomain string, manager evmrpc.EVMRPCClientManager, keystore keys.KeyStore) (*HyperlaneClient, error) {
+func NewHyperlaneClient(
+	ctx context.Context,
+	hyperlaneDomain string,
+	manager evmrpc.EVMRPCClientManager,
+	keystore keys.KeyStore,
+	priceOracle TxPriceOracle,
+) (*HyperlaneClient, error) {
 	chainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(hyperlaneDomain)
 	if err != nil {
-		return nil, fmt.Errorf("gettting chainID from hyperlane domain %s: %w", hyperlaneDomain, err)
+		return nil, fmt.Errorf("getting chainID from hyperlane domain %s: %w", hyperlaneDomain, err)
 	}
 
 	chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
@@ -54,6 +69,7 @@ func NewHyperlaneClient(ctx context.Context, hyperlaneDomain string, manager evm
 		hyperlaneDomain: hyperlaneDomain,
 		mailboxAddress:  common.HexToAddress(chainConfig.Relayer.MailboxAddress),
 		keystore:        keystore,
+		txPriceOracle:   priceOracle,
 	}, nil
 }
 
