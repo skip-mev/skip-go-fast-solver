@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"math/big"
+
 	"google.golang.org/grpc/credentials"
 
 	"strconv"
@@ -29,7 +31,7 @@ type HyperlaneClient struct {
 func NewHyperlaneClient(ctx context.Context, hyperlaneDomain string) (*HyperlaneClient, error) {
 	chainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(hyperlaneDomain)
 	if err != nil {
-		return nil, fmt.Errorf("gettting chainID from hyperlane domain %s: %w", hyperlaneDomain, err)
+		return nil, fmt.Errorf("getting chainID from hyperlane domain %s: %w", hyperlaneDomain, err)
 	}
 
 	chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
@@ -229,6 +231,10 @@ func (c *HyperlaneClient) MerkleTreeLeafCount(ctx context.Context, domain string
 }
 
 func (c *HyperlaneClient) Process(ctx context.Context, domain string, message []byte, metadata []byte) ([]byte, error) {
+	panic("not implemented")
+}
+
+func (c *HyperlaneClient) QuoteProcessUUSDC(ctx context.Context, domain string, message []byte, metadata []byte) (*big.Int, error) {
 	panic("not implemented")
 }
 

@@ -206,47 +206,65 @@ func (c *HyperlaneClient) getISMAddress(ctx context.Context, recipient string) (
 }
 
 func (c *HyperlaneClient) Process(ctx context.Context, domain string, message []byte, metadata []byte) ([]byte, error) {
-	destinationChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(domain)
-	if err != nil {
-		return nil, fmt.Errorf("getting chainID for hyperlane domain %s: %w", domain, err)
-	}
-
-	// TODO: move to client struct
-	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(destinationChainID)
-	if err != nil {
-		return nil, fmt.Errorf("getting config for chain %s: %w", destinationChainID, err)
-	}
-	privateKeyStr, ok := c.keystore.GetPrivateKey(destinationChainID)
-	if !ok {
-		return nil, fmt.Errorf("relayer private key not found for chainID %s", destinationChainID)
-	}
-	if privateKeyStr[:2] == "0x" {
-		privateKeyStr = privateKeyStr[2:]
-	}
-
-	privateKey, err := crypto.HexToECDSA(string(privateKeyStr))
-	if err != nil {
-		return nil, fmt.Errorf("creating private key from string: %w", err)
-	}
-
 	destinationMailbox, err := mailbox.NewMailbox(c.mailboxAddress, c.client.Client())
 	if err != nil {
 		return nil, fmt.Errorf("creating mailbox contract caller for address %s: %w", c.mailboxAddress.String(), err)
 	}
 
+	signer, err := c.signer(ctx, domain)
+	if err != nil {
+		return nil, fmt.Errorf("getting signer: %w", err)
+	}
+
+	addr, err := c.address(ctx, domain)
+	if err != nil {
+		return nil, fmt.Errorf("getting address: %w", err)
+	}
+
 	processTx, err := destinationMailbox.Process(&bind.TransactOpts{
-		From:    common.HexToAddress(destinationChainConfig.SolverAddress),
+		From:    addr,
 		Context: ctx,
-		Signer: evm.EthereumSignerToBindSignerFn(
-			signing.NewLocalEthereumSigner(privateKey),
-			destinationChainID,
-		),
+		Signer:  signer,
 	}, metadata, message)
 	if err != nil {
 		return nil, fmt.Errorf("processing message on destination mailbox: %w", err)
 	}
 
 	return processTx.Hash().Bytes(), nil
+}
+
+func (c *HyperlaneClient) QuoteProcessUUSDC(ctx context.Context, domain string, message []byte, metadata []byte) (*big.Int, error) {
+	destinationMailbox, err := mailbox.NewMailbox(c.mailboxAddress, c.client.Client())
+	if err != nil {
+		return nil, fmt.Errorf("creating mailbox contract caller for address %s: %w", c.mailboxAddress.String(), err)
+	}
+
+	signer, err := c.signer(ctx, domain)
+	if err != nil {
+		return nil, fmt.Errorf("getting signer: %w", err)
+	}
+
+	addr, err := c.address(ctx, domain)
+	if err != nil {
+		return nil, fmt.Errorf("getting address: %w", err)
+	}
+
+	unsentProcessTx, err := destinationMailbox.Process(&bind.TransactOpts{
+		From:    addr,
+		Context: ctx,
+		Signer:  signer,
+		NoSend:  true,
+	}, metadata, message)
+	if err != nil {
+		return nil, fmt.Errorf("simulating process tx: %w", err)
+	}
+
+	txFeeUUSDC, err := c.txPriceOracle.TxFeeUUSDC(ctx, unsentProcessTx)
+	if err != nil {
+		return nil, fmt.Errorf("getting tx fee in uusdc from gas oracle: %w", err)
+	}
+
+	return txFeeUUSDC, nil
 }
 
 func (c *HyperlaneClient) MerkleTreeLeafCount(ctx context.Context, domain string) (uint64, error) {
@@ -268,4 +286,43 @@ func (c *HyperlaneClient) IsContract(ctx context.Context, domain, address string
 	}
 
 	return len(contractCode) > 0, nil
+}
+
+func (c *HyperlaneClient) address(ctx context.Context, domain string) (common.Address, error) {
+	destinationChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(domain)
+	if err != nil {
+		return common.Address{}, fmt.Errorf("getting chainID for hyperlane domain %s: %w", domain, err)
+	}
+
+	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(destinationChainID)
+	if err != nil {
+		return common.Address{}, fmt.Errorf("getting chain config for chainID %s: %w", destinationChainID, err)
+	}
+
+	return common.HexToAddress(destinationChainConfig.SolverAddress), nil
+}
+
+func (c *HyperlaneClient) signer(ctx context.Context, domain string) (bind.SignerFn, error) {
+	destinationChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(domain)
+	if err != nil {
+		return nil, fmt.Errorf("getting chainID for hyperlane domain %s: %w", domain, err)
+	}
+
+	privateKeyStr, ok := c.keystore.GetPrivateKey(destinationChainID)
+	if !ok {
+		return nil, fmt.Errorf("relayer private key not found for chainID %s", destinationChainID)
+	}
+	if privateKeyStr[:2] == "0x" {
+		privateKeyStr = privateKeyStr[2:]
+	}
+
+	privateKey, err := crypto.HexToECDSA(string(privateKeyStr))
+	if err != nil {
+		return nil, fmt.Errorf("creating private key from string: %w", err)
+	}
+
+	return evm.EthereumSignerToBindSignerFn(
+		signing.NewLocalEthereumSigner(privateKey),
+		destinationChainID,
+	), nil
 }
