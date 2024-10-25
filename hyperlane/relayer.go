@@ -162,7 +162,7 @@ func (r *relayer) checkpointAtIndex(
 		signedCheckpoint, err := fetcher.Checkpoint(ctx, index)
 		if errors.Is(err, ErrCheckpointDoesNotExist) {
 			// if the validator for this fetcher has not signed the
-			// chekcpoint, ignore it
+			// checkpoint, ignore it
 			continue
 		}
 		if err != nil {
