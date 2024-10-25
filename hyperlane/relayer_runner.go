@@ -84,7 +84,19 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 					continue
 				}
 
-				destinationTxHash, destinationChainID, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx)
+				var opts RelayOpts
+				if transfer.MaxGasPricePct.Valid && transfer.TransferValue.Valid {
+					totalRelayValue, ok := new(big.Int).SetString(transfer.TransferValue.String, 10)
+					if !ok {
+						lmt.Logger(ctx).Error("could not convert relay transfer value to *big.Int", zap.String("transferValue", transfer.TransferValue.String))
+						continue
+					}
+					opts.Profitability = &Profitability{
+						MaxGasPricePct:  uint8(transfer.MaxGasPricePct.Int64),
+						TotalRelayValue: totalRelayValue,
+					}
+				}
+				destinationTxHash, destinationChainID, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx, opts)
 				if err != nil {
 					lmt.Logger(ctx).Error(
 						"error relaying pending hyperlane transfer",
@@ -94,6 +106,7 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 					)
 					continue
 				}
+
 				if _, err := r.db.InsertSubmittedTx(ctx, db.InsertSubmittedTxParams{
 					HyperlaneTransferID: sql.NullInt64{Int64: transfer.ID, Valid: true},
 					ChainID:             destinationChainID,
@@ -164,7 +177,6 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 	return true, nil
 }
 
-// findSettlementsToRelay checks the order settlement table for any new
 // settlements that have been initiated and creates pending hyperlane transfers
 // from them
 func (r *RelayerRunner) findSettlementsToRelay(ctx context.Context) error {
