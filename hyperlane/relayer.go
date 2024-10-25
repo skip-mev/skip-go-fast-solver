@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"strings"
 
@@ -17,7 +18,7 @@ import (
 )
 
 type Relayer interface {
-	Relay(ctx context.Context, originChainID string, initiateTxHash string) (destinationTxHash string, destinationChainID string, err error)
+	Relay(ctx context.Context, originChainID string, initiateTxHash string, opts RelayOpts) (destinationTxHash string, destinationChainID string, err error)
 }
 
 type relayer struct {
@@ -34,9 +35,10 @@ func NewRelayer(hyperlaneClient Client, storageLocationOverrides map[string]stri
 
 var (
 	ErrMessageAlreadyDelivered = fmt.Errorf("message has already been delivered")
+	ErrRelayNotProfitable      = fmt.Errorf("relay not profitable")
 )
 
-func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHash string) (destinationTxHash string, destinationChainID string, err error) {
+func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHash string, opts RelayOpts) (destinationTxHash string, destinationChainID string, err error) {
 	originChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(originChainID)
 	if err != nil {
 		return "", "", fmt.Errorf("getting chain config for chainID %s: %w", originChainID, err)
@@ -126,6 +128,19 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 	if err != nil {
 		return "", "", fmt.Errorf("hex decoding dispatch message to bytes: %w", err)
 	}
+
+	// if the user has specified a profitability threshold, make sure the relay
+	// matches this
+	if opts.Profitability != nil {
+		isProfitable, err := r.checkRelayProfitability(ctx, dispatch.DestinationDomain, message, metadata, opts.Profitability)
+		if err != nil {
+			return "", "", fmt.Errorf("checking if relay to domain %s is profitable: %w", dispatch.DestinationDomain, err)
+		}
+		if !isProfitable {
+			return "", "", ErrRelayNotProfitable
+		}
+	}
+
 	hash, err := r.hyperlane.Process(ctx, dispatch.DestinationDomain, message, metadata)
 	if err != nil {
 		return "", "", fmt.Errorf("processing message on domain %s: %w", dispatch.DestinationDomain, err)
@@ -225,4 +240,51 @@ func (r *relayer) checkpointAtIndex(
 	}
 
 	return multiSigCheckpoint, nil
+}
+
+// checkRelayProfitability checks that processing a relay meets a users
+// profitability specification. Returns true if the relay meets their criteria,
+// false if not.
+func (r *relayer) checkRelayProfitability(
+	ctx context.Context,
+	domain string,
+	message []byte,
+	metadata []byte,
+	profitability *Profitability,
+) (bool, error) {
+	// if the user didnt specify that they care about the profitability, return
+	// true
+	if profitability == nil {
+		return true, nil
+	}
+
+	txFeeUUSDC, err := r.hyperlane.QuoteProcessUUSDC(ctx, domain, message, metadata)
+	if err != nil {
+		return false, fmt.Errorf("quoting process call in uusdc: %w", err)
+	}
+
+	// sanity checks
+
+	// dont ever expect for a tx fee to be negative or 0, log a warning here
+	if txFeeUUSDC.Cmp(big.NewInt(0)) <= 0 {
+		lmt.Logger(ctx).Warn("tx fee uusdc was <= 0", zap.String("txFeeUUSDC", txFeeUUSDC.String()))
+		return true, nil
+	}
+	// unless the user is relaying no value (which we dont allow), we dont
+	// expect this to happen, log a warning
+	if txFeeUUSDC.Cmp(profitability.TotalRelayValue) >= 0 {
+		lmt.Logger(ctx).Warn(
+			"tx fee uusdc was >= total relay value",
+			zap.String("txFeeUUSDC", txFeeUUSDC.String()),
+			zap.String("totalRelayValue", profitability.TotalRelayValue.String()),
+		)
+		return false, nil
+	}
+
+	totalValueFeePct := new(big.Float).Quo(new(big.Float).SetInt(txFeeUUSDC), new(big.Float).SetInt(profitability.TotalRelayValue))
+	totalValueFeePctDec := new(big.Float).Mul(totalValueFeePct, big.NewFloat(100))
+	if totalValueFeePctDec.Cmp(big.NewFloat(float64(profitability.MaxGasPricePct))) > 0 {
+		return false, nil
+	}
+	return true, nil
 }
