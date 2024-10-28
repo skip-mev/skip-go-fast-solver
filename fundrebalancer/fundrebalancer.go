@@ -4,6 +4,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	dbtypes "github.com/skip-mev/go-fast-solver/db"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"math/big"
 	"os"
 	"strings"
@@ -12,14 +14,12 @@ import (
 	evmtxsubmission "github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
 	"github.com/ethereum/go-ethereum/common"
-	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/contracts/usdc"
 	"github.com/skip-mev/go-fast-solver/shared/evmrpc"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
-	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"github.com/skip-mev/go-fast-solver/shared/signing"
 	"github.com/skip-mev/go-fast-solver/shared/signing/evm"
 	"go.uber.org/zap"
@@ -290,6 +290,7 @@ func (r *FundRebalancer) MoveFundsToChain(
 		if err != nil {
 			return nil, nil, fmt.Errorf("signing and submitting transaction: %w", err)
 		}
+		metrics.FromContext(ctx).IncFundsRebalanceTransfers(rebalanceFromChainID, rebalanceToChain, dbtypes.RebalanceTransactionStatusPending)
 
 		totalUSDCcMoved = new(big.Int).Add(totalUSDCcMoved, usdcToRebalance)
 		hashes = append(hashes, txHash)
@@ -299,7 +300,6 @@ func (r *FundRebalancer) MoveFundsToChain(
 		if remainingUSDCNeeded.Cmp(big.NewInt(0)) <= 0 {
 			return hashes, totalUSDCcMoved, nil
 		}
-		metrics.FromContext(ctx).IncFundsRebalanceTransfers(rebalanceFromChainID, rebalanceToChain, dbtypes.RebalanceTransactionStatusPending)
 	}
 
 	// we have moved all available funds from all available chains
