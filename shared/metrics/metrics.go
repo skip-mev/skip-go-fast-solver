@@ -18,6 +18,7 @@ const (
 	orderStatusLabel        = "order_status"
 	transferStatusLabel     = "transfer_status"
 	settlementStatusLabel   = "settlement_status"
+	operationLabel          = "operation"
 )
 
 type Metrics interface {
@@ -42,6 +43,8 @@ type Metrics interface {
 
 	ObserveTransferSizeExceeded(sourceChainID, destinationChainID string, amountExceededBy uint64)
 	ObserveFeeBpsRejection(sourceChainID, destinationChainID string, feeBpsExceededBy int64)
+
+	IncDatabaseErrors(operation string)
 }
 
 type metricsContextKey struct{}
@@ -79,6 +82,8 @@ type PromMetrics struct {
 
 	transferSizeExceeded metrics.Histogram
 	feeBpsRejections     metrics.Histogram
+
+	databaseErrors metrics.Counter
 }
 
 func NewPromMetrics() Metrics {
@@ -156,6 +161,11 @@ func NewPromMetrics() Metrics {
 			Help:      "histogram of fee bps that were rejected for being too low",
 			Buckets:   []float64{1, 5, 10, 25, 50, 100, 200, 500, 1000},
 		}, []string{sourceChainIDLabel, destinationChainIDLabel}),
+		databaseErrors: prom.NewCounterFrom(stdprom.CounterOpts{
+			Namespace: "solver",
+			Name:      "database_errors_total",
+			Help:      "number of errors encountered when making database calls",
+		}, []string{}),
 	}
 }
 
@@ -227,6 +237,10 @@ func (m *PromMetrics) ObserveFeeBpsRejection(sourceChainID, destinationChainID s
 	).Observe(float64(feeBps))
 }
 
+func (m *PromMetrics) IncDatabaseErrors(operation string) {
+	m.databaseErrors.With(operationLabel, operation).Add(1)
+}
+
 type NoOpMetrics struct{}
 
 func (n NoOpMetrics) IncTransactionSubmitted(success bool, sourceChainID, destinationChainID string) {
@@ -254,6 +268,7 @@ func (n NoOpMetrics) IncHyperlaneMessages(sourceChainID, destinationChainID, mes
 func (n NoOpMetrics) DecHyperlaneMessages(sourceChainID, destinationChainID, messageStatus string) {}
 func (n NoOpMetrics) ObserveTransferSizeExceeded(sourceChainID, destinationChainID string, transferSize uint64) {
 }
+func (n NoOpMetrics) IncDatabaseErrors(operation string)                                            {}
 func (n NoOpMetrics) ObserveFeeBpsRejection(sourceChainID, destinationChainID string, feeBps int64) {}
 func NewNoOpMetrics() Metrics {
 	return &NoOpMetrics{}

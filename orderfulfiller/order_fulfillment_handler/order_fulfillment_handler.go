@@ -70,6 +70,7 @@ func (r *orderFulfillmentHandler) UpdateFulfillmentStatus(ctx context.Context, o
 			SourceChainGatewayContractAddress: order.SourceChainGatewayContractAddress,
 			OrderStatus:                       dbtypes.OrderStatusFilled,
 		}); err != nil {
+			metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 			return "", err
 		}
 		return dbtypes.OrderStatusFilled, nil
@@ -102,6 +103,7 @@ func (r *orderFulfillmentHandler) UpdateFulfillmentStatus(ctx context.Context, o
 				OrderStatus:                       dbtypes.OrderStatusRefunded,
 			})
 			if err != nil {
+				metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 				return "", fmt.Errorf("setting refund tx for orderID %s: %w", order.OrderID, err)
 			}
 
@@ -117,6 +119,7 @@ func (r *orderFulfillmentHandler) UpdateFulfillmentStatus(ctx context.Context, o
 			SourceChainGatewayContractAddress: order.SourceChainGatewayContractAddress,
 			OrderStatus:                       dbtypes.OrderStatusExpiredPendingRefund,
 		}); err != nil {
+			metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 			return "", err
 		}
 		return dbtypes.OrderStatusExpiredPendingRefund, nil
@@ -180,6 +183,7 @@ func (r *orderFulfillmentHandler) FillOrder(
 		OrderID: sql.NullInt64{Int64: order.ID, Valid: true},
 		TxType:  dbtypes.TxTypeOrderFill,
 	}); err != nil {
+		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 		return "", fmt.Errorf("failed to get submitted txs: %w", err)
 	} else if len(submittedTxs) > 0 { // TODO will want to add some retry logic where even if this is > 0, we want to execute an order fill
 		return "", nil
@@ -206,6 +210,7 @@ func (r *orderFulfillmentHandler) FillOrder(
 		TxType:   dbtypes.TxTypeOrderFill,
 		TxStatus: dbtypes.TxStatusPending,
 	}); err != nil {
+		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.INSERT)
 		return "", fmt.Errorf("failed to insert raw tx %w", err)
 	}
 
@@ -237,6 +242,11 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 		metrics.FromContext(ctx).IncFillOrders(orderFill.SourceChainID, destinationChainConfig.ChainID, dbtypes.OrderStatusAbandoned)
 		metrics.FromContext(ctx).DecFillOrders(orderFill.SourceChainID, destinationChainConfig.ChainID, dbtypes.OrderStatusPending)
 		metrics.FromContext(ctx).ObserveFillLatency(orderFill.SourceChainID, orderFill.DestinationChainID, dbtypes.OrderStatusAbandoned, time.Since(orderFill.CreatedAt))
+		metrics.FromContext(ctx).ObserveTransferSizeExceeded(
+			orderFill.SourceChainID,
+			destinationChainConfig.ChainID,
+			transferAmount-*destinationChainConfig.MaxFillSize,
+		)
 
 		_, err = r.db.SetOrderStatus(ctx, db.SetOrderStatusParams{
 			SourceChainID:                     orderFill.SourceChainID,
@@ -246,6 +256,7 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 			OrderStatusMessage:                sql.NullString{String: "amount exceeds max fill size", Valid: true},
 		})
 		if err != nil {
+			metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 			return false, fmt.Errorf("failed to set fill status to abandoned: %w", err)
 		}
 
@@ -255,11 +266,6 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 			zap.String("sourceChainID", orderFill.SourceChainID),
 			zap.String("orderAmountOut", orderFill.AmountOut),
 			zap.Uint64("maxAllowedFillSize", *destinationChainConfig.MaxFillSize),
-		)
-		metrics.FromContext(ctx).ObserveTransferSizeExceeded(
-			orderFill.SourceChainID,
-			destinationChainConfig.ChainID,
-			transferAmount-*destinationChainConfig.MaxFillSize,
 		)
 		return false, nil
 	}
@@ -295,6 +301,7 @@ func (r *orderFulfillmentHandler) checkFeeAmount(ctx context.Context, orderFill 
 		OrderStatusMessage:                sql.NullString{String: fmt.Sprintf("solver fee for order below configured min fee bps of %d", sourceChainID.MinFeeBps), Valid: true},
 	})
 	if err != nil {
+		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 		return false, fmt.Errorf("failed to set fill status to abandoned: %w", err)
 	}
 
@@ -360,6 +367,7 @@ func (r *orderFulfillmentHandler) checkBlockConfirmations(ctx context.Context, s
 				OrderStatus:                       dbtypes.OrderStatusAbandoned,
 				OrderStatusMessage:                sql.NullString{String: "reorged", Valid: true},
 			}); err != nil {
+				metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 				return false, fmt.Errorf("failed to set fill status to abandoned: %w", err)
 			}
 			lmt.Logger(ctx).Info("abandoning transaction due to reorg", zap.String("orderId", order.OrderID), zap.String("sourceChainID", order.SourceChainID))
@@ -382,6 +390,7 @@ func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.
 		OrderID: sql.NullInt64{Int64: order.ID, Valid: true},
 		TxType:  dbtypes.TxTypeInitiateTimeout,
 	}); err != nil {
+		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 		return fmt.Errorf("failed to get submitted txs: %w", err)
 	} else if len(submittedTxs) > 0 {
 		return nil
@@ -401,6 +410,7 @@ func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.
 		TxType:   dbtypes.TxTypeInitiateTimeout,
 		TxStatus: dbtypes.TxStatusPending,
 	}); err != nil {
+		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.INSERT)
 		return fmt.Errorf("failed to insert raw tx %w", err)
 	}
 	return nil

@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
+
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
-	"time"
 
 	coingecko2 "github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
 
@@ -64,6 +65,7 @@ func (r *TxVerifier) Run(ctx context.Context) {
 func (r *TxVerifier) verifyTxs(ctx context.Context) {
 	submittedTxs, err := r.db.GetSubmittedTxsWithStatus(ctx, dbtypes.TxStatusPending)
 	if err != nil {
+		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 		lmt.Logger(ctx).Error("error getting pending txs", zap.Error(err))
 		return
 	}
@@ -110,6 +112,7 @@ func (r *TxVerifier) VerifyTx(ctx context.Context, submittedTx db.SubmittedTx) e
 			ChainID:         submittedTx.ChainID,
 			TxStatusMessage: sql.NullString{String: failure.String(), Valid: true},
 		}); err != nil {
+			metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 			return fmt.Errorf("failed to set tx status to failed: %w", err)
 		}
 		return fmt.Errorf("tx failed: %s", failure.String())
@@ -120,6 +123,7 @@ func (r *TxVerifier) VerifyTx(ctx context.Context, submittedTx db.SubmittedTx) e
 			TxHash:   submittedTx.TxHash,
 			ChainID:  submittedTx.ChainID,
 		}); err != nil {
+			metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 			return fmt.Errorf("failed to set tx status to success: %w", err)
 		}
 	}

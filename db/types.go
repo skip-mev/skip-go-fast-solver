@@ -29,4 +29,8 @@ const (
 	TransferStatusPending   string = "PENDING"
 	TransferStatusSuccess   string = "SUCCESS"
 	TransferStatusAbandoned string = "ABANDONED"
+
+	GET    string = "GET"
+	INSERT string = "INSERT"
+	UPDATE string = "UPDATE"
 )

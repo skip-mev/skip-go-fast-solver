@@ -155,6 +155,7 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 					SourceChainGatewayContractAddress: sourceGatewayAddress,
 				})
 				if err != nil && !errors.Is(err, sql.ErrNoRows) {
+					metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 					return fmt.Errorf("order %s does not exist, setting status to abandoned: %w", fill.OrderID, err)
 				}
 				continue
@@ -170,6 +171,7 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 			metrics.FromContext(ctx).IncOrderSettlements(sourceChainID, chain.ChainID, dbtypes.SettlementStatusPending)
 
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.INSERT)
 				return fmt.Errorf("failed to insert settlement: %w", err)
 			}
 		}
@@ -255,6 +257,7 @@ func (r *OrderSettler) verifyOrderSettlements(ctx context.Context) error {
 func (r *OrderSettler) PendingSettlementBatches(ctx context.Context) ([]types.SettlementBatch, error) {
 	pendingSettlements, err := r.db.GetAllOrderSettlementsWithSettlementStatus(ctx, dbtypes.SettlementStatusPending)
 	if err != nil {
+		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 		return nil, fmt.Errorf("getting orders pending settlement: %w", err)
 	}
 	return types.IntoSettlementBatches(pendingSettlements)
@@ -263,6 +266,7 @@ func (r *OrderSettler) PendingSettlementBatches(ctx context.Context) ([]types.Se
 func (r *OrderSettler) InitiatedSettlements(ctx context.Context) ([]db.OrderSettlement, error) {
 	iniatedSettlements, err := r.db.GetAllOrderSettlementsWithSettlementStatus(ctx, dbtypes.SettlementStatusSettlementInitiated)
 	if err != nil {
+		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 		return nil, fmt.Errorf("getting orders that have initiated settlement: %w", err)
 	}
 	return iniatedSettlements, nil
@@ -356,6 +360,7 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 		return nil
 	}, nil)
 	if err != nil {
+		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.INSERT)
 		return fmt.Errorf("recording batch settlement result: %w", err)
 	}
 
@@ -394,6 +399,7 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 				SettlementStatus:                  dbtypes.SettlementStatusFailed,
 				SettlementStatusMessage:           sql.NullString{String: failure.String(), Valid: true},
 			}); err != nil {
+				metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 				return fmt.Errorf("failed to set relay status to failed: %w", err)
 			}
 			if gasCost == nil {
@@ -408,6 +414,7 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 			SourceChainGatewayContractAddress: settlement.SourceChainGatewayContractAddress,
 			SettlementStatus:                  dbtypes.SettlementStatusSettlementInitiated,
 		}); err != nil {
+			metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 			return fmt.Errorf("failed to set relay status to complete: %w", err)
 		}
 	}
@@ -425,6 +432,7 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 			SourceChainGatewayContractAddress: settlement.SourceChainGatewayContractAddress,
 			SettlementStatus:                  dbtypes.SettlementStatusComplete,
 		}); err != nil {
+			metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 			return fmt.Errorf("failed to set relay status to complete: %w", err)
 		}
 
