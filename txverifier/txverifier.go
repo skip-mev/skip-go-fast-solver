@@ -4,18 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	dbtypes "github.com/skip-mev/go-fast-solver/db"
-	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
 	"time"
-
-	coingecko2 "github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
 
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
+	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
+	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
+	"github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 )
 
 type Config struct {
@@ -34,7 +34,7 @@ type Database interface {
 type TxVerifier struct {
 	db            Database
 	clientManager *clientmanager.ClientManager
-	PriceClient   coingecko2.PriceClient
+	PriceClient   coingecko.PriceClient
 }
 
 func NewTxVerifier(ctx context.Context, db Database, clientManager *clientmanager.ClientManager) (*TxVerifier, error) {
@@ -43,7 +43,7 @@ func NewTxVerifier(ctx context.Context, db Database, clientManager *clientmanage
 	return &TxVerifier{
 		db:            db,
 		clientManager: clientManager,
-		PriceClient:   coingecko2.NewCachedPriceClient(coingecko2.DefaultCoingeckoClient(coingeckoConfig), coingeckoConfig.CacheRefreshInterval),
+		PriceClient:   coingecko.NewCachedPriceClient(coingecko.DefaultCoingeckoClient(coingeckoConfig), coingeckoConfig.CacheRefreshInterval),
 	}, nil
 }
 
@@ -63,6 +63,7 @@ func (r *TxVerifier) Run(ctx context.Context) {
 func (r *TxVerifier) verifyTxs(ctx context.Context) {
 	submittedTxs, err := r.db.GetSubmittedTxsWithStatus(ctx, dbtypes.TxStatusPending)
 	if err != nil {
+		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 		lmt.Logger(ctx).Error("error getting pending txs", zap.Error(err))
 		return
 	}
@@ -102,21 +103,25 @@ func (r *TxVerifier) VerifyTx(ctx context.Context, submittedTx db.SubmittedTx) e
 		return fmt.Errorf("failed to get tx result: %w", err)
 	} else if failure != nil {
 		lmt.Logger(ctx).Error("tx failed", zap.String("failure", failure.String()))
+		metrics.FromContext(ctx).IncTransactionVerified(false, submittedTx.ChainID)
 		if _, err := r.db.SetSubmittedTxStatus(ctx, db.SetSubmittedTxStatusParams{
 			TxStatus:        dbtypes.TxStatusFailed,
 			TxHash:          submittedTx.TxHash,
 			ChainID:         submittedTx.ChainID,
 			TxStatusMessage: sql.NullString{String: failure.String(), Valid: true},
 		}); err != nil {
+			metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 			return fmt.Errorf("failed to set tx status to failed: %w", err)
 		}
 		return fmt.Errorf("tx failed: %s", failure.String())
 	} else {
+		metrics.FromContext(ctx).IncTransactionVerified(true, submittedTx.ChainID)
 		if _, err := r.db.SetSubmittedTxStatus(ctx, db.SetSubmittedTxStatusParams{
 			TxStatus: dbtypes.TxStatusSuccess,
 			TxHash:   submittedTx.TxHash,
 			ChainID:  submittedTx.ChainID,
 		}); err != nil {
+			metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 			return fmt.Errorf("failed to set tx status to success: %w", err)
 		}
 	}

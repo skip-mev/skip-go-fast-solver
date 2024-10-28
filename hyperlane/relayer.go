@@ -12,6 +12,7 @@ import (
 
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
@@ -166,6 +167,7 @@ func (r *relayer) checkpointAtIndex(
 			continue
 		}
 		if err != nil {
+			metrics.FromContext(ctx).IncHyperlaneCheckpointingErrors()
 			return types.MultiSigSignedCheckpoint{}, fmt.Errorf("fetching checkpoint at index %d: %w", index, err)
 		}
 

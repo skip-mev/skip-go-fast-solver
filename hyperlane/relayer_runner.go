@@ -11,6 +11,7 @@ import (
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"go.uber.org/zap"
 )
 
@@ -65,6 +66,7 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 			// grab all pending hyperlane transfers from the db
 			transfers, err := r.db.GetAllHyperlaneTransfersWithTransferStatus(ctx, dbtypes.TransferStatusPending)
 			if err != nil {
+				metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 				return fmt.Errorf("getting pending hyperlane transfers: %w", err)
 			}
 
@@ -101,6 +103,7 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 					TxType:              dbtypes.TxTypeHyperlaneMessageDelivery,
 					TxStatus:            dbtypes.TxStatusPending,
 				}); err != nil {
+					metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.INSERT)
 					lmt.Logger(ctx).Error(
 						"error inserting submitted tx for hyperlane transfer",
 						zap.Error(err),
@@ -125,12 +128,17 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 		return false, fmt.Errorf("checking if message with id %s has been delivered: %w", transfer.MessageID, err)
 	}
 	if delivered {
+		metrics.FromContext(ctx).IncHyperlaneMessages(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusSuccess)
+		metrics.FromContext(ctx).DecHyperlaneMessages(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusPending)
+		metrics.FromContext(ctx).ObserveHyperlaneLatency(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusSuccess, time.Since(transfer.CreatedAt))
+
 		if _, err := r.db.SetMessageStatus(ctx, db.SetMessageStatusParams{
 			TransferStatus:     dbtypes.TransferStatusSuccess,
 			SourceChainID:      transfer.SourceChainID,
 			DestinationChainID: transfer.DestinationChainID,
 			MessageID:          transfer.MessageID,
 		}); err != nil {
+			metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 			return false, fmt.Errorf("setting message status to success: %w", err)
 		}
 		lmt.Logger(ctx).Info(
@@ -144,9 +152,14 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 
 	txs, err := r.db.GetSubmittedTxsByHyperlaneTransferId(ctx, sql.NullInt64{Int64: transfer.ID, Valid: true})
 	if err != nil {
+		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 		return false, fmt.Errorf("getting submitted txs by hyperlane transfer id %d: %w", transfer.ID, err)
 	}
 	if len(txs) > 0 {
+		metrics.FromContext(ctx).IncHyperlaneMessages(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusAbandoned)
+		metrics.FromContext(ctx).DecHyperlaneMessages(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusPending)
+		metrics.FromContext(ctx).ObserveHyperlaneLatency(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusAbandoned, time.Since(transfer.CreatedAt))
+
 		// for now we will not attempt to submit the hyperlane message more than once.
 		// this is to avoid the gas cost of repeatedly landing a failed hyperlane delivery tx.
 		// in the future we may add more sophistication around retries
@@ -171,6 +184,7 @@ func (r *RelayerRunner) findSettlementsToRelay(ctx context.Context) error {
 	// settlements that should be relayed
 	pendingSettlements, err := r.db.GetAllOrderSettlementsWithSettlementStatus(ctx, dbtypes.SettlementStatusSettlementInitiated)
 	if err != nil {
+		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 		return fmt.Errorf("getting pending order settlements: %w", err)
 	}
 
@@ -198,6 +212,7 @@ func (r *RelayerRunner) findSettlementsToRelay(ctx context.Context) error {
 			return fmt.Errorf("getting destination chainID by hyperlane domain %s: %w", dispatch.DestinationDomain, err)
 		}
 
+		metrics.FromContext(ctx).IncHyperlaneMessages(pending.SourceChainID, destinationChainID, dbtypes.TransferStatusPending)
 		if _, err := r.db.InsertHyperlaneTransfer(ctx, db.InsertHyperlaneTransferParams{
 			SourceChainID:      pending.DestinationChainID,
 			DestinationChainID: destinationChainID,
@@ -205,6 +220,7 @@ func (r *RelayerRunner) findSettlementsToRelay(ctx context.Context) error {
 			MessageSentTx:      pending.InitiateSettlementTx.String,
 			TransferStatus:     dbtypes.TransferStatusPending,
 		}); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.INSERT)
 			return fmt.Errorf("inserting hyperlane transfer: %w", err)
 		}
 	}
@@ -219,6 +235,7 @@ func (r *RelayerRunner) findTimeoutsToRelay(ctx context.Context) error {
 		TxType:      dbtypes.TxTypeInitiateTimeout,
 	})
 	if err != nil {
+		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 		return fmt.Errorf("getting submitted txs for expired orders pending refunds: %w", err)
 	}
 
@@ -238,6 +255,7 @@ func (r *RelayerRunner) findTimeoutsToRelay(ctx context.Context) error {
 			return fmt.Errorf("getting destination chainID by hyperlane domain %s: %w", dispatch.DestinationDomain, err)
 		}
 
+		metrics.FromContext(ctx).IncHyperlaneMessages(timeoutTx.ChainID, destinationChainID, dbtypes.TransferStatusPending)
 		if _, err := r.db.InsertHyperlaneTransfer(ctx, db.InsertHyperlaneTransferParams{
 			SourceChainID:      timeoutTx.ChainID,
 			DestinationChainID: destinationChainID,
@@ -245,6 +263,7 @@ func (r *RelayerRunner) findTimeoutsToRelay(ctx context.Context) error {
 			MessageSentTx:      timeoutTx.TxHash,
 			TransferStatus:     dbtypes.TransferStatusPending,
 		}); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.INSERT)
 			return fmt.Errorf("inserting hyperlane transfer: %w", err)
 		}
 	}
