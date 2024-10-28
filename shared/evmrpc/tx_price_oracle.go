@@ -32,11 +32,14 @@ func (o *Oracle) TxFeeUUSDC(ctx context.Context, tx *types.Transaction) (*big.In
 		return nil, fmt.Errorf("tx type must be dynamic fee tx, got %d", tx.Type())
 	}
 
+	// for a dry ran tx, GasFeeCap() will be the suggested gas tip cap + base
+	// fee of current chain head
 	estimatedPricePerGas := tx.GasFeeCap()
 	if estimatedPricePerGas == nil {
 		return nil, fmt.Errorf("tx's gas fee cap must be set")
 	}
 
+	// for a dry ran tx, Gas() will be the result of calling eth_estimateGas
 	estimatedGasUsed := tx.Gas()
 	return o.gasCostUUSDC(ctx, estimatedPricePerGas, big.NewInt(int64(estimatedGasUsed)))
 }
@@ -54,18 +57,13 @@ func (o *Oracle) gasCostUUSDC(ctx context.Context, pricePerGasGwei *big.Int, gas
 	}
 	const GWEI_PER_ETH = 1000000000
 	gweiPriceUSD := new(big.Float).Quo(big.NewFloat(ethPriceUSD), big.NewFloat(GWEI_PER_ETH))
-	fmt.Println("gwei price usd", gweiPriceUSD.String())
 
 	// get the tx fee in usd and convert to uusdc
 	txFeeUSD := new(big.Float).Mul(txFeeGwei, gweiPriceUSD)
-	fmt.Println("tx fee usd", txFeeUSD.String())
 
 	// assuming 1usd == 1usdc
 	const UUSDC_PER_USDC = 1000000
 	txFeeUUSDC := new(big.Float).Mul(txFeeUSD, big.NewFloat(UUSDC_PER_USDC))
-	fmt.Println("tx fee uusdc", txFeeUUSDC.String())
-
-	fmt.Println("tx fee uusdc is int", txFeeUUSDC.IsInt())
 
 	// we may be off by 1 uusdc in either direction here due to floating point
 	// numbers being annoying
