@@ -51,18 +51,6 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			// find settlement txns in the db and insert them as pending
-			// hyperlane txns in the hyperlane table
-			if err := r.findSettlementsToRelay(ctx); err != nil {
-				return fmt.Errorf("finding settlements txns to relay: %w", err)
-			}
-
-			// find timeout txns in the db and insert them as pending hyperlane
-			// txns in the hyperlane table
-			if err := r.findTimeoutsToRelay(ctx); err != nil {
-				return fmt.Errorf("finding timeout txns to relay: %w", err)
-			}
-
 			// grab all pending hyperlane transfers from the db
 			transfers, err := r.db.GetAllHyperlaneTransfersWithTransferStatus(ctx, dbtypes.TransferStatusPending)
 			if err != nil {
@@ -84,19 +72,7 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 					continue
 				}
 
-				var opts RelayOpts
-				if transfer.MaxGasPricePct.Valid && transfer.TransferValue.Valid {
-					totalRelayValue, ok := new(big.Int).SetString(transfer.TransferValue.String, 10)
-					if !ok {
-						lmt.Logger(ctx).Error("could not convert relay transfer value to *big.Int", zap.String("transferValue", transfer.TransferValue.String))
-						continue
-					}
-					opts.Profitability = &Profitability{
-						MaxGasPricePct:  uint8(transfer.MaxGasPricePct.Int64),
-						TotalRelayValue: totalRelayValue,
-					}
-				}
-				destinationTxHash, destinationChainID, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx, opts)
+				destinationTxHash, destinationChainID, err := r.relayTransfer(ctx, transfer)
 				if err != nil {
 					lmt.Logger(ctx).Error(
 						"error relaying pending hyperlane transfer",
@@ -104,7 +80,6 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 						zap.String("sourceChainID", transfer.SourceChainID),
 						zap.String("txHash", transfer.MessageSentTx),
 					)
-					continue
 				}
 
 				if _, err := r.db.InsertSubmittedTx(ctx, db.InsertSubmittedTxParams{
@@ -125,6 +100,30 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+// relayTransfer constructs relay options and calls the relayer to relay
+// preform a hyperlane relay on a dispatch message. Returning the destination
+// chain tx hash and the destination chain id.
+func (r *RelayerRunner) relayTransfer(ctx context.Context, transfer db.HyperlaneTransfer) (string, string, error) {
+	var opts RelayOpts
+	if transfer.MaxGasPricePct.Valid && transfer.TransferValue.Valid {
+		totalRelayValue, ok := new(big.Int).SetString(transfer.TransferValue.String, 10)
+		if !ok {
+			return "", "", fmt.Errorf("could not convert relay transfer value %s to *big.Int", transfer.TransferValue.String)
+		}
+		opts.Profitability = &Profitability{
+			MaxGasPricePct:  uint8(transfer.MaxGasPricePct.Int64),
+			TotalRelayValue: totalRelayValue,
+		}
+	}
+
+	destinationTxHash, destinationChainID, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx, opts)
+	if err != nil {
+		return "", "", fmt.Errorf("relaying pending hyperlane transfer with tx hash %s from chainID %s: %w", transfer.MessageSentTx, transfer.SourceChainID, err)
+	}
+
+	return destinationTxHash, destinationChainID, err
 }
 
 // checkHyperlaneTransferStatus checks if a hyperlane transfer should be
@@ -175,93 +174,6 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 	}
 
 	return true, nil
-}
-
-// settlements that have been initiated and creates pending hyperlane transfers
-// from them
-func (r *RelayerRunner) findSettlementsToRelay(ctx context.Context) error {
-	// poll the order settler db table and check if there are any new order
-	// settlements that should be relayed
-	pendingSettlements, err := r.db.GetAllOrderSettlementsWithSettlementStatus(ctx, dbtypes.SettlementStatusSettlementInitiated)
-	if err != nil {
-		return fmt.Errorf("getting pending order settlements: %w", err)
-	}
-
-	for _, pending := range pendingSettlements {
-		if !pending.InitiateSettlementTx.Valid {
-			lmt.Logger(ctx).Debug(
-				"found pending order settlement without valid initiate settlement tx",
-				zap.Int64("ID", pending.ID),
-			)
-			continue
-		}
-
-		destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(pending.DestinationChainID)
-		if err != nil {
-			return fmt.Errorf("getting destination chain config for chainID %s: %w", pending.DestinationChainID, err)
-		}
-
-		dispatch, _, err := r.hyperlane.GetHyperlaneDispatch(ctx, destinationChainConfig.HyperlaneDomain, pending.DestinationChainID, pending.InitiateSettlementTx.String)
-		if err != nil {
-			return fmt.Errorf("parsing tx results: %w", err)
-		}
-
-		destinationChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(dispatch.DestinationDomain)
-		if err != nil {
-			return fmt.Errorf("getting destination chainID by hyperlane domain %s: %w", dispatch.DestinationDomain, err)
-		}
-
-		if _, err := r.db.InsertHyperlaneTransfer(ctx, db.InsertHyperlaneTransferParams{
-			SourceChainID:      pending.DestinationChainID,
-			DestinationChainID: destinationChainID,
-			MessageID:          dispatch.MessageID,
-			MessageSentTx:      pending.InitiateSettlementTx.String,
-			TransferStatus:     dbtypes.TransferStatusPending,
-		}); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("inserting hyperlane transfer: %w", err)
-		}
-	}
-	return nil
-}
-
-func (r *RelayerRunner) findTimeoutsToRelay(ctx context.Context) error {
-	// poll the order settler db table and check if there are any new order
-	// settlements that should be relayed
-	timeoutTxs, err := r.db.GetSubmittedTxsByOrderStatusAndType(ctx, db.GetSubmittedTxsByOrderStatusAndTypeParams{
-		OrderStatus: dbtypes.OrderStatusExpiredPendingRefund,
-		TxType:      dbtypes.TxTypeInitiateTimeout,
-	})
-	if err != nil {
-		return fmt.Errorf("getting submitted txs for expired orders pending refunds: %w", err)
-	}
-
-	for _, timeoutTx := range timeoutTxs {
-		sourceChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(timeoutTx.ChainID)
-		if err != nil {
-			return fmt.Errorf("getting source chain config for chainID %s: %w", timeoutTx.ChainID, err)
-		}
-
-		dispatch, _, err := r.hyperlane.GetHyperlaneDispatch(ctx, sourceChainConfig.HyperlaneDomain, timeoutTx.ChainID, timeoutTx.TxHash)
-		if err != nil {
-			return fmt.Errorf("parsing tx results: %w", err)
-		}
-
-		destinationChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(dispatch.DestinationDomain)
-		if err != nil {
-			return fmt.Errorf("getting destination chainID by hyperlane domain %s: %w", dispatch.DestinationDomain, err)
-		}
-
-		if _, err := r.db.InsertHyperlaneTransfer(ctx, db.InsertHyperlaneTransferParams{
-			SourceChainID:      timeoutTx.ChainID,
-			DestinationChainID: destinationChainID,
-			MessageID:          dispatch.MessageID,
-			MessageSentTx:      timeoutTx.TxHash,
-			TransferStatus:     dbtypes.TransferStatusPending,
-		}); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("inserting hyperlane transfer: %w", err)
-		}
-	}
-	return nil
 }
 
 // RelayOpts provides users options for how the relayer should be have when

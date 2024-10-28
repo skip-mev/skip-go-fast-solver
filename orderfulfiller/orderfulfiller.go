@@ -24,7 +24,8 @@ const (
 type OrderFulfillmentHandler interface {
 	UpdateFulfillmentStatus(ctx context.Context, order db.Order) (fulfillmentStatus string, err error)
 	FillOrder(ctx context.Context, order db.Order) (string, error)
-	InitiateTimeout(ctx context.Context, order db.Order) error
+	InitiateTimeout(ctx context.Context, order db.Order) (string, error)
+	SubmitTimeoutForRelay(ctx context.Context, order db.Order, txHash string) error
 }
 
 type Database interface {
@@ -106,26 +107,53 @@ func (r *OrderFulfiller) startOrderTimeoutWorker(ctx context.Context) {
 				lmt.Logger(ctx).Error("error getting expired orders", zap.Error(err))
 				continue
 			}
+
 			for _, order := range orders {
-				if fulfillmentStatus, err := r.fillHandler.UpdateFulfillmentStatus(ctx, order); err != nil {
+				fulfillmentStatus, err := r.fillHandler.UpdateFulfillmentStatus(ctx, order)
+				if err != nil {
 					lmt.Logger(ctx).Warn(
 						"error updating fulfillment status",
 						zap.Error(err),
 						zap.String("orderID", order.OrderID),
 						zap.String("sourceChainID", order.SourceChainID),
+						zap.String("destinationChainID", order.DestinationChainID),
 					)
-				} else if fulfillmentStatus == dbtypes.OrderStatusExpiredPendingRefund && r.shouldRefundOrders {
-					if err := r.fillHandler.InitiateTimeout(ctx, order); err != nil {
-						lmt.Logger(ctx).Warn(
-							"error initiating timeout",
-							zap.Error(err),
-							zap.String("orderID", order.OrderID),
-							zap.String("sourceChainID", order.SourceChainID),
-						)
-					} else {
-						lmt.Logger(ctx).Info("successfully initiated timeout", zap.String("orderID", order.OrderID), zap.String("sourceChainID", order.SourceChainID))
-					}
+					continue
 				}
+
+				// do not try and refund this order
+				if !r.shouldRefundOrders || fulfillmentStatus != dbtypes.OrderStatusExpiredPendingRefund {
+					continue
+				}
+
+				txHash, err := r.fillHandler.InitiateTimeout(ctx, order)
+				if err != nil {
+					lmt.Logger(ctx).Warn(
+						"error initiating timeout",
+						zap.Error(err),
+						zap.String("orderID", order.OrderID),
+						zap.String("sourceChainID", order.SourceChainID),
+						zap.String("destinationChainID", order.DestinationChainID),
+					)
+					continue
+				}
+				if err = r.fillHandler.SubmitTimeoutForRelay(ctx, order, txHash); err != nil {
+					lmt.Logger(ctx).Warn(
+						"error submitting timeout to be relayed",
+						zap.Error(err),
+						zap.String("orderID", order.OrderID),
+						zap.String("sourceChainID", order.SourceChainID),
+						zap.String("destinationChainID", order.DestinationChainID),
+					)
+					continue
+				}
+
+				lmt.Logger(ctx).Info(
+					"successfully initiated timeout",
+					zap.String("orderID", order.OrderID),
+					zap.String("sourceChainID", order.SourceChainID),
+					zap.String("destinationChainID", order.DestinationChainID),
+				)
 			}
 		}
 	}

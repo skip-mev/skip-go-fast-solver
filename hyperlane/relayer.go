@@ -35,7 +35,7 @@ func NewRelayer(hyperlaneClient Client, storageLocationOverrides map[string]stri
 
 var (
 	ErrMessageAlreadyDelivered = fmt.Errorf("message has already been delivered")
-	ErrRelayNotProfitable      = fmt.Errorf("relay not profitable")
+	ErrRelayNotProfitable      = fmt.Errorf("relay not currently profitable")
 )
 
 func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHash string, opts RelayOpts) (destinationTxHash string, destinationChainID string, err error) {
