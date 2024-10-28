@@ -176,7 +176,7 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 	}
 	if delivered {
 		metrics.FromContext(ctx).IncHyperlaneMessages(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusSuccess)
-		metrics.FromContext(ctx).DecHyperlaneMessages(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusSuccess)
+		metrics.FromContext(ctx).DecHyperlaneMessages(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusPending)
 		metrics.FromContext(ctx).ObserveHyperlaneLatency(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusSuccess, time.Since(transfer.CreatedAt))
 
 		if _, err := r.db.SetMessageStatus(ctx, db.SetMessageStatusParams{
