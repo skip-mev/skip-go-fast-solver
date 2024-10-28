@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"math/big"
 	"strings"
 	"time"
@@ -172,6 +173,10 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 		return false, fmt.Errorf("checking if message with id %s has been delivered: %w", transfer.MessageID, err)
 	}
 	if delivered {
+		metrics.FromContext(ctx).IncHyperlaneMessages(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusSuccess)
+		metrics.FromContext(ctx).DecHyperlaneMessages(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusSuccess)
+		metrics.FromContext(ctx).ObserveHyperlaneLatency(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusSuccess, time.Since(transfer.CreatedAt))
+
 		if _, err := r.db.SetMessageStatus(ctx, db.SetMessageStatusParams{
 			TransferStatus:     dbtypes.TransferStatusSuccess,
 			SourceChainID:      transfer.SourceChainID,
@@ -194,6 +199,10 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 		return false, fmt.Errorf("getting submitted txs by hyperlane transfer id %d: %w", transfer.ID, err)
 	}
 	if len(txs) > 0 {
+		metrics.FromContext(ctx).IncHyperlaneMessages(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusAbandoned)
+		metrics.FromContext(ctx).DecHyperlaneMessages(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusPending)
+		metrics.FromContext(ctx).ObserveHyperlaneLatency(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusAbandoned, time.Since(transfer.CreatedAt))
+
 		// for now we will not attempt to submit the hyperlane message more than once.
 		// this is to avoid the gas cost of repeatedly landing a failed hyperlane delivery tx.
 		// in the future we may add more sophistication around retries
@@ -259,6 +268,7 @@ func (r *RelayerRunner) SubmitTxToRelay(
 	if _, err := r.db.InsertHyperlaneTransfer(ctx, insert); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("inserting hyperlane transfer: %w", err)
 	}
+	metrics.FromContext(ctx).IncHyperlaneMessages(sourceChainID, destinationChainID, dbtypes.TransferStatusPending)
 
 	return nil
 }

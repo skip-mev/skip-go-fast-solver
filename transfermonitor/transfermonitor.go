@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"math/big"
 	"strings"
 	"sync"
@@ -148,6 +149,7 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 							errorInsertingOrder = true
 							break
 						}
+						metrics.FromContext(ctx).IncFillOrders(order.ChainID, order.DestinationChainID, dbtypes.OrderStatusPending)
 					}
 				}
 				lmt.Logger(ctx).Debug("num orders found while processing blocks", zap.Int("numOrders", len(orders)))

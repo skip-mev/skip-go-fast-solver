@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"math/big"
 
 	"strings"
@@ -185,6 +186,7 @@ func (r *relayer) checkpointAtIndex(
 			continue
 		}
 		if err != nil {
+			metrics.FromContext(ctx).IncHyperlaneCheckpointingErrors()
 			return types.MultiSigSignedCheckpoint{}, fmt.Errorf("fetching checkpoint at index %d: %w", index, err)
 		}
 

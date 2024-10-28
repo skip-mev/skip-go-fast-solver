@@ -187,6 +187,8 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 				SettlementStatus:                  dbtypes.SettlementStatusPending,
 				Amount:                            amount.String(),
 			})
+			metrics.FromContext(ctx).IncOrderSettlements(sourceChainID, chain.ChainID, dbtypes.SettlementStatusPending)
+
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return fmt.Errorf("failed to insert settlement: %w", err)
 			}
@@ -496,6 +498,11 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 		return "", fmt.Errorf("getting destination bridge client: %w", err)
 	}
 	txHash, rawTx, err := destinationBridgeClient.InitiateBatchSettlement(ctx, batch)
+	metrics.FromContext(ctx).IncTransactionSubmitted(
+		err == nil,
+		batch.SourceChainID(),
+		batch.DestinationChainID(),
+	)
 	if err != nil {
 		return "", fmt.Errorf("initiating batch settlement on chain %s: %w", batch.DestinationChainID(), err)
 	}
@@ -506,10 +513,6 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 			zap.Any("batchOrderIDs", batch.OrderIDs()),
 		)
 		return "", fmt.Errorf("empty batch settlement transaction")
-	}
-
-	if err = recordBatchSettlementSubmittedMetric(ctx, batch); err != nil {
-		return "", fmt.Errorf("recording batch settlement submitted metrics: %w", err)
 	}
 
 	err = r.db.InTx(ctx, func(ctx context.Context, q db.Querier) error {
@@ -551,30 +554,6 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 	return txHash, nil
 }
 
-// recordBatchSettlementSubmittedMetric records a transaction submitted metric for a
-// batch settlement
-func recordBatchSettlementSubmittedMetric(ctx context.Context, batch types.SettlementBatch) error {
-	sourceChainConfig, err := batch.SourceChainConfig(ctx)
-	if err != nil {
-		return fmt.Errorf("getting source chain config for batch: %w", err)
-	}
-	destinationChainConfig, err := batch.DestinationChainConfig(ctx)
-	if err != nil {
-		return fmt.Errorf("getting destination chain config for batch: %w", err)
-	}
-
-	metrics.FromContext(ctx).AddTransactionSubmitted(
-		err == nil,
-		batch.SourceChainID(),
-		batch.DestinationChainID(),
-		sourceChainConfig.ChainName,
-		destinationChainConfig.ChainName,
-		string(sourceChainConfig.Environment),
-	)
-
-	return nil
-}
-
 // verifyOrderSettlement checks if an order settlement tx is complete on chain
 // and updates the order settlement status in the db accordingly.
 func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.OrderSettlement) error {
@@ -601,6 +580,10 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 			return fmt.Errorf("failed to fetch message received event: %w", err)
 		} else if failure != nil {
 			lmt.Logger(ctx).Error("tx failed", zap.String("failure", failure.String()))
+			metrics.FromContext(ctx).IncOrderSettlements(settlement.SourceChainID, settlement.DestinationChainID, dbtypes.SettlementStatusFailed)
+			metrics.FromContext(ctx).DecOrderSettlements(settlement.SourceChainID, settlement.DestinationChainID, dbtypes.SettlementStatusPending)
+			metrics.FromContext(ctx).ObserveSettlementLatency(settlement.SourceChainID, settlement.DestinationChainID, dbtypes.SettlementStatusFailed, time.Since(settlement.CreatedAt))
+
 			if _, err := r.db.SetSettlementStatus(ctx, db.SetSettlementStatusParams{
 				SourceChainID:                     settlement.SourceChainID,
 				OrderID:                           settlement.OrderID,
@@ -629,6 +612,10 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 	if settlementIsComplete, err := sourceBridgeClient.IsSettlementComplete(ctx, settlement.SourceChainGatewayContractAddress, settlement.OrderID); err != nil {
 		return fmt.Errorf("failed to check if settlement is complete: %w", err)
 	} else if settlementIsComplete {
+		metrics.FromContext(ctx).ObserveSettlementLatency(settlement.SourceChainID, settlement.DestinationChainID, settlement.SettlementStatus, time.Since(settlement.CreatedAt))
+		metrics.FromContext(ctx).IncOrderSettlements(settlement.SourceChainID, settlement.DestinationChainID, dbtypes.SettlementStatusComplete)
+		metrics.FromContext(ctx).DecOrderSettlements(settlement.SourceChainID, settlement.DestinationChainID, dbtypes.SettlementStatusPending)
+
 		if _, err := r.db.SetSettlementStatus(ctx, db.SetSettlementStatusParams{
 			SourceChainID:                     settlement.SourceChainID,
 			OrderID:                           settlement.OrderID,
@@ -637,6 +624,7 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 		}); err != nil {
 			return fmt.Errorf("failed to set relay status to complete: %w", err)
 		}
+
 		return nil
 	}
 
