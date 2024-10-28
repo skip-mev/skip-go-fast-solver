@@ -80,8 +80,8 @@ type PromMetrics struct {
 	hplCheckpointingErrors metrics.Counter
 	hplLatency             metrics.Histogram
 
-	transferSizeExceeded metrics.Histogram
-	feeBpsRejections     metrics.Histogram
+	amountTransferSizeExceeded metrics.Histogram
+	feeBpsRejections           metrics.Histogram
 
 	databaseErrors metrics.Counter
 }
@@ -116,15 +116,15 @@ func NewPromMetrics() Metrics {
 		}, []string{successLabel, chainIDLabel}),
 		fillLatency: prom.NewHistogramFrom(stdprom.HistogramOpts{
 			Namespace: "solver",
-			Name:      "latency_per_fill",
-			Help:      "latency from source transaction to fill completion, paginated by source and destination chain id",
-			Buckets:   []float64{30, 60, 300, 600, 900, 1200, 1500, 1800, 2400, 3000, 3600},
+			Name:      "latency_per_fill_minutes",
+			Help:      "latency from source transaction to fill completion, paginated by source and destination chain id (in minutes)",
+			Buckets:   []float64{5, 15, 30, 60, 120, 180},
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, orderStatusLabel}),
 		settlementLatency: prom.NewHistogramFrom(stdprom.HistogramOpts{
 			Namespace: "solver",
-			Name:      "latency_per_settlement",
-			Help:      "latency from source transaction to fill completion, paginated by source and destination chain id",
-			Buckets:   []float64{30, 60, 300, 600, 900, 1200, 1500, 1800, 2400, 3000, 3600},
+			Name:      "latency_per_settlement_minutes",
+			Help:      "latency from source transaction to fill completion, paginated by source and destination chain id (in minutes)",
+			Buckets:   []float64{5, 15, 30, 60, 120, 180},
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, settlementStatusLabel}),
 		hplMessages: prom.NewGaugeFrom(stdprom.GaugeOpts{
 			Namespace: "solver",
@@ -139,14 +139,14 @@ func NewPromMetrics() Metrics {
 		}, []string{}),
 		hplLatency: prom.NewHistogramFrom(stdprom.HistogramOpts{
 			Namespace: "solver",
-			Name:      "latency_per_hpl_message",
-			Help:      "latency for hyperlane message relaying, paginated by status, source and destination chain id",
+			Name:      "latency_per_hpl_message_seconds",
+			Help:      "latency for hyperlane message relaying, paginated by status, source and destination chain id (in seconds)",
 			Buckets:   []float64{30, 60, 300, 600, 900, 1200, 1500, 1800, 2400, 3000, 3600},
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, transferStatusLabel}),
-		transferSizeExceeded: prom.NewHistogramFrom(stdprom.HistogramOpts{
+		amountTransferSizeExceeded: prom.NewHistogramFrom(stdprom.HistogramOpts{
 			Namespace: "solver",
-			Name:      "transfer_size_exceeded",
-			Help:      "histogram of transfer sizes that exceeded max fill size",
+			Name:      "amount_transfer_size_exceeded",
+			Help:      "histogram of fill orders that exceeded max fill size",
 			Buckets: []float64{
 				100000000,     // 100 USDC
 				1000000000,    // 1,000 USDC
@@ -178,11 +178,11 @@ func (m *PromMetrics) IncTransactionVerified(success bool, chainID string) {
 }
 
 func (m *PromMetrics) ObserveFillLatency(sourceChainID, destinationChainID, orderStatus string, latency time.Duration) {
-	m.fillLatency.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, orderStatusLabel, orderStatus).Observe(latency.Seconds())
+	m.fillLatency.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, orderStatusLabel, orderStatus).Observe(latency.Minutes())
 }
 
 func (m *PromMetrics) ObserveSettlementLatency(sourceChainID, destinationChainID, settlementStatus string, latency time.Duration) {
-	m.settlementLatency.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, settlementStatusLabel, settlementStatus).Observe(latency.Seconds())
+	m.settlementLatency.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, settlementStatusLabel, settlementStatus).Observe(latency.Minutes())
 }
 
 func (m *PromMetrics) ObserveHyperlaneLatency(sourceChainID, destinationChainID, transferStatus string, latency time.Duration) {
@@ -224,7 +224,7 @@ func (m *PromMetrics) DecHyperlaneMessages(sourceChainID, destinationChainID, me
 }
 
 func (m *PromMetrics) ObserveTransferSizeExceeded(sourceChainID, destinationChainID string, transferSize uint64) {
-	m.transferSizeExceeded.With(
+	m.amountTransferSizeExceeded.With(
 		sourceChainIDLabel, sourceChainID,
 		destinationChainIDLabel, destinationChainID,
 	).Observe(float64(transferSize))
