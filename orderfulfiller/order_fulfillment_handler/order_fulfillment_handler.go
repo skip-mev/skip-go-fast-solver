@@ -197,10 +197,10 @@ func (r *orderFulfillmentHandler) FillOrder(
 	}
 
 	txHash, rawTx, _, err := destinationChainBridgeClient.FillOrder(ctx, order, destinationChainGatewayContractAddress)
+	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, order.SourceChainID, order.DestinationChainID)
 	if err != nil {
 		return "", fmt.Errorf("filling order on destination chain at address %s: %w", destinationChainBridgeClient, err)
 	}
-	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, order.SourceChainID, order.DestinationChainID)
 
 	if _, err := r.db.InsertSubmittedTx(ctx, db.InsertSubmittedTxParams{
 		OrderID:  sql.NullInt64{Int64: order.ID, Valid: true},

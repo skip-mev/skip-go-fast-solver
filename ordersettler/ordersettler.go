@@ -168,12 +168,12 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 				OrderID:                           fill.OrderID,
 				SettlementStatus:                  dbtypes.SettlementStatusPending,
 			})
-			metrics.FromContext(ctx).IncOrderSettlements(sourceChainID, chain.ChainID, dbtypes.SettlementStatusPending)
 
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.INSERT)
 				return fmt.Errorf("failed to insert settlement: %w", err)
 			}
+			metrics.FromContext(ctx).IncOrderSettlements(sourceChainID, chain.ChainID, dbtypes.SettlementStatusPending)
 		}
 	}
 	return nil
