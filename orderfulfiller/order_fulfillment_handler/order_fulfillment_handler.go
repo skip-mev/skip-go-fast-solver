@@ -32,8 +32,6 @@ type orderFulfillmentHandler struct {
 }
 
 func NewOrderFulfillmentHandler(ctx context.Context, db orderfulfiller.Database, clientManager *clientmanager.ClientManager, relayer Relayer) (*orderFulfillmentHandler, error) {
-	coingeckoConfig := config.GetConfigReader(ctx).GetCoingeckoConfig()
-
 	return &orderFulfillmentHandler{
 		db:            db,
 		clientManager: clientManager,

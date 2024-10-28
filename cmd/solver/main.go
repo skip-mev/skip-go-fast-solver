@@ -105,7 +105,7 @@ func main() {
 	//})
 
 	eg.Go(func() error {
-		orderFillHandler, err := order_fulfillment_handler.NewOrderFulfillmentHandler(ctx, db.New(dbConn), clientManager)
+		orderFillHandler, err := order_fulfillment_handler.NewOrderFulfillmentHandler(ctx, db.New(dbConn), clientManager, relayerRunner)
 		if err != nil {
 			return err
 		}
