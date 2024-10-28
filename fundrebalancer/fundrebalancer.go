@@ -4,11 +4,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	dbtypes "github.com/skip-mev/go-fast-solver/db"
-	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"math/big"
 	"os"
 	"time"
+
+	dbtypes "github.com/skip-mev/go-fast-solver/db"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
@@ -341,6 +342,7 @@ func (r *FundRebalancer) usdcBalance(ctx context.Context, chainID string) (*big.
 func (r *FundRebalancer) pendingUSDCBalance(ctx context.Context, chainID string) (*big.Int, error) {
 	pendingTransfers, err := r.database.GetPendingRebalanceTransfersToChain(ctx, chainID)
 	if err != nil {
+		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 		return nil, fmt.Errorf("getting pending rebalance transfers to chain from db: %w", err)
 	}
 
@@ -591,6 +593,7 @@ func (r *FundRebalancer) SubmitTxns(
 			Amount:             signedTxn.Amount.String(),
 		}
 		if _, err := r.database.InsertRebalanceTransfer(ctx, args); err != nil {
+			metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.INSERT)
 			return nil, fmt.Errorf("inserting rebalance transaction with hash %s into db: %w", hash, err)
 		}
 
