@@ -5,11 +5,12 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"math/big"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 
 	"cosmossdk.io/math"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -82,6 +83,7 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 				var startBlockHeight uint64
 				transferMonitorMetadata, err := t.db.GetTransferMonitorMetadata(ctx, chainID)
 				if err != nil && !strings.Contains(err.Error(), "no rows in result set") {
+					metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 					lmt.Logger(ctx).Error("Error getting transfer monitor metadata", zap.Error(err))
 					continue
 				} else if err == nil {
@@ -145,6 +147,7 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 
 						_, err := t.db.InsertOrder(ctx, toInsert)
 						if err != nil && !strings.Contains(err.Error(), "sql: no rows in result set") {
+							metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.INSERT)
 							lmt.Logger(ctx).Error("Error inserting order", zap.Error(err))
 							errorInsertingOrder = true
 							break
@@ -162,6 +165,7 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 					HeightLastSeen: int64(endBlockHeight),
 				})
 				if err != nil {
+					metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.INSERT)
 					lmt.Logger(ctx).Error("Error inserting transfer monitor metadata", zap.Error(err))
 					continue
 				}

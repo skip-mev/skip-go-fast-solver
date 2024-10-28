@@ -18,6 +18,7 @@ const (
 	orderStatusLabel        = "order_status"
 	transferStatusLabel     = "transfer_status"
 	settlementStatusLabel   = "settlement_status"
+	operationLabel          = "operation"
 )
 
 type Metrics interface {
@@ -42,6 +43,8 @@ type Metrics interface {
 
 	ObserveTransferSizeOutOfRange(sourceChainID, destinationChainID string, amountExceededBy int64)
 	ObserveFeeBpsRejection(sourceChainID, destinationChainID string, feeBpsExceededBy int64)
+
+	IncDatabaseErrors(operation string)
 }
 
 type metricsContextKey struct{}
@@ -79,6 +82,8 @@ type PromMetrics struct {
 
 	transferSizeOutOfRange metrics.Histogram
 	feeBpsRejections       metrics.Histogram
+
+	databaseErrors metrics.Counter
 }
 
 func NewPromMetrics() Metrics {
@@ -159,6 +164,11 @@ func NewPromMetrics() Metrics {
 			Help:      "histogram of fee bps that were rejected for being too low",
 			Buckets:   []float64{1, 5, 10, 25, 50, 100, 200, 500, 1000},
 		}, []string{sourceChainIDLabel, destinationChainIDLabel}),
+		databaseErrors: prom.NewCounterFrom(stdprom.CounterOpts{
+			Namespace: "solver",
+			Name:      "database_errors_total",
+			Help:      "number of errors encountered when making database calls",
+		}, []string{}),
 	}
 }
 
@@ -216,7 +226,7 @@ func (m *PromMetrics) DecHyperlaneMessages(sourceChainID, destinationChainID, me
 	m.hplMessages.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, messageStatus).Add(-1)
 }
 
-func (m *PromMetrics) ObserveTransferSizeOutOfRange(sourceChainID, destinationChainID string, amountExceededBy int64) {
+func (m *PromMetrics) ObserveTransferSizeOutOfRange(sourceChainID, destinationChainID string, transferSize int64) {
 	m.transferSizeOutOfRange.With(
 		sourceChainIDLabel, sourceChainID,
 		destinationChainIDLabel, destinationChainID,
@@ -228,6 +238,10 @@ func (m *PromMetrics) ObserveFeeBpsRejection(sourceChainID, destinationChainID s
 		sourceChainIDLabel, sourceChainID,
 		destinationChainIDLabel, destinationChainID,
 	).Observe(float64(feeBps))
+}
+
+func (m *PromMetrics) IncDatabaseErrors(operation string) {
+	m.databaseErrors.With(operationLabel, operation).Add(1)
 }
 
 type NoOpMetrics struct{}
@@ -257,6 +271,7 @@ func (n NoOpMetrics) IncHyperlaneMessages(sourceChainID, destinationChainID, mes
 func (n NoOpMetrics) DecHyperlaneMessages(sourceChainID, destinationChainID, messageStatus string) {}
 func (n NoOpMetrics) ObserveTransferSizeOutOfRange(sourceChainID, destinationChainID string, amountExceededBy int64) {
 }
+func (n NoOpMetrics) IncDatabaseErrors(operation string)                                            {}
 func (n NoOpMetrics) ObserveFeeBpsRejection(sourceChainID, destinationChainID string, feeBps int64) {}
 func NewNoOpMetrics() Metrics {
 	return &NoOpMetrics{}
