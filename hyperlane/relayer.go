@@ -132,7 +132,7 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 	// if the user has specified a profitability threshold, make sure the relay
 	// matches this
 	if opts.Profitability != nil {
-		isProfitable, err := r.checkRelayProfitability(ctx, dispatch.DestinationDomain, message, metadata, opts.Profitability)
+		isProfitable, err := r.isRelayProfitable(ctx, dispatch.DestinationDomain, message, metadata, opts.Profitability)
 		if err != nil {
 			return "", "", fmt.Errorf("checking if relay to domain %s is profitable: %w", dispatch.DestinationDomain, err)
 		}
