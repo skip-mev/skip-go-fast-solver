@@ -6,18 +6,16 @@ import (
 	"fmt"
 	"time"
 
-	dbtypes "github.com/skip-mev/go-fast-solver/db"
-	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
-	"github.com/skip-mev/go-fast-solver/shared/metrics"
-
-	coingecko2 "github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
-
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
+	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
+	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
+	"github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 )
 
 type Config struct {
@@ -36,7 +34,7 @@ type Database interface {
 type TxVerifier struct {
 	db            Database
 	clientManager *clientmanager.ClientManager
-	PriceClient   coingecko2.PriceClient
+	PriceClient   coingecko.PriceClient
 }
 
 func NewTxVerifier(ctx context.Context, db Database, clientManager *clientmanager.ClientManager) (*TxVerifier, error) {
@@ -45,7 +43,7 @@ func NewTxVerifier(ctx context.Context, db Database, clientManager *clientmanage
 	return &TxVerifier{
 		db:            db,
 		clientManager: clientManager,
-		PriceClient:   coingecko2.NewCachedPriceClient(coingecko2.DefaultCoingeckoClient(coingeckoConfig), coingeckoConfig.CacheRefreshInterval),
+		PriceClient:   coingecko.NewCachedPriceClient(coingecko.DefaultCoingeckoClient(coingeckoConfig), coingeckoConfig.CacheRefreshInterval),
 	}, nil
 }
 

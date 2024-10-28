@@ -7,12 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/skip-mev/go-fast-solver/shared/metrics"
-
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"go.uber.org/zap"
 )
 

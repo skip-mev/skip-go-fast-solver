@@ -11,8 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/skip-mev/go-fast-solver/shared/metrics"
-
 	"cosmossdk.io/math"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -23,6 +21,7 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"github.com/skip-mev/go-fast-solver/shared/tmrpc"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"

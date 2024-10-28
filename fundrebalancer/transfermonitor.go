@@ -3,13 +3,13 @@ package fundrebalancer
 import (
 	"context"
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"time"
 
 	"github.com/skip-mev/go-fast-solver/db"
 	genDB "github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"go.uber.org/zap"
 )
 

@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/shared/metrics"
 
 	"strings"
 
@@ -13,6 +12,7 @@ import (
 
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
