@@ -78,14 +78,13 @@ func main() {
 
 	eg, ctx := errgroup.WithContext(ctx)
 
-	// Uncomment this section to run a prometheus server for metrics collection
-	//eg.Go(func() error {
-	//	lmt.Logger(ctx).Info("Starting Prometheus")
-	//	if err := metrics.StartPrometheus(ctx, fmt.Sprintf(cfg.Metrics.PrometheusAddress)); err != nil {
-	//		return err
-	//	}
-	//	return nil
-	//})
+	eg.Go(func() error {
+		lmt.Logger(ctx).Info("Starting Prometheus")
+		if err := metrics.StartPrometheus(ctx, fmt.Sprintf(cfg.Metrics.PrometheusAddress)); err != nil {
+			return err
+		}
+		return nil
+	})
 
 	eg.Go(func() error {
 		transferMonitor := transfermonitor.NewTransferMonitor(db.New(dbConn), *quickStart)

@@ -3,6 +3,7 @@ package fundrebalancer
 import (
 	"context"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"time"
 
 	"github.com/skip-mev/go-fast-solver/db"
@@ -57,7 +58,7 @@ func (t *TransferTracker) UpdateTransfers(ctx context.Context) error {
 	}
 
 	for _, pendingTransfer := range pendingTransfers {
-		err := t.updateTransferStatus(ctx, pendingTransfer.ID, pendingTransfer.TxHash, pendingTransfer.SourceChainID)
+		err := t.updateTransferStatus(ctx, pendingTransfer.ID, pendingTransfer.TxHash, pendingTransfer.SourceChainID, pendingTransfer.DestinationChainID)
 		if err != nil {
 			lmt.Logger(ctx).Error(
 				"error tracking transfer",
@@ -74,10 +75,10 @@ func (t *TransferTracker) UpdateTransfers(ctx context.Context) error {
 	return nil
 }
 
-func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID int64, hash string, chainID string) error {
-	currentStatus, err := t.skipgo.Status(ctx, skipgo.TxHash(hash), chainID)
+func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID int64, hash, sourceChainID, destinationChainID string) error {
+	currentStatus, err := t.skipgo.Status(ctx, skipgo.TxHash(hash), sourceChainID)
 	if err != nil {
-		return fmt.Errorf("getting status for transaction %s on chain %s: %w", hash, chainID, err)
+		return fmt.Errorf("getting status for transaction %s on chain %s: %w", hash, sourceChainID, err)
 	}
 
 	// check if all transfers in the status are done
@@ -95,12 +96,14 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 		lmt.Logger(ctx).Info(
 			"waiting for transaction to complete",
 			zap.String("latestState", string(latestState)),
-			zap.String("txnHash", string(hash)),
-			zap.String("chainID", chainID),
+			zap.String("txnHash", hash),
+			zap.String("sourceChainID", sourceChainID),
+			zap.String("destinationChainID", destinationChainID),
 		)
 		return nil
 	}
 
+	defer metrics.FromContext(ctx).DecFundsRebalanceTransfers(sourceChainID, destinationChainID, db.RebalanceTransactionStatusPending)
 	// all transfers have finished, grab the first error if any
 	var transferError string
 	for _, transfer := range currentStatus.Transfers {
@@ -114,7 +117,8 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 		lmt.Logger(ctx).Info(
 			"rebalance transaction completed wtih an error",
 			zap.String("txnHash", hash),
-			zap.String("chainID", chainID),
+			zap.String("sourceChainID", sourceChainID),
+			zap.String("destinationChainID", destinationChainID),
 			zap.String("error", transferError),
 		)
 
@@ -123,7 +127,8 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 			ID:     transferID,
 		})
 		if err != nil {
-			return fmt.Errorf("updating transfer status to failed for hash %s on chain %s: %w", hash, chainID, err)
+			metrics.FromContext(ctx).IncFundsRebalanceTransfers(sourceChainID, destinationChainID, db.RebalanceTransactionStatusFailed)
+			return fmt.Errorf("updating transfer status to failed for hash %s on chain %s: %w", hash, sourceChainID, err)
 		}
 
 		return nil
@@ -132,15 +137,17 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 	lmt.Logger(ctx).Info(
 		"rebalance transaction completed successfully",
 		zap.String("txnHash", hash),
-		zap.String("chainID", chainID),
+		zap.String("sourceChainID", sourceChainID),
+		zap.String("destinationChainID", destinationChainID),
 	)
 
+	metrics.FromContext(ctx).IncFundsRebalanceTransfers(sourceChainID, destinationChainID, db.RebalanceTransactionStatusSuccess)
 	err = t.database.UpdateTransferStatus(ctx, genDB.UpdateTransferStatusParams{
 		Status: db.RebalanceTransactionStatusSuccess,
 		ID:     transferID,
 	})
 	if err != nil {
-		return fmt.Errorf("updating transfer status to completed for hash %s on chain %s: %w", hash, chainID, err)
+		return fmt.Errorf("updating transfer status to completed for hash %s on chain %s: %w", hash, sourceChainID, err)
 	}
 
 	return nil

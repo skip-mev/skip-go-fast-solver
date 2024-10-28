@@ -6,6 +6,7 @@ import (
 	"fmt"
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"time"
 
 	coingecko2 "github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
@@ -102,6 +103,7 @@ func (r *TxVerifier) VerifyTx(ctx context.Context, submittedTx db.SubmittedTx) e
 		return fmt.Errorf("failed to get tx result: %w", err)
 	} else if failure != nil {
 		lmt.Logger(ctx).Error("tx failed", zap.String("failure", failure.String()))
+		metrics.FromContext(ctx).IncTransactionVerified(false, submittedTx.ChainID)
 		if _, err := r.db.SetSubmittedTxStatus(ctx, db.SetSubmittedTxStatusParams{
 			TxStatus:        dbtypes.TxStatusFailed,
 			TxHash:          submittedTx.TxHash,
@@ -112,6 +114,7 @@ func (r *TxVerifier) VerifyTx(ctx context.Context, submittedTx db.SubmittedTx) e
 		}
 		return fmt.Errorf("tx failed: %s", failure.String())
 	} else {
+		metrics.FromContext(ctx).IncTransactionVerified(true, submittedTx.ChainID)
 		if _, err := r.db.SetSubmittedTxStatus(ctx, db.SetSubmittedTxStatusParams{
 			TxStatus: dbtypes.TxStatusSuccess,
 			TxHash:   submittedTx.TxHash,
