@@ -4,8 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	dbtypes "github.com/skip-mev/go-fast-solver/db"
-	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"math/big"
 	"os"
 	"strings"
@@ -14,6 +12,9 @@ import (
 	evmtxsubmission "github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
 	"github.com/ethereum/go-ethereum/common"
+	dbtypes "github.com/skip-mev/go-fast-solver/db"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
+
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
 	"github.com/skip-mev/go-fast-solver/shared/config"
@@ -374,6 +375,7 @@ func (r *FundRebalancer) usdcBalance(ctx context.Context, chainID string) (*big.
 func (r *FundRebalancer) pendingUSDCBalance(ctx context.Context, chainID string) (*big.Int, error) {
 	pendingTransfers, err := r.database.GetPendingRebalanceTransfersToChain(ctx, chainID)
 	if err != nil {
+		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 		return nil, fmt.Errorf("getting pending rebalance transfers to chain from db: %w", err)
 	}
 
