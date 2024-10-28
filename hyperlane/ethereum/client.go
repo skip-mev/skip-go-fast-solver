@@ -253,7 +253,9 @@ func (c *HyperlaneClient) QuoteProcessUUSDC(ctx context.Context, domain string, 
 		From:    addr,
 		Context: ctx,
 		Signer:  signer,
-		NoSend:  true,
+		// NoSend dry runs the tx, this will populate the tx with all necessary
+		// gas estimates from the node needed to get the tx fee in uusdc
+		NoSend: true,
 	}, metadata, message)
 	if err != nil {
 		return nil, fmt.Errorf("simulating process tx: %w", err)
