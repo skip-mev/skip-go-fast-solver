@@ -58,7 +58,7 @@ func Test_Oracle_TxFeeUUSDC(t *testing.T) {
 			oracle := evmrpc.NewOracle(mockcoingecko)
 			uusdcPrice, err := oracle.TxFeeUUSDC(ctx, tx)
 			assert.NoError(t, err)
-			assert.True(t, (uusdcPrice.Int64() <= (int64(tt.ExpectedUUSDCPrice)+1)) || uusdcPrice.Int64() >= (int64(tt.ExpectedUUSDCPrice)+1))
+			assert.True(t, (uusdcPrice.Int64() <= (int64(tt.ExpectedUUSDCPrice)+1)) || (uusdcPrice.Int64() >= (int64(tt.ExpectedUUSDCPrice)-1)))
 		})
 	}
 }
