@@ -248,7 +248,7 @@ func (r *OrderSettler) relaySettlements(ctx context.Context, txHashes []string, 
 		if settlementPayoutChainConfig.Relayer.MaxGasPricePct != nil {
 			opts = hyperlane.RelayOpts{
 				Profitability: &hyperlane.Profitability{
-					MaxGasPricePct:  1,
+					MaxGasPricePct:  *settlementPayoutChainConfig.Relayer.MaxGasPricePct,
 					TotalRelayValue: totalValue,
 				},
 			}

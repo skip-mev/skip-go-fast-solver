@@ -9,6 +9,7 @@ import (
 	"time"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
+	"github.com/skip-mev/go-fast-solver/hyperlane"
 	"github.com/skip-mev/go-fast-solver/orderfulfiller"
 	"github.com/skip-mev/go-fast-solver/shared/bridges/cctp"
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
@@ -20,16 +21,21 @@ import (
 	"go.uber.org/zap"
 )
 
+type Relayer interface {
+	SubmitTxToRelay(ctx context.Context, txHash string, sourceChainID string, opts hyperlane.RelayOpts) error
+}
+
 type orderFulfillmentHandler struct {
 	db            orderfulfiller.Database
 	clientManager *clientmanager.ClientManager
+	relayer       Relayer
 }
 
-func NewOrderFulfillmentHandler(ctx context.Context, db orderfulfiller.Database, clientManager *clientmanager.ClientManager) (*orderFulfillmentHandler, error) {
-
+func NewOrderFulfillmentHandler(ctx context.Context, db orderfulfiller.Database, clientManager *clientmanager.ClientManager, relayer Relayer) (*orderFulfillmentHandler, error) {
 	return &orderFulfillmentHandler{
 		db:            db,
 		clientManager: clientManager,
+		relayer:       relayer,
 	}, nil
 }
 
@@ -332,37 +338,37 @@ func (r *orderFulfillmentHandler) checkBlockConfirmations(ctx context.Context, s
 	}
 }
 
-func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.Order) error {
+func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.Order) (string, error) {
 	destinationChainBridgeClient, err := r.clientManager.GetClient(ctx, order.DestinationChainID)
 	if err != nil {
-		return fmt.Errorf("failed to get client: %w", err)
+		return "", fmt.Errorf("failed to get client: %w", err)
 	}
 
 	sourceChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(order.SourceChainID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(order.DestinationChainID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	destinationChainGatewayContractAddress, err := config.GetConfigReader(ctx).GetGatewayContractAddress(order.DestinationChainID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if submittedTxs, err := r.db.GetSubmittedTxsByOrderIdAndType(ctx, db.GetSubmittedTxsByOrderIdAndTypeParams{
 		OrderID: sql.NullInt64{Int64: order.ID, Valid: true},
 		TxType:  dbtypes.TxTypeInitiateTimeout,
 	}); err != nil {
-		return fmt.Errorf("failed to get submitted txs: %w", err)
+		return "", fmt.Errorf("failed to get submitted txs: %w", err)
 	} else if len(submittedTxs) > 0 {
-		return nil
+		return "", nil
 	}
 
 	txHash, rawTx, _, err := destinationChainBridgeClient.InitiateTimeout(ctx, order, destinationChainGatewayContractAddress)
 	metrics.FromContext(ctx).AddTransactionSubmitted(err == nil, order.SourceChainID, order.DestinationChainID, sourceChainConfig.ChainName, destinationChainConfig.ChainName, string(sourceChainConfig.Environment))
 	if err != nil {
-		return fmt.Errorf("initiating timeout: %w", err)
+		return "", fmt.Errorf("initiating timeout: %w", err)
 	}
 
 	if _, err := r.db.InsertSubmittedTx(ctx, db.InsertSubmittedTxParams{
@@ -373,7 +379,18 @@ func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.
 		TxType:   dbtypes.TxTypeInitiateTimeout,
 		TxStatus: dbtypes.TxStatusPending,
 	}); err != nil {
-		return fmt.Errorf("failed to insert raw tx %w", err)
+		return "", fmt.Errorf("failed to insert raw tx %w", err)
 	}
-	return nil
+	return txHash, nil
+}
+
+func (r *orderFulfillmentHandler) SubmitTimeoutForRelay(ctx context.Context, order db.Order, txHash string) error {
+	// the source chain for the relay is the chain that the timeout was
+	// initiated on, which is the orders destination chain
+	initiateTimeoutChain := order.DestinationChainID
+
+	// note that there is no profitability option being passed to the relayer
+	// here, timeouts transfer no value to the solver so if we pass a config
+	// for a min allowed gas % the timeout will never be relayed
+	return r.relayer.SubmitTxToRelay(ctx, txHash, initiateTimeoutChain, hyperlane.RelayOpts{})
 }
