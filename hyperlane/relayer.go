@@ -242,10 +242,10 @@ func (r *relayer) checkpointAtIndex(
 	return multiSigCheckpoint, nil
 }
 
-// checkRelayProfitability checks that processing a relay meets a users
+// isRelayProfitable checks that processing a relay meets a users
 // profitability specification. Returns true if the relay meets their criteria,
 // false if not.
-func (r *relayer) checkRelayProfitability(
+func (r *relayer) isRelayProfitable(
 	ctx context.Context,
 	domain string,
 	message []byte,
@@ -281,10 +281,8 @@ func (r *relayer) checkRelayProfitability(
 		return false, nil
 	}
 
-	totalValueFeePct := new(big.Float).Quo(new(big.Float).SetInt(txFeeUUSDC), new(big.Float).SetInt(profitability.TotalRelayValue))
-	totalValueFeePctDec := new(big.Float).Mul(totalValueFeePct, big.NewFloat(100))
-	if totalValueFeePctDec.Cmp(big.NewFloat(float64(profitability.MaxGasPricePct))) > 0 {
-		return false, nil
-	}
-	return true, nil
+	// tx fee in uusdc / total relay value in uusdc
+	totalValueFeePctDec := new(big.Float).Quo(new(big.Float).SetInt(txFeeUUSDC), new(big.Float).SetInt(profitability.TotalRelayValue))
+	totalValueFeePct := new(big.Float).Mul(totalValueFeePctDec, big.NewFloat(100))
+	return totalValueFeePct.Cmp(big.NewFloat(float64(profitability.MaxGasPricePct))) <= 0, nil
 }
