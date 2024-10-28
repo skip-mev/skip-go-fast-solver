@@ -37,6 +37,7 @@ risk/reward profile and if they have the required resources on the destination c
 2. Update config/local/config.yml with the appropriate RPC endpoints for each chain
    a. set the SERVER_PASSWORD environment variable to the RPC servers basic auth secret
    b. ensure the rpc_basic_auth_var field in config.yml references this environment variable
+   c. Update the coingecko.api_key config field with a valid coingecko api key
 
 ```shell
 make build # build solver server binary
