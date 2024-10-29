@@ -217,31 +217,34 @@ func (r *orderFulfillmentHandler) checkOrderAssetBalance(ctx context.Context, de
 }
 
 func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destinationChainConfig config.ChainConfig, orderFill db.Order) (withinTransferLimits bool, err error) {
-	transferAmount, err := strconv.ParseUint(orderFill.AmountOut, 10, 64)
-	if err != nil {
-		return false, err
+	transferAmount := new(big.Int)
+	if _, ok := transferAmount.SetString(orderFill.AmountOut, 10); !ok {
+		return false, fmt.Errorf("failed to parse transfer amount: %s", orderFill.AmountOut)
 	}
 
-	if destinationChainConfig.MaxFillSize != nil && transferAmount > *destinationChainConfig.MaxFillSize {
-		_, err = r.db.SetOrderStatus(ctx, db.SetOrderStatusParams{
-			SourceChainID:                     orderFill.SourceChainID,
-			OrderID:                           orderFill.OrderID,
-			SourceChainGatewayContractAddress: orderFill.SourceChainGatewayContractAddress,
-			OrderStatus:                       dbtypes.OrderStatusAbandoned,
-			OrderStatusMessage:                sql.NullString{String: "amount exceeds max fill size", Valid: true},
-		})
-		if err != nil {
-			return false, fmt.Errorf("failed to set fill status to abandoned: %w", err)
-		}
+	if destinationChainConfig.MaxFillSize != nil {
+		maxFillSize := new(big.Int).SetUint64(*destinationChainConfig.MaxFillSize)
+		if transferAmount.Cmp(maxFillSize) > 0 {
+			_, err = r.db.SetOrderStatus(ctx, db.SetOrderStatusParams{
+				SourceChainID:                     orderFill.SourceChainID,
+				OrderID:                           orderFill.OrderID,
+				SourceChainGatewayContractAddress: orderFill.SourceChainGatewayContractAddress,
+				OrderStatus:                       dbtypes.OrderStatusAbandoned,
+				OrderStatusMessage:                sql.NullString{String: "amount exceeds max fill size", Valid: true},
+			})
+			if err != nil {
+				return false, fmt.Errorf("failed to set fill status to abandoned: %w", err)
+			}
 
-		lmt.Logger(ctx).Info(
-			"abandoning transaction due to amount exceeding max fill size",
-			zap.String("orderID", orderFill.OrderID),
-			zap.String("sourceChainID", orderFill.SourceChainID),
-			zap.String("orderAmountOut", orderFill.AmountOut),
-			zap.Uint64("maxAllowedFillSize", *destinationChainConfig.MaxFillSize),
-		)
-		return false, nil
+			lmt.Logger(ctx).Info(
+				"abandoning transaction due to amount exceeding max fill size",
+				zap.String("orderID", orderFill.OrderID),
+				zap.String("sourceChainID", orderFill.SourceChainID),
+				zap.String("orderAmountOut", orderFill.AmountOut),
+				zap.Uint64("maxAllowedFillSize", *destinationChainConfig.MaxFillSize),
+			)
+			return false, nil
+		}
 	}
 	return true, nil
 }
@@ -288,7 +291,7 @@ func (r *orderFulfillmentHandler) checkFeeAmount(ctx context.Context, orderFill 
 // IsWithinBpsRange returns true if the % change between amount in and amount
 // out is >= min fee bps.
 func IsWithinBpsRange(ctx context.Context, minFeeBps int64, amountIn, amountOut string) (bool, error) {
-	minFee := big.NewInt(int64(minFeeBps))
+	minFee := new(big.Int).SetInt64(minFeeBps)
 	in, ok := new(big.Int).SetString(amountIn, 10)
 	if !ok {
 		return false, fmt.Errorf("converting amount in %s to *big.Int", amountIn)
