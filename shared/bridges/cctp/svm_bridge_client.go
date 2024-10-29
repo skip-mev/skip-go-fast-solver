@@ -24,6 +24,8 @@ type SvmBridgeClient struct {
 	submitRPCClients []*rpc.Client
 }
 
+var _ BridgeClient = (*SvmBridgeClient)(nil)
+
 func NewSvmBridgeClient(
 	rpcUrl string,
 	wsUrl string,
@@ -108,8 +110,8 @@ func (c *SvmBridgeClient) OrderExists(ctx context.Context, gatewayContractAddres
 	return false, errors.New("not implemented")
 }
 
-func (c *SvmBridgeClient) IsOrderRefunded(ctx context.Context, gatewayContractAddress, orderID string) (bool, error) {
-	return false, errors.New("not implemented")
+func (c *SvmBridgeClient) IsOrderRefunded(ctx context.Context, gatewayContractAddress, orderID string) (bool, string, error) {
+	return false, "", errors.New("not implemented")
 }
 
 // Utils

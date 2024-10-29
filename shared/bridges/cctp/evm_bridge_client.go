@@ -44,6 +44,8 @@ type EVMBridgeClient struct {
 	minGasTipCap *big.Int
 }
 
+var _ BridgeClient = (*EVMBridgeClient)(nil)
+
 func NewEVMBridgeClient(
 	client EVMClient,
 	chainID string,
@@ -159,28 +161,53 @@ func (c *EVMBridgeClient) OrderExists(ctx context.Context, gatewayContractAddres
 	return settlementDetails.Nonce != nil && settlementDetails.DestinationDomain != 0 && settlementDetails.Amount != nil, nil
 }
 
-func (c *EVMBridgeClient) IsOrderRefunded(ctx context.Context, gatewayContractAddress, orderID string) (bool, error) {
+func (c *EVMBridgeClient) IsOrderRefunded(ctx context.Context, gatewayContractAddress, orderID string) (bool, string, error) {
 	fastTransferGateway, err := fast_transfer_gateway.NewFastTransferGateway(
 		common.HexToAddress(gatewayContractAddress),
 		c.client,
 	)
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
 
 	orderIDBytes, err := hex.DecodeString(orderID)
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
 
 	status, err := fastTransferGateway.OrderStatuses(&bind.CallOpts{Context: ctx}, [32]byte(orderIDBytes))
 	if err != nil {
-		return false, fmt.Errorf("querying orderID %s status: %w", orderID, err)
+		return false, "", fmt.Errorf("querying orderID %s status: %w", orderID, err)
 	}
 
-	// TODO: better spot for this const
-	const orderStatusRefunded = 2
-	return status == orderStatusRefunded, nil
+	if status == fast_transfer_gateway.OrderStatusRefunded {
+		// Create topic for OrderRefunded event to filter logs for OrderRefunded events with this orderID
+		orderRefundedTopic := [][32]byte{[32]byte(orderIDBytes)}
+		filterOpts := &bind.FilterOpts{
+			Context: ctx,
+		}
+
+		iterator, err := fastTransferGateway.FilterOrderRefunded(filterOpts, orderRefundedTopic)
+		if err != nil {
+			return false, "", fmt.Errorf("filtering OrderRefunded events: %w", err)
+		}
+
+		// Find the most recent OrderRefunded event for this orderID
+		var refundEvent *types.Log
+		for iterator.Next() {
+			if iterator.Event != nil {
+				refundEvent = &iterator.Event.Raw
+			}
+		}
+
+		if refundEvent == nil {
+			return false, "", fmt.Errorf("no refund event found for orderID %s, but the order is reported as refunded from fast gateway contract", orderID)
+		}
+
+		return true, refundEvent.TxHash.Hex(), nil
+	}
+
+	return false, "", nil
 }
 
 func (c *EVMBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayContractAddress, orderID string) (*string, *string, time.Time, error) {

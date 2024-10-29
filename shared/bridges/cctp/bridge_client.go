@@ -59,6 +59,6 @@ type BridgeClient interface {
 	QueryOrderFillEvent(ctx context.Context, gatewayContractAddress, orderID string) (fillTx *string, filler *string, blockTimestamp time.Time, err error)
 	Balance(ctx context.Context, address, denom string) (*big.Int, error)
 	OrderExists(ctx context.Context, gatewayContractAddress, orderID string, blockNumber *big.Int) (bool, error)
-	IsOrderRefunded(ctx context.Context, gatewayContractAddress, orderID string) (bool, error)
+	IsOrderRefunded(ctx context.Context, gatewayContractAddress, orderID string) (bool, string, error)
 	InitiateTimeout(ctx context.Context, order db.Order, gatewayContractAddress string) (string, string, *uint64, error)
 }

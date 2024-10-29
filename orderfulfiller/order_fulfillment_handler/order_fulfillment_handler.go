@@ -74,20 +74,16 @@ func (r *orderFulfillmentHandler) UpdateFulfillmentStatus(ctx context.Context, o
 	// if the order is timed out, try and refund the order and update its
 	// status
 	if isOrderExpired(timestamp, order) {
-		isRefunded, err := sourceChainBridgeClient.IsOrderRefunded(ctx, order.SourceChainGatewayContractAddress, order.OrderID)
+		isRefunded, refundTxHash, err := sourceChainBridgeClient.IsOrderRefunded(ctx, order.SourceChainGatewayContractAddress, order.OrderID)
 		if err != nil {
 			return "", fmt.Errorf("querying orderID %s has been refunded on chainID %s: %w", order.OrderID, order.SourceChainID, err)
 		}
 		if isRefunded {
 			_, err = r.db.SetRefundTx(ctx, db.SetRefundTxParams{
-				// TODO: do we really need to store the refund tx? to do this
-				// we would need to have some order of indexer running for
-				// order refund events on every chain. if we remove this requirement
-				// we can simply query the gateway contract for the order status
-				// to check if it has been refunded or not. Additionally, when this
-				// filler does a timeout tx, the tx hash will be stored in the submitted
-				// txs table.
-				RefundTx:                          sql.NullString{String: "", Valid: true},
+				RefundTx: sql.NullString{
+					String: refundTxHash,
+					Valid:  true,
+				},
 				SourceChainID:                     order.SourceChainID,
 				OrderID:                           order.OrderID,
 				SourceChainGatewayContractAddress: order.SourceChainGatewayContractAddress,

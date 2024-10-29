@@ -59,6 +59,8 @@ type CosmosBridgeClient struct {
 	gasDenom string
 }
 
+var _ BridgeClient = (*CosmosBridgeClient)(nil)
+
 func NewCosmosBridgeClient(
 	rpcClient rpcclient.Client,
 	grpcClient grpc.ClientConnInterface,
@@ -456,8 +458,8 @@ func (c *CosmosBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayCon
 	return &[]string{"txhash"}[0], &fill.Filler, headerResp.Header.Time, nil // TODO query for the actual txhash once the event is implemented
 }
 
-func (c *CosmosBridgeClient) IsOrderRefunded(ctx context.Context, gatewayContractAddress, orderID string) (bool, error) {
-	return false, errors.New("not implemented")
+func (c *CosmosBridgeClient) IsOrderRefunded(ctx context.Context, gatewayContractAddress, orderID string) (bool, string, error) {
+	return false, "", errors.New("not implemented")
 }
 
 type Fill struct {
