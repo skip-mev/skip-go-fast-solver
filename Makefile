@@ -47,3 +47,17 @@ db-clean:
 .PHONY: tools
 tools:
 	make -C tools local
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint
+
+###############################################################################
+###                                Linting                                  ###
+###############################################################################
+
+.PHONY: lint
+lint:
+	golangci-lint run --timeout=10m --verbose
+
+# Optional: Add a lint-fix command that attempts to fix issues
+.PHONY: lint-fix
+lint-fix:
+	golangci-lint run --fix --timeout=10m --verbose

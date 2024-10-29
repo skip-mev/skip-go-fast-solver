@@ -25,11 +25,6 @@ const (
 
 type ChainEnvironment string
 
-const (
-	ChainEnvironment_MAINNET ChainEnvironment = "mainnet"
-	ChainEnvironment_TESTNET ChainEnvironment = "testnet"
-)
-
 // Config Schema
 type Config struct {
 	Chains            map[string]ChainConfig          `yaml:"chains"`
@@ -104,45 +99,37 @@ type RelayerConfig struct {
 	MailboxAddress                   string `yaml:"mailbox_address"`
 }
 
-type SignerGasBalanceConfig struct {
-	WarningThresholdWei  string `yaml:"warning_threshold_wei"`
-	CriticalThresholdWei string `yaml:"critical_threshold_wei"`
-}
-
 type CosmosConfig struct {
-	RPC              string                 `yaml:"rpc"`
-	RPCBasicAuthVar  string                 `yaml:"rpc_basic_auth_var"`
-	GRPC             string                 `yaml:"grpc"`
-	GRPCTLSEnabled   bool                   `yaml:"grpc_tls_enabled"`
-	AddressPrefix    string                 `yaml:"address_prefix"`
-	SignerGasBalance SignerGasBalanceConfig `yaml:"signer_gas_balance"`
-	USDCDenom        string                 `yaml:"usdc_denom"`
-	GasPrice         float64                `yaml:"gas_price"`
-	GasDenom         string                 `yaml:"gas_denom"`
+	RPC             string  `yaml:"rpc"`
+	RPCBasicAuthVar string  `yaml:"rpc_basic_auth_var"`
+	GRPC            string  `yaml:"grpc"`
+	GRPCTLSEnabled  bool    `yaml:"grpc_tls_enabled"`
+	AddressPrefix   string  `yaml:"address_prefix"`
+	USDCDenom       string  `yaml:"usdc_denom"`
+	GasPrice        float64 `yaml:"gas_price"`
+	GasDenom        string  `yaml:"gas_denom"`
 }
 
 type EVMConfig struct {
-	MinGasTipCap                *int64                 `yaml:"min_gas_tip_cap"`
-	ChainID                     string                 `yaml:"chain_id"`
-	FastTransferContractAddress string                 `yaml:"fast_transfer_contract_address"`
-	RPC                         string                 `yaml:"rpc"`
-	RPCBasicAuthVar             string                 `yaml:"rpc_basic_auth_var"`
-	GRPC                        string                 `yaml:"grpc"`
-	GRPCTLSEnabled              bool                   `yaml:"grpc_tls_enabled"`
-	AddressPrefix               string                 `yaml:"address_prefix"`
-	SignerGasBalance            SignerGasBalanceConfig `yaml:"signer_gas_balance"`
-	SolverAddress               string                 `yaml:"solver_address"`
-	USDCDenom                   string                 `yaml:"usdc_denom"`
-	Contracts                   ContractsConfig        `yaml:"contracts"`
+	MinGasTipCap                *int64          `yaml:"min_gas_tip_cap"`
+	ChainID                     string          `yaml:"chain_id"`
+	FastTransferContractAddress string          `yaml:"fast_transfer_contract_address"`
+	RPC                         string          `yaml:"rpc"`
+	RPCBasicAuthVar             string          `yaml:"rpc_basic_auth_var"`
+	GRPC                        string          `yaml:"grpc"`
+	GRPCTLSEnabled              bool            `yaml:"grpc_tls_enabled"`
+	AddressPrefix               string          `yaml:"address_prefix"`
+	SolverAddress               string          `yaml:"solver_address"`
+	USDCDenom                   string          `yaml:"usdc_denom"`
+	Contracts                   ContractsConfig `yaml:"contracts"`
 }
 
 type SVMConfig struct {
-	RPC                         string                 `yaml:"rpc"`
-	WS                          string                 `yaml:"ws"`
-	SignerGasBalance            SignerGasBalanceConfig `yaml:"signer_gas_balance"`
-	FastTransferContractAddress string                 `yaml:"fast_transfer_contract_address"`
-	PriorityFee                 uint64                 `yaml:"priority_fee"`
-	SubmitRPCs                  []string               `yaml:"submit_rpcs"`
+	RPC                         string   `yaml:"rpc"`
+	WS                          string   `yaml:"ws"`
+	FastTransferContractAddress string   `yaml:"fast_transfer_contract_address"`
+	PriorityFee                 uint64   `yaml:"priority_fee"`
+	SubmitRPCs                  []string `yaml:"submit_rpcs"`
 }
 
 type ContractsConfig struct {
