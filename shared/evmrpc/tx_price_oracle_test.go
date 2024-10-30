@@ -17,7 +17,7 @@ func Test_Oracle_TxFeeUUSDC(t *testing.T) {
 		MaxPricePerGas     uint64
 		GasUsed            uint64
 		ETHPriceUSD        float64
-		ExpectedUUSDCPrice uint64
+		ExpectedUUSDCPrice int64
 	}{
 		{
 			Name: "1k gas used, 5gwei per gas, 2000usd per eth",
@@ -41,6 +41,54 @@ func Test_Oracle_TxFeeUUSDC(t *testing.T) {
 			// 7.42077 * 1000000 = 7420770 uusdc
 			ExpectedUUSDCPrice: 7420770,
 		},
+		{
+			Name: "10 gas used, 5gwei per gas, 2473.59usd per eth",
+			// 5 * 10 = 50 gwei fee
+			MaxPricePerGas: 5,
+			GasUsed:        10,
+			// price per gwei in usd = 0.00000247359
+			ETHPriceUSD: 2473.59,
+			// price per gwei in usd * gwei fee = 0.00012368 usd
+			// 0.00012368 * 1000000 = 2473 uusdc
+			ExpectedUUSDCPrice: 123,
+		},
+		{
+			Name: "100 gas used, 5gwei per gas, 2473.59usd per eth",
+			// 5 * 20 = 100 gwei fee
+			MaxPricePerGas: 5,
+			GasUsed:        20,
+			// price per gwei in usd = 0.00000247359
+			ETHPriceUSD: 2473.59,
+			// price per gwei in usd * gwei fee = 0.00024736 usd
+			// 0.00012368 * 1000000 = 2473 uusdc
+			ExpectedUUSDCPrice: 247,
+		},
+		{
+			Name: "100 gas used, 5gwei per gas, 10.21usd per eth",
+			// 5 * 20 = 100 gwei fee
+			MaxPricePerGas: 5,
+			GasUsed:        20,
+			// price per gwei in usd = 0.00000001021
+			ETHPriceUSD: 10.21,
+			// price per gwei in usd * gwei fee = 0.000001021 usd
+			// 0.00012368 * 1000000 = 2473 uusdc
+			ExpectedUUSDCPrice: 1,
+		},
+		{
+			// NOTE: this test is for very small numbers that are not
+			// realistic. However, this is to test the limits of this function,
+			// the assumptions we have about how many decimals numbers have
+			// break down when the gas fee in gwei and eth price are this low.
+			Name: "1 gas used, 5gwei per gas, 1.21usd per eth",
+			// 5 * 1 = 5 gwei fee
+			MaxPricePerGas: 5,
+			GasUsed:        1,
+			// price per gwei in usd = 0.00000001021
+			ETHPriceUSD: 1.21,
+			// price per gwei in usd * gwei fee = 0.000001021 usd
+			// 0.00012368 * 1000000 = 2473 uusdc
+			ExpectedUUSDCPrice: 0,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
@@ -58,7 +106,7 @@ func Test_Oracle_TxFeeUUSDC(t *testing.T) {
 			oracle := evmrpc.NewOracle(mockcoingecko)
 			uusdcPrice, err := oracle.TxFeeUUSDC(ctx, tx)
 			assert.NoError(t, err)
-			assert.True(t, (uusdcPrice.Int64() <= (int64(tt.ExpectedUUSDCPrice)+1)) || (uusdcPrice.Int64() >= (int64(tt.ExpectedUUSDCPrice)-1)))
+			assert.Equal(t, tt.ExpectedUUSDCPrice, uusdcPrice.Int64())
 		})
 	}
 }
