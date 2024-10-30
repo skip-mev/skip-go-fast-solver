@@ -47,26 +47,43 @@ func (o *Oracle) TxFeeUUSDC(ctx context.Context, tx *types.Transaction) (*big.In
 // gasCostUUSDC converts an amount of gas and the price per gas in gwei to
 // uusdc based on the current CoinGecko price of ethereum in usd.
 func (o *Oracle) gasCostUUSDC(ctx context.Context, pricePerGasGwei *big.Int, gasUsed *big.Int) (*big.Int, error) {
-	txFeeGwei := new(big.Float).SetInt(new(big.Int).Mul(gasUsed, pricePerGasGwei))
-	fmt.Println("tx fee gwei", txFeeGwei.String())
+	// Calculate transaction fee in Gwei
+	txFeeGwei := new(big.Int).Mul(gasUsed, pricePerGasGwei)
 
-	// get the price of eth in usd from coin gecko and convert to gwei
+	// Get the ETH price in USD cents from CoinGecko
 	ethPriceUSD, err := o.coingecko.GetSimplePrice(ctx, coingeckoEthID, coingeckoUSDCurrency)
 	if err != nil {
-		return nil, fmt.Errorf("getting coin gecko price of ethereum in USD: %w", err)
+		return nil, fmt.Errorf("getting CoinGecko price of Ethereum in USD: %w", err)
 	}
-	const GWEI_PER_ETH = 1000000000
-	gweiPriceUSD := new(big.Float).Quo(big.NewFloat(ethPriceUSD), big.NewFloat(GWEI_PER_ETH))
 
-	// get the tx fee in usd and convert to uusdc
-	txFeeUSD := new(big.Float).Mul(txFeeGwei, gweiPriceUSD)
+	// Convert ETH price to microunits of USDC (uusdc) per Gwei
+	// GWEI_PER_ETH = 1_000_000_000 (1 ETH = 10^9 Gwei)
+	// UUSDC_PER_USD = 1_000_000 (1 USD = 10^6 UUSDC)
+	const GWEI_PER_ETH = 1_000_000_000
+	const UUSDC_PER_USD = 1_000_000
 
-	// assuming 1usd == 1usdc
-	const UUSDC_PER_USDC = 1000000
-	txFeeUUSDC := new(big.Float).Mul(txFeeUSD, big.NewFloat(UUSDC_PER_USDC))
+	// convert eth price in usd to eth price in uusdc
+	ethPriceUUSDC := new(big.Float).Mul(big.NewFloat(ethPriceUSD), new(big.Float).SetInt64(UUSDC_PER_USD))
 
-	// we may be off by 1 uusdc in either direction here due to floating point
-	// numbers being annoying
-	uusdcFee, _ := txFeeUUSDC.Int(nil)
-	return uusdcFee, nil
+	// eth price in usd comes back from coin gecko with two decimals. Since we
+	// just converted to uusdc, shifting the decimal place right by 6, we can
+	// safely turn this into an int now
+	ethPriceUUSDCInt, ok := new(big.Int).SetString(ethPriceUUSDC.String(), 10)
+	if !ok {
+		return nil, fmt.Errorf("converting eth price in uusdc %s to *big.Int", ethPriceUUSDC.String())
+	}
+
+	// What we are really trying to do is:
+	//   eth price uusdc / gwei per eth = gwei price in uusdc
+	//   gwei price in uusdc * tx fee gwei = tx fee uusdc
+	// However we are choosing to first multiply eth price uusdc by tx fee gwei
+	// so that we can do integer division when converting to gwei, since if we
+	// first do integer division (before multiplying), we are going to cut off
+	// necessary decimals. there are limits of this, if eth price uusdc * tx
+	// fee gwei has less than 9 digits, then we will just return 0. However,
+	// this is unlikely in practice and the tx fee would be very small if this
+	// is the case.
+	tmp := new(big.Int).Mul(ethPriceUUSDCInt, txFeeGwei)
+	txFeeUUSDC := new(big.Int).Div(tmp, big.NewInt(GWEI_PER_ETH))
+	return txFeeUUSDC, nil
 }
