@@ -10,7 +10,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	"github.com/cosmos/cosmos-sdk/types/bech32"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/gagliardetto/solana-go"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
 	"go.uber.org/zap"
@@ -186,15 +185,6 @@ func LogSolverAddresses(ctx context.Context, chainIDToPrivateKey KeyStore) {
 			}
 
 			address := crypto.PubkeyToAddress(privateKey.PublicKey).Hex()
-			lmt.Logger(ctx).Info("solver address", zap.String("chainID", chainID), zap.String("address", address))
-		} else if chainCfg.Type == config.ChainType_SVM {
-			privateKey, err := solana.PrivateKeyFromBase58(privateKeyHex)
-			if err != nil {
-				lmt.Logger(ctx).Error("error decoding private key into solana private key", zap.String("chainID", chainID), zap.Error(err))
-				continue
-			}
-
-			address := privateKey.PublicKey().String()
 			lmt.Logger(ctx).Info("solver address", zap.String("chainID", chainID), zap.String("address", address))
 		} else {
 			lmt.Logger(ctx).Error("unknown chain type", zap.String("chainID", chainID), zap.String("chainType", string(chainCfg.Type)))

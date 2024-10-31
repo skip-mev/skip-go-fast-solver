@@ -263,15 +263,9 @@ type CosmosTx struct {
 	Msgs          []CosmosMessage `json:"msgs"`
 }
 
-type SVMTx struct {
-	ChainID       string `json:"chain_id"`
-	SignerAddress string `json:"signer_address"`
-	Tx            string `json:"tx"`
-}
 type Tx struct {
 	EVMTx             *EVMTx    `json:"evm_tx"`
 	CosmosTx          *CosmosTx `json:"cosmos_tx"`
-	SVMTx             *SVMTx    `json:"svm_tx"`
 	OperationsIndices []int     `json:"operations_indices"`
 }
 

@@ -326,8 +326,6 @@ func (r *FundRebalancer) usdcBalance(ctx context.Context, chainID string) (*big.
 		if !ok {
 			return nil, fmt.Errorf("could not convert balance %s to *big.Int", balance)
 		}
-	case config.ChainType_SVM:
-		return nil, fmt.Errorf("svm balances not supported")
 	}
 
 	return currentBalance, nil
@@ -482,8 +480,6 @@ func (r *FundRebalancer) SignTxns(
 			chainID = txn.tx.EVMTx.ChainID
 		case txn.tx.CosmosTx != nil:
 			return nil, fmt.Errorf("cosmos txns not supported yet")
-		case txn.tx.SVMTx != nil:
-			return nil, fmt.Errorf("svm txns not supported yet")
 		default:
 			return nil, fmt.Errorf("no valid transaction types returned from Skip Go")
 		}

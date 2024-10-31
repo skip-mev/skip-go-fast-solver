@@ -22,8 +22,6 @@ func NewSigner(ctx context.Context, chainID string, chainIDToPrivateKey map[stri
 		return newCosmosSigner(ctx, chainID, chainIDToPrivateKey)
 	case config.ChainType_EVM:
 		return newEVMSigner(ctx, chainID, chainIDToPrivateKey)
-	case config.ChainType_SVM:
-		return newSVMSigner(ctx, chainID, chainIDToPrivateKey)
 	default:
 		return nil, fmt.Errorf("no signer available for chain type: %s", chainConfig.Type)
 	}
@@ -76,18 +74,4 @@ func newEVMSigner(ctx context.Context, chainID string, chainIDToPrivateKey map[s
 	}
 
 	return NewLocalEthereumSigner(privateKey), nil
-}
-
-func newSVMSigner(ctx context.Context, chainID string, chainIDToPrivateKey map[string]string) (*LocalSolanaSigner, error) {
-	privateKeyBase58, ok := chainIDToPrivateKey[chainID]
-	if !ok {
-		return nil, fmt.Errorf("solver private key not found for chainID %s", chainID)
-	}
-
-	signer, err := NewLocalSolanaSigner(privateKeyBase58)
-	if err != nil {
-		return nil, fmt.Errorf("creating local solana signer: %w", err)
-	}
-
-	return signer, nil
 }
