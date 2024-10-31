@@ -244,6 +244,30 @@ func (r *FundRebalancer) MoveFundsToChain(
 			return nil, nil, fmt.Errorf("getting txns required for fund rebalancing: %w", err)
 		}
 
+		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(rebalanceFromChainID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("getting chain config for gas threshold check: %w", err)
+		}
+
+		if chainConfig.MaxRebalancingGasThreshold != 0 {
+			// Check if total gas needed exceeds threshold to rebalance funds from this chain
+			totalRebalancingGas, err := r.estimateTotalGas(txns)
+			if err != nil {
+				return nil, nil, fmt.Errorf("estimating total gas for transactions: %w", err)
+			}
+
+			if totalRebalancingGas > chainConfig.MaxRebalancingGasThreshold {
+				lmt.Logger(ctx).Info(
+					"skipping rebalance from chain "+rebalanceFromChainID+" due to rebalancing txs exceeding gas threshold",
+					zap.String("sourceChainID", rebalanceFromChainID),
+					zap.String("destinationChainID", rebalanceToChain),
+					zap.Uint64("estimatedGas", totalRebalancingGas),
+					zap.Uint64("gasThreshold", chainConfig.MaxRebalancingGasThreshold),
+				)
+				continue
+			}
+		}
+
 		signedTxns, err := r.SignTxns(ctx, txns)
 		if err != nil {
 			return nil, nil, fmt.Errorf("signing txns required for fund rebalancing: %w", err)
@@ -251,14 +275,14 @@ func (r *FundRebalancer) MoveFundsToChain(
 
 		txnHashes, err := r.SubmitTxns(ctx, signedTxns)
 		if err != nil {
-			return nil, nil, fmt.Errorf("submitting signed txns required for fund rebalancing: %w", err)
+			return nil, nil, fmt.Errorf("error submitting signed txns required for fund rebalancing: %w", err)
 		}
 
 		totalUSDCcMoved = new(big.Int).Add(totalUSDCcMoved, usdcToRebalance)
 		hashes = append(hashes, txnHashes...)
 
 		// if there is no more usdc needed, we are done rebalancing
-		remainingUSDCNeeded = new(big.Int).Sub(remainingUSDCNeeded, usdcToSpare)
+		remainingUSDCNeeded = new(big.Int).Sub(remainingUSDCNeeded, usdcToRebalance)
 		if remainingUSDCNeeded.Cmp(big.NewInt(0)) <= 0 {
 			return hashes, totalUSDCcMoved, nil
 		}
@@ -358,6 +382,7 @@ type SkipGoTxnWithMetadata struct {
 	sourceChainID      string
 	destinationChainID string
 	amount             *big.Int
+	gasEstimate        uint64
 }
 
 // GetRebalanceTxns gets transaction msgs/data from Skip Go that can be signed
@@ -438,11 +463,37 @@ func (r *FundRebalancer) GetRebalanceTxns(
 
 	txnsWithMetadata := make([]SkipGoTxnWithMetadata, 0, len(txns))
 	for _, txn := range txns {
+		var gasEstimate uint64
+		if txn.EVMTx != nil {
+			client, err := r.evmClientManager.GetClient(ctx, txn.EVMTx.ChainID)
+			if err != nil {
+				return nil, fmt.Errorf("getting evm client for chain %s: %w", txn.EVMTx.ChainID, err)
+			}
+
+			decodedData, err := hex.DecodeString(txn.EVMTx.Data)
+			if err != nil {
+				return nil, fmt.Errorf("hex decoding evm call data: %w", err)
+			}
+
+			txBuilder := evm.NewTxBuilder(client)
+			estimate, err := txBuilder.EstimateGasForTx(
+				ctx,
+				sourceChainConfig.SolverAddress,
+				txn.EVMTx.To,
+				txn.EVMTx.Value,
+				decodedData,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("estimating gas: %w", err)
+			}
+			gasEstimate = estimate
+		}
 		txnsWithMetadata = append(txnsWithMetadata, SkipGoTxnWithMetadata{
 			tx:                 txn,
 			sourceChainID:      sourceChainID,
 			destinationChainID: destChainID,
 			amount:             amount,
+			gasEstimate:        gasEstimate,
 		})
 	}
 
@@ -473,7 +524,7 @@ func (r *FundRebalancer) SignTxns(
 		// each chain type
 		switch {
 		case txn.tx.EVMTx != nil:
-			tx, err := r.buildEVMTx(ctx, txn.tx.EVMTx.ChainID, txn.tx.EVMTx)
+			tx, err := r.buildEVMTx(ctx, txn.tx.EVMTx.ChainID, txn.tx.EVMTx, txn.gasEstimate)
 			if err != nil {
 				return nil, fmt.Errorf("building evm transaction from skip go transaction data: %w", err)
 			}
@@ -528,6 +579,7 @@ func (r *FundRebalancer) buildEVMTx(
 	ctx context.Context,
 	chainID string,
 	tx *skipgo.EVMTx,
+	gasEstimate uint64,
 ) (signing.Transaction, error) {
 	client, err := r.evmClientManager.GetClient(ctx, chainID)
 	if err != nil {
@@ -551,18 +603,19 @@ func (r *FundRebalancer) buildEVMTx(
 		evm.WithTo(tx.To),
 		evm.WithChainID(chainID),
 		evm.WithNonce(chainConfig.SolverAddress),
-		evm.WithEstimatedGasLimit(chainConfig.SolverAddress, tx.To, tx.Value, decodedData),
+		evm.WithEstimatedGasLimit(gasEstimate),
 		evm.WithEstimatedGasFeeCap(),
 		evm.WithEstimatedGasTipCap(),
 	)
 }
 
-// SubmitTxns submits txs to chain via Skip Go.
+// SubmitTxns submits txs to chain via Skip Go
 func (r *FundRebalancer) SubmitTxns(
 	ctx context.Context,
 	signedTxns []TxnWithMetadata,
 ) ([]skipgo.TxHash, error) {
 	var hashes []skipgo.TxHash
+
 	for _, signedTxn := range signedTxns {
 		txBytes, err := signedTxn.Tx.MarshalBinary()
 		if err != nil {
@@ -577,7 +630,7 @@ func (r *FundRebalancer) SubmitTxns(
 		lmt.Logger(ctx).Info(
 			"submitted transaction to Skip Go to rebalance funds",
 			zap.String("sourceChainID", signedTxn.SourceChainID),
-			zap.String("destChainID", signedTxn.DestinationChainID),
+			zap.String("destinationChainID", signedTxn.DestinationChainID),
 			zap.String("txnHash", string(hash)),
 		)
 
@@ -595,4 +648,12 @@ func (r *FundRebalancer) SubmitTxns(
 	}
 
 	return hashes, nil
+}
+
+func (r *FundRebalancer) estimateTotalGas(txns []SkipGoTxnWithMetadata) (uint64, error) {
+	var totalGas uint64
+	for _, txn := range txns {
+		totalGas += txn.gasEstimate
+	}
+	return totalGas, nil
 }

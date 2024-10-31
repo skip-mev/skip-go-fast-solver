@@ -357,7 +357,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 			Return(ethTxs, nil).Once()
 
 		mockSkipGo.EXPECT().SubmitTx(mockContext, mock.Anything, ethChainID).
-			Return(skipgo.TxHash("ethhash"), nil).Once()
+			Return("ethhash", nil).Once()
 
 		// setup mock evm client txn construction calls
 		mockEVMClient.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100), nil)
@@ -458,6 +458,101 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		// rebaalnce is not necessary with the in flight txn to osmosis
 
 		rebalancer.Rebalance(ctx)
+	})
+
+	t.Run("skips rebalance when gas threshold exceeded", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		mockConfigReader := mock_config.NewMockConfigReader(t)
+		mockConfigReader.On("Config").Return(config.Config{
+			FundRebalancer: map[string]config.FundRebalancerConfig{
+				osmosisChainID: {
+					TargetAmount:     strconv.Itoa(osmosisTargetAmount),
+					MinAllowedAmount: strconv.Itoa(osmosisMinAmount),
+				},
+				arbitrumChainID: {
+					TargetAmount:     strconv.Itoa(arbitrumTargetAmount),
+					MinAllowedAmount: strconv.Itoa(arbitrumMinAmount),
+				},
+			},
+		})
+		mockConfigReader.EXPECT().GetUSDCDenom(osmosisChainID).Return(osmosisUSDCDenom, nil)
+		mockConfigReader.EXPECT().GetUSDCDenom(arbitrumChainID).Return(arbitrumUSDCDenom, nil)
+		mockConfigReader.On("GetChainConfig", osmosisChainID).Return(
+			config.ChainConfig{
+				Type:          config.ChainType_COSMOS,
+				Cosmos:        &config.CosmosConfig{USDCDenom: osmosisUSDCDenom},
+				SolverAddress: osmosisAddress,
+			},
+			nil,
+		)
+		mockConfigReader.On("GetChainConfig", arbitrumChainID).Return(
+			config.ChainConfig{
+				Type: config.ChainType_EVM,
+				EVM: &config.EVMConfig{
+					Contracts: config.ContractsConfig{USDCERC20Address: arbitrumUSDCDenom},
+				},
+				SolverAddress:              arbitrumAddress,
+				MaxRebalancingGasThreshold: 50, // Set low threshold that will be exceeded
+			},
+			nil,
+		)
+		ctx = config.ConfigReaderContext(ctx, mockConfigReader)
+
+		f, err := loadKeysFile(defaultKeys)
+		assert.NoError(t, err)
+
+		mockSkipGo := mock_skipgo.NewMockSkipGoClient(t)
+		mockEVMClientManager := mock_evmrpc.NewMockEVMRPCClientManager(t)
+		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
+		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
+		mockDatabse := mock_database.NewMockDatabase(t)
+
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse)
+		assert.NoError(t, err)
+
+		// No pending txns
+		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, osmosisChainID).Return(nil, nil)
+		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, arbitrumChainID).Return(nil, nil)
+
+		// Osmosis needs funds, Arbitrum has excess
+		mockSkipGo.EXPECT().Balance(mockContext, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("0", nil)
+		mockEVMClient.EXPECT().GetUSDCBalance(mockContext, arbitrumUSDCDenom, arbitrumAddress).Return(big.NewInt(200), nil)
+
+		route := &skipgo.RouteResponse{
+			AmountOut:              "100",
+			Operations:             []any{"opts"},
+			RequiredChainAddresses: []string{arbitrumChainID, osmosisChainID},
+		}
+		mockSkipGo.EXPECT().Route(mockContext, arbitrumUSDCDenom, arbitrumChainID, osmosisUSDCDenom, osmosisChainID, big.NewInt(100)).
+			Return(route, nil)
+
+		// Return transaction that will require more gas than threshold
+		txs := []skipgo.Tx{{EVMTx: &skipgo.EVMTx{ChainID: arbitrumChainID, To: osmosisAddress, Value: "0"}}}
+		mockSkipGo.EXPECT().Msgs(
+			mockContext,
+			arbitrumUSDCDenom,
+			arbitrumChainID,
+			arbitrumAddress,
+			osmosisUSDCDenom,
+			osmosisChainID,
+			osmosisAddress,
+			big.NewInt(100),
+			big.NewInt(100),
+			[]string{arbitrumAddress, osmosisAddress},
+			route.Operations,
+		).Return(txs, nil)
+
+		// Return gas estimate higher than threshold
+		mockEVMClient.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100), nil)
+
+		rebalancer.Rebalance(ctx)
+
+		// Verify no transactions were submitted by checking database
+		transfers, err := mockDatabse.GetPendingRebalanceTransfersToChain(ctx, osmosisChainID)
+		assert.NoError(t, err)
+		assert.Len(t, transfers, 0, "expected no transfers to be submitted due to gas threshold")
 	})
 
 }
