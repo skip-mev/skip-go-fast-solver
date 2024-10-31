@@ -154,7 +154,8 @@ chains:
     gas_token_decimals: 6
     fast_transfer_contract_address: "osmo19a2a86dtmlrngnjs6f0trrk3sfr9hf75n6yvlpplx6rp7z9mq4wqgmxwpm"
     solver_address: "osmo1f9qwat48ldgxrmssvpvpk3tea8l72mks20gehu"
-    max_fill_size: 100000
+    min_fill_size: "5000000"
+    max_fill_size: "10000000000"
     usdc_denom: "ibc/498A0751C798A0D9A389AA3691123DADA57DAA4FE165D5C75894505B876BA6E4"
     hyperlane_domain: "875"
     cosmos:

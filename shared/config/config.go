@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"os"
 	"strings"
 	"time"
@@ -78,7 +79,8 @@ type ChainConfig struct {
 	NumBlockConfirmationsBeforeFill int64            `yaml:"num_block_confirmations_before_fill"`
 	HyperlaneDomain                 string           `yaml:"hyperlane_domain"`
 	QuickStartNumBlocksBack         uint64           `yaml:"quick_start_num_blocks_back"`
-	MaxFillSize                     *uint64          `yaml:"max_fill_size"`
+	MinFillSize                     *big.Int         `yaml:"min_fill_size"`
+	MaxFillSize                     *big.Int         `yaml:"max_fill_size"`
 	FastTransferContractAddress     string           `yaml:"fast_transfer_contract_address"`
 	SolverAddress                   string           `yaml:"solver_address"`
 	USDCDenom                       string           `yaml:"usdc_denom"`
