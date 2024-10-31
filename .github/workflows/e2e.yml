@@ -57,3 +57,12 @@ jobs:
         run: |
           make tidy
           make e2e-test
+
+      - name: Upload run-latest.json // this contains info about all the transactions that were submitted to chain in e2e test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-artifacts
+          path: |
+            broadcast/**/run-latest.json
+          retention-days: 7
