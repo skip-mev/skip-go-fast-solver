@@ -1,0 +1,59 @@
+name: e2e
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "**.rs"
+      - "**.go"
+      - "**.toml"
+      - "**.lock"
+      - "**.mod"
+      - "**.sum"
+      - "**.sol"
+      - ".github/workflows/e2e.yml"
+env:
+  FOUNDRY_PROFILE: ci
+  FOUNDRY_VERSION: nightly
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - TestWithSolverTestSuite/TestDeploy
+    name: ${{ matrix.test }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.22"
+          check-latest: true
+
+      - name: Install dependencies
+        run: |
+          forge install
+          go mod download
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Run E2E Tests
+        run: |
+          make tidy
+          make e2e-test
