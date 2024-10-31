@@ -74,7 +74,7 @@ func (c *EVMBridgeClient) USDCBalance(ctx context.Context, address string) (*big
 	return balance, nil
 }
 
-func (c *EVMBridgeClient) SignerGasTokenBalance(ctx context.Context) (*big.Int, error) {
+func (c *EVMBridgeClient) GasTokenBalance(ctx context.Context) (*big.Int, error) {
 	balance, err := c.client.BalanceAt(ctx, c.fromAddress, nil)
 	if err != nil {
 		return nil, err

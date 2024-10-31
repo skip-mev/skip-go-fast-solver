@@ -66,10 +66,10 @@ func (c *SvmBridgeClient) IsSettlementComplete(ctx context.Context, gatewayContr
 }
 
 // Queries
-func (c *SvmBridgeClient) SignerGasTokenBalance(ctx context.Context) (*big.Int, error) {
+func (c *SvmBridgeClient) GasTokenBalance(ctx context.Context) (*big.Int, error) {
 	balanceResult, err := c.rpcClient.GetBalance(ctx, c.signerAddress, rpc.CommitmentConfirmed)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get signer balance: %w", err)
+		return nil, fmt.Errorf("failed to get gas token balance: %w", err)
 	}
 
 	return big.NewInt(int64(balanceResult.Value)), nil

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/utils"
 	"math/big"
 	"strconv"
 	"time"
@@ -327,6 +328,20 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 	)
 	if err != nil {
 		return fmt.Errorf("initiating batch settlement on chain %s: %w", batch.DestinationChainID(), err)
+	}
+
+	sourceChainClient, err := r.clientManager.GetClient(ctx, batch.SourceChainID())
+	if err != nil {
+		lmt.Logger(ctx).Error("failed to get chain client to monitor gas balance",
+			zap.Error(err), zap.String("chainID", batch.SourceChainID()))
+	}
+
+	// dont fail if we cant get the chain client, just log an error
+	if sourceChainClient != nil {
+		err = utils.MonitorGasBalance(ctx, batch.SourceChainID(), sourceChainClient)
+		if err != nil {
+			lmt.Logger(ctx).Error("failed to monitor gas balance", zap.Error(err), zap.String("chainID", batch.SourceChainID()))
+		}
 	}
 
 	err = r.db.InTx(ctx, func(ctx context.Context, q db.Querier) error {

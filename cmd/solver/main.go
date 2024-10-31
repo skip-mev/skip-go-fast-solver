@@ -134,7 +134,7 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		r, err := fundrebalancer.NewFundRebalancer(ctx, *keysPath, skipgo, evmManager, db.New(dbConn))
+		r, err := fundrebalancer.NewFundRebalancer(ctx, *keysPath, skipgo, evmManager, clientManager, db.New(dbConn))
 		if err != nil {
 			return fmt.Errorf("creating fund rebalancer: %w", err)
 		}
@@ -148,7 +148,7 @@ func main() {
 			return fmt.Errorf("creating hyperlane multi client from config: %w", err)
 		}
 
-		relayer := hyperlane.NewRelayer(hype, make(map[string]string))
+		relayer := hyperlane.NewRelayer(hype, make(map[string]string), clientManager)
 		err = hyperlane.NewRelayerRunner(db.New(dbConn), hype, relayer).Run(ctx)
 		if err != nil {
 			return fmt.Errorf("relaying message: %v", err)

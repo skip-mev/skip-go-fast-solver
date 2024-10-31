@@ -4,6 +4,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
+	"github.com/skip-mev/go-fast-solver/shared/utils"
 
 	"strings"
 
@@ -24,12 +26,14 @@ type Relayer interface {
 type relayer struct {
 	hyperlane                Client
 	storageLocationOverrides map[string]string
+	clientManager            *clientmanager.ClientManager
 }
 
-func NewRelayer(hyperlaneClient Client, storageLocationOverrides map[string]string) Relayer {
+func NewRelayer(hyperlaneClient Client, storageLocationOverrides map[string]string, clientManager *clientmanager.ClientManager) Relayer {
 	return &relayer{
 		hyperlane:                hyperlaneClient,
 		storageLocationOverrides: storageLocationOverrides,
+		clientManager:            clientManager,
 	}
 }
 
@@ -139,6 +143,20 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(destinationChainID)
 	if err != nil {
 		return "", "", fmt.Errorf("getting destination chain config for chainID %s: %w", destinationChainID, err)
+	}
+
+	originChainClient, err := r.clientManager.GetClient(ctx, originChainID)
+	if err != nil {
+		lmt.Logger(ctx).Error("failed to get chain client to monitor gas balance",
+			zap.Error(err), zap.String("chainID", originChainID))
+	}
+
+	// dont fail if we cant get the chain client, just log an error
+	if originChainClient != nil {
+		err = utils.MonitorGasBalance(ctx, originChainID, originChainClient)
+		if err != nil {
+			lmt.Logger(ctx).Error("failed to monitor gas balance", zap.Error(err), zap.String("chainID", originChainID))
+		}
 	}
 
 	lmt.Logger(ctx).Info(

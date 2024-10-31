@@ -4,6 +4,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
+	"github.com/skip-mev/go-fast-solver/shared/utils"
 	"math/big"
 	"os"
 	"time"
@@ -38,6 +40,7 @@ type FundRebalancer struct {
 	chainIDToPrivateKey map[string]string
 	skipgo              skipgo.SkipGoClient
 	evmClientManager    evmrpc.EVMRPCClientManager
+	clientManager       *clientmanager.ClientManager
 	config              map[string]config.FundRebalancerConfig
 	database            Database
 	trasferTracker      *TransferTracker
@@ -48,6 +51,7 @@ func NewFundRebalancer(
 	keysPath string,
 	skipgo skipgo.SkipGoClient,
 	evmClientManager evmrpc.EVMRPCClientManager,
+	clientmanager *clientmanager.ClientManager,
 	database Database,
 ) (*FundRebalancer, error) {
 	chainIDToPriavateKey, err := loadChainIDToPrivateKeyMap(keysPath)
@@ -59,6 +63,7 @@ func NewFundRebalancer(
 		chainIDToPrivateKey: chainIDToPriavateKey,
 		skipgo:              skipgo,
 		evmClientManager:    evmClientManager,
+		clientManager:       clientmanager,
 		config:              config.GetConfigReader(ctx).Config().FundRebalancer,
 		database:            database,
 		trasferTracker:      NewTransferTracker(skipgo, database),
@@ -256,6 +261,20 @@ func (r *FundRebalancer) MoveFundsToChain(
 		if err != nil {
 			return nil, nil, fmt.Errorf("submitting signed txns required for fund rebalancing: %w", err)
 		}
+
+		sourceChainClient, err := r.clientManager.GetClient(ctx, rebalanceFromChainID)
+		if err != nil {
+			lmt.Logger(ctx).Error("failed to get chain client to monitor gas balance", zap.Error(err))
+		}
+
+		// dont fail if we cant get the chain client, just log an error
+		if sourceChainClient != nil {
+			err = utils.MonitorGasBalance(ctx, rebalanceFromChainID, sourceChainClient)
+			if err != nil {
+				lmt.Logger(ctx).Error("failed to monitor gas balance", zap.Error(err), zap.String("chainID", rebalanceFromChainID))
+			}
+		}
+
 		metrics.FromContext(ctx).IncFundsRebalanceTransfers(rebalanceFromChainID, rebalanceToChain, dbtypes.RebalanceTransactionStatusPending)
 
 		totalUSDCcMoved = new(big.Int).Add(totalUSDCcMoved, usdcToRebalance)
