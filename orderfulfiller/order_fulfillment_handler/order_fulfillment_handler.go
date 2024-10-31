@@ -9,22 +9,22 @@ import (
 	"time"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
+	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/orderfulfiller"
 	"github.com/skip-mev/go-fast-solver/shared/bridges/cctp"
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
-	coingecko2 "github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
-	"github.com/skip-mev/go-fast-solver/shared/metrics"
-
-	"github.com/skip-mev/go-fast-solver/db/gen/db"
+	"github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
+	"github.com/skip-mev/go-fast-solver/shared/utils"
 	"go.uber.org/zap"
 )
 
 type orderFulfillmentHandler struct {
 	db            orderfulfiller.Database
 	clientManager *clientmanager.ClientManager
-	PriceClient   coingecko2.PriceClient
+	PriceClient   coingecko.PriceClient
 }
 
 func NewOrderFulfillmentHandler(ctx context.Context, db orderfulfiller.Database, clientManager *clientmanager.ClientManager) (*orderFulfillmentHandler, error) {
@@ -33,7 +33,7 @@ func NewOrderFulfillmentHandler(ctx context.Context, db orderfulfiller.Database,
 	return &orderFulfillmentHandler{
 		db:            db,
 		clientManager: clientManager,
-		PriceClient:   coingecko2.NewCachedPriceClient(coingecko2.DefaultCoingeckoClient(coingeckoConfig), coingeckoConfig.CacheRefreshInterval),
+		PriceClient:   coingecko.NewCachedPriceClient(coingecko.DefaultCoingeckoClient(coingeckoConfig), coingeckoConfig.CacheRefreshInterval),
 	}, nil
 }
 
@@ -197,9 +197,22 @@ func (r *orderFulfillmentHandler) FillOrder(
 	}
 
 	txHash, rawTx, _, err := destinationChainBridgeClient.FillOrder(ctx, order, destinationChainGatewayContractAddress)
-	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, order.SourceChainID, order.DestinationChainID)
 	if err != nil {
 		return "", fmt.Errorf("filling order on destination chain at address %s: %w", destinationChainBridgeClient, err)
+	}
+	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, order.SourceChainID, order.DestinationChainID)
+
+	destinationChainClient, err := r.clientManager.GetClient(ctx, order.DestinationChainID)
+	if err != nil {
+		lmt.Logger(ctx).Error("failed to get chain client to monitor gas balance", zap.Error(err))
+	}
+
+	// dont fail if we cant get the chain client, just log an error
+	if destinationChainClient != nil {
+		err = utils.MonitorGasBalance(ctx, order.DestinationChainID, destinationChainClient)
+		if err != nil {
+			lmt.Logger(ctx).Error("failed to monitor gas balance", zap.Error(err), zap.String("chainID", order.DestinationChainID))
+		}
 	}
 
 	if _, err := r.db.InsertSubmittedTx(ctx, db.InsertSubmittedTxParams{
@@ -397,9 +410,24 @@ func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.
 	}
 
 	txHash, rawTx, _, err := destinationChainBridgeClient.InitiateTimeout(ctx, order, destinationChainGatewayContractAddress)
-	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, order.SourceChainID, order.DestinationChainID)
 	if err != nil {
-		return fmt.Errorf("initiating timeout: %w", err)
+		return fmt.Errorf("error initiating timeout: %w", err)
+	}
+
+	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, order.SourceChainID, order.DestinationChainID)
+
+	destinationChainClient, err := r.clientManager.GetClient(ctx, order.DestinationChainID)
+	if err != nil {
+		lmt.Logger(ctx).Error("failed to get destinationChainClient to monitor gas balance",
+			zap.Error(err), zap.String("chainID", order.DestinationChainID))
+	}
+
+	// dont fail if we cant get the source chain client, just log an error
+	if destinationChainClient != nil {
+		err = utils.MonitorGasBalance(ctx, order.DestinationChainID, destinationChainClient)
+		if err != nil {
+			lmt.Logger(ctx).Error("failed to monitor gas balance", zap.Error(err), zap.String("chainID", order.DestinationChainID))
+		}
 	}
 
 	if _, err := r.db.InsertSubmittedTx(ctx, db.InsertSubmittedTxParams{

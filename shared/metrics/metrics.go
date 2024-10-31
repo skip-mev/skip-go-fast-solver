@@ -3,6 +3,8 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"math"
+	"math/big"
 	"time"
 
 	"github.com/go-kit/kit/metrics"
@@ -12,6 +14,7 @@ import (
 
 const (
 	chainIDLabel            = "chain_id"
+	chainNameLabel          = "chain_name"
 	sourceChainIDLabel      = "source_chain_id"
 	destinationChainIDLabel = "destination_chain_id"
 	successLabel            = "success"
@@ -19,6 +22,8 @@ const (
 	transferStatusLabel     = "transfer_status"
 	settlementStatusLabel   = "settlement_status"
 	operationLabel          = "operation"
+	gasBalanceLevelLabel    = "gas_balance_level"
+	gasTokenSymbolLabel     = "gas_token_symbol"
 )
 
 type Metrics interface {
@@ -27,24 +32,26 @@ type Metrics interface {
 
 	IncFillOrders(sourceChainID, destinationChainID, orderStatus string)
 	DecFillOrders(sourceChainID, destinationChainID, orderStatus string)
-	ObserveFillLatency(sourceChainID, destinationChainID string, orderStatus string, latency time.Duration)
+	ObserveFillLatency(sourceChainID, destinationChainID, orderStatus string, latency time.Duration)
 
 	IncOrderSettlements(sourceChainID, destinationChainID, settlementStatus string)
 	DecOrderSettlements(sourceChainID, destinationChainID, settlementStatus string)
-	ObserveSettlementLatency(sourceChainID, destinationChainID string, settlementStatus string, latency time.Duration)
+	ObserveSettlementLatency(sourceChainID, destinationChainID, settlementStatus string, latency time.Duration)
 
-	IncFundsRebalanceTransfers(sourceChainID, destinationChainID string, transferStatus string)
-	DecFundsRebalanceTransfers(sourceChainID, destinationChainID string, transferStatus string)
+	IncFundsRebalanceTransfers(sourceChainID, destinationChainID, transferStatus string)
+	DecFundsRebalanceTransfers(sourceChainID, destinationChainID, transferStatus string)
 
 	IncHyperlaneCheckpointingErrors()
-	IncHyperlaneMessages(sourceChainID, destinationChainID string, messageStatus string)
-	DecHyperlaneMessages(sourceChainID, destinationChainID string, messageStatus string)
+	IncHyperlaneMessages(sourceChainID, destinationChainID, messageStatus string)
+	DecHyperlaneMessages(sourceChainID, destinationChainID, messageStatus string)
 	ObserveHyperlaneLatency(sourceChainID, destinationChainID, transferStatus string, latency time.Duration)
 
 	ObserveTransferSizeExceeded(sourceChainID, destinationChainID string, amountExceededBy uint64)
 	ObserveFeeBpsRejection(sourceChainID, destinationChainID string, feeBpsExceededBy int64)
 
 	IncDatabaseErrors(operation string)
+
+	SetGasBalance(chainID, chainName, gasTokenSymbol string, gasBalance, warningThreshold, criticalThreshold big.Int, gasTokenDecimals uint8)
 }
 
 type metricsContextKey struct{}
@@ -84,6 +91,7 @@ type PromMetrics struct {
 	feeBpsRejections           metrics.Histogram
 
 	databaseErrors metrics.Counter
+	gasBalance     metrics.Gauge
 }
 
 func NewPromMetrics() Metrics {
@@ -166,6 +174,11 @@ func NewPromMetrics() Metrics {
 			Name:      "database_errors_total",
 			Help:      "number of errors encountered when making database calls",
 		}, []string{}),
+		gasBalance: prom.NewGaugeFrom(stdprom.GaugeOpts{
+			Namespace: "solver",
+			Name:      "gas_balance_gauge",
+			Help:      "gas balances, paginated by chain id and gas balance level",
+		}, []string{chainIDLabel, chainNameLabel, gasTokenSymbolLabel, gasBalanceLevelLabel}),
 	}
 }
 
@@ -241,6 +254,21 @@ func (m *PromMetrics) IncDatabaseErrors(operation string) {
 	m.databaseErrors.With(operationLabel, operation).Add(1)
 }
 
+func (m *PromMetrics) SetGasBalance(chainID, chainName, gasTokenSymbol string, gasBalance, warningThreshold, criticalThreshold big.Int, gasTokenDecimals uint8) {
+	gasBalanceLevel := "ok"
+	if gasBalance.Cmp(&warningThreshold) < 0 {
+		gasBalanceLevel = "warning"
+	}
+	if gasBalance.Cmp(&criticalThreshold) < 0 {
+		gasBalanceLevel = "critical"
+	}
+	// We compare the gas balance against thresholds locally rather than in the grafana alert definition since
+	// the prometheus metric is exported as a float64 and the thresholds reach Wei amounts where precision is lost.
+	gasBalanceFloat, _ := gasBalance.Float64()
+	gasTokenAmount := gasBalanceFloat / (math.Pow10(int(gasTokenDecimals)))
+	m.gasBalance.With(chainIDLabel, chainID, chainNameLabel, chainName, gasTokenSymbolLabel, gasTokenSymbol, gasBalanceLevelLabel, gasBalanceLevel).Set(gasTokenAmount)
+}
+
 type NoOpMetrics struct{}
 
 func (n NoOpMetrics) IncTransactionSubmitted(success bool, sourceChainID, destinationChainID string) {
@@ -270,6 +298,9 @@ func (n NoOpMetrics) ObserveTransferSizeExceeded(sourceChainID, destinationChain
 }
 func (n NoOpMetrics) IncDatabaseErrors(operation string)                                            {}
 func (n NoOpMetrics) ObserveFeeBpsRejection(sourceChainID, destinationChainID string, feeBps int64) {}
+func (n *NoOpMetrics) SetGasBalance(chainID, chainName, gasTokenSymbol string, gasBalance, warningThreshold, criticalThreshold big.Int, gasTokenDecimals uint8) {
+}
+
 func NewNoOpMetrics() Metrics {
 	return &NoOpMetrics{}
 }

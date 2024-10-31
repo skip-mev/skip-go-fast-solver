@@ -50,7 +50,7 @@ func (e ErrReceiveNotFound) Error() string {
 
 type BridgeClient interface {
 	BlockHeight(ctx context.Context) (uint64, error)
-	SignerGasTokenBalance(ctx context.Context) (*big.Int, error)
+	GasTokenBalance(ctx context.Context) (*big.Int, error)
 	FillOrder(ctx context.Context, order db.Order, gatewayContractAddress string) (string, string, *uint64, error)
 	GetTxResult(ctx context.Context, txHash string) (*big.Int, *TxFailure, error)
 	InitiateBatchSettlement(ctx context.Context, batch types.SettlementBatch) (string, string, error)

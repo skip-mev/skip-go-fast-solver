@@ -131,8 +131,18 @@ func (c *CosmosBridgeClient) Balance(
 	return response.Balance.Amount.BigInt(), nil
 }
 
-func (c *CosmosBridgeClient) SignerGasTokenBalance(ctx context.Context) (*big.Int, error) {
-	return nil, errors.New("not implemented")
+func (c *CosmosBridgeClient) GasTokenBalance(ctx context.Context) (*big.Int, error) {
+	fromAddress, err := bech32.ConvertAndEncode(c.prefix, c.signer.Address())
+	if err != nil {
+		return nil, fmt.Errorf("converting signer address to bech32: %w", err)
+	}
+
+	balance, err := c.Balance(ctx, fromAddress, c.gasDenom)
+	if err != nil {
+		return nil, fmt.Errorf("querying gas token balance: %w", err)
+	}
+
+	return balance, nil
 }
 
 func (c *CosmosBridgeClient) Allowance(ctx context.Context, owner string) (*big.Int, error) {

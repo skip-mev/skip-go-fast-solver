@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"os"
 	"strings"
 	"time"
@@ -104,45 +105,49 @@ type RelayerConfig struct {
 	MailboxAddress                   string `yaml:"mailbox_address"`
 }
 
-type SignerGasBalanceConfig struct {
+type GasBalanceConfig struct {
 	WarningThresholdWei  string `yaml:"warning_threshold_wei"`
 	CriticalThresholdWei string `yaml:"critical_threshold_wei"`
 }
 
 type CosmosConfig struct {
-	RPC              string                 `yaml:"rpc"`
-	RPCBasicAuthVar  string                 `yaml:"rpc_basic_auth_var"`
-	GRPC             string                 `yaml:"grpc"`
-	GRPCTLSEnabled   bool                   `yaml:"grpc_tls_enabled"`
-	AddressPrefix    string                 `yaml:"address_prefix"`
-	SignerGasBalance SignerGasBalanceConfig `yaml:"signer_gas_balance"`
-	USDCDenom        string                 `yaml:"usdc_denom"`
-	GasPrice         float64                `yaml:"gas_price"`
-	GasDenom         string                 `yaml:"gas_denom"`
+	ChainID         string           `yaml:"chain_id"`
+	RPC             string           `yaml:"rpc"`
+	RPCBasicAuthVar string           `yaml:"rpc_basic_auth_var"`
+	GRPC            string           `yaml:"grpc"`
+	GRPCTLSEnabled  bool             `yaml:"grpc_tls_enabled"`
+	AddressPrefix   string           `yaml:"address_prefix"`
+	GasBalance      GasBalanceConfig `yaml:"gas_balance"`
+	USDCDenom       string           `yaml:"usdc_denom"`
+	SolverAddress   string           `yaml:"solver_address"`
+	GasPrice        float64          `yaml:"gas_price"`
+	GasDenom        string           `yaml:"gas_denom"`
 }
 
 type EVMConfig struct {
-	MinGasTipCap                *int64                 `yaml:"min_gas_tip_cap"`
-	ChainID                     string                 `yaml:"chain_id"`
-	FastTransferContractAddress string                 `yaml:"fast_transfer_contract_address"`
-	RPC                         string                 `yaml:"rpc"`
-	RPCBasicAuthVar             string                 `yaml:"rpc_basic_auth_var"`
-	GRPC                        string                 `yaml:"grpc"`
-	GRPCTLSEnabled              bool                   `yaml:"grpc_tls_enabled"`
-	AddressPrefix               string                 `yaml:"address_prefix"`
-	SignerGasBalance            SignerGasBalanceConfig `yaml:"signer_gas_balance"`
-	SolverAddress               string                 `yaml:"solver_address"`
-	USDCDenom                   string                 `yaml:"usdc_denom"`
-	Contracts                   ContractsConfig        `yaml:"contracts"`
+	MinGasTipCap                *int64           `yaml:"min_gas_tip_cap"`
+	ChainID                     string           `yaml:"chain_id"`
+	FastTransferContractAddress string           `yaml:"fast_transfer_contract_address"`
+	RPC                         string           `yaml:"rpc"`
+	RPCBasicAuthVar             string           `yaml:"rpc_basic_auth_var"`
+	GRPC                        string           `yaml:"grpc"`
+	GRPCTLSEnabled              bool             `yaml:"grpc_tls_enabled"`
+	AddressPrefix               string           `yaml:"address_prefix"`
+	GasBalance                  GasBalanceConfig `yaml:"gas_balance"`
+	SolverAddress               string           `yaml:"solver_address"`
+	USDCDenom                   string           `yaml:"usdc_denom"`
+	Contracts                   ContractsConfig  `yaml:"contracts"`
 }
 
 type SVMConfig struct {
-	RPC                         string                 `yaml:"rpc"`
-	WS                          string                 `yaml:"ws"`
-	SignerGasBalance            SignerGasBalanceConfig `yaml:"signer_gas_balance"`
-	FastTransferContractAddress string                 `yaml:"fast_transfer_contract_address"`
-	PriorityFee                 uint64                 `yaml:"priority_fee"`
-	SubmitRPCs                  []string               `yaml:"submit_rpcs"`
+	ChainID                     string           `yaml:"chain_id"`
+	RPC                         string           `yaml:"rpc"`
+	WS                          string           `yaml:"ws"`
+	GasBalance                  GasBalanceConfig `yaml:"gas_balance"`
+	SolverAddress               string           `yaml:"solver_address"`
+	FastTransferContractAddress string           `yaml:"fast_transfer_contract_address"`
+	PriorityFee                 uint64           `yaml:"priority_fee"`
+	SubmitRPCs                  []string         `yaml:"submit_rpcs"`
 }
 
 type ContractsConfig struct {
@@ -195,13 +200,15 @@ type ConfigReader interface {
 
 	GetChainConfig(chainID string) (ChainConfig, error)
 	GetAllChainConfigsOfType(chainType ChainType) ([]ChainConfig, error)
-
+	GetChainID(domain uint32, environment ChainEnvironment) (string, error)
 	GetCoingeckoConfig() CoingeckoConfig
 
 	GetGatewayContractAddress(chainID string) (string, error)
 	GetChainIDByHyperlaneDomain(domain string) (string, error)
 
 	GetUSDCDenom(chainID string) (string, error)
+
+	GetGasAlertThresholds(chainID string) (warningThreshold, criticalThreshold *big.Int, err error)
 }
 
 type configReader struct {
@@ -380,5 +387,61 @@ func (r configReader) GetUSDCDenom(chainID string) (string, error) {
 		return "", fmt.Errorf("no usdc denom available for svm chains")
 	default:
 		return "", fmt.Errorf("no usdc denom available for chain type %s", chainConfig.Type)
+	}
+}
+
+func (r configReader) GetGasAlertThresholds(chainID string) (warningThreshold, criticalThreshold *big.Int, err error) {
+	var warningThresholdString, criticalThresholdString string
+
+	chain, err := r.GetChainConfig(chainID)
+	if err != nil {
+		return nil, nil, err
+	}
+	switch chain.Type {
+	case ChainType_COSMOS:
+		warningThresholdString = chain.Cosmos.GasBalance.WarningThresholdWei
+		criticalThresholdString = chain.Cosmos.GasBalance.CriticalThresholdWei
+	case ChainType_EVM:
+		warningThresholdString = chain.EVM.GasBalance.WarningThresholdWei
+		criticalThresholdString = chain.EVM.GasBalance.CriticalThresholdWei
+	case ChainType_SVM:
+		warningThresholdString = "0"
+		criticalThresholdString = "0"
+	default:
+		return nil, nil, fmt.Errorf("unknown chain type")
+	}
+
+	warningThreshold, ok := new(big.Int).SetString(warningThresholdString, 10)
+	if !ok {
+		return nil, nil, fmt.Errorf("failed to parse gas balance threshold amount")
+	}
+	criticalThreshold, ok = new(big.Int).SetString(criticalThresholdString, 10)
+	if !ok {
+		return nil, nil, fmt.Errorf("failed to parse gas balance threshold amount")
+	}
+
+	return warningThreshold, criticalThreshold, nil
+}
+
+func (r configReader) GetChainID(domain uint32, environment ChainEnvironment) (string, error) {
+	domainIndex, ok := r.cctpDomainIndex[environment]
+	if !ok {
+		return "", fmt.Errorf("cctp domain index not found for environment %s", environment)
+	}
+
+	chain, ok := domainIndex[domain]
+	if !ok {
+		return "", fmt.Errorf("cctp domain %d not found for environment %s", domain, environment)
+	}
+
+	switch chain.Type {
+	case ChainType_COSMOS:
+		return chain.Cosmos.ChainID, nil
+	case ChainType_EVM:
+		return chain.EVM.ChainID, nil
+	case ChainType_SVM:
+		return chain.SVM.ChainID, nil
+	default:
+		return "", fmt.Errorf("unknown chain type")
 	}
 }
