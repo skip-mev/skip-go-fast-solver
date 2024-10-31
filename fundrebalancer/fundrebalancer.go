@@ -581,7 +581,7 @@ func (r *FundRebalancer) buildEVMTx(
 	)
 }
 
-// SubmitTxns submits txs to chain via Skip Go, checking gas thresholds per transaction
+// SubmitTxns submits txs to chain via Skip Go
 func (r *FundRebalancer) SubmitTxns(
 	ctx context.Context,
 	signedTxns []TxnWithMetadata,
