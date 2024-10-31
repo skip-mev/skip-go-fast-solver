@@ -79,6 +79,7 @@ type ChainConfig struct {
 	HyperlaneDomain                 string           `yaml:"hyperlane_domain"`
 	QuickStartNumBlocksBack         uint64           `yaml:"quick_start_num_blocks_back"`
 	MaxFillSize                     *uint64          `yaml:"max_fill_size"`
+	MaxRebalancingGasThreshold      uint64           `yaml:"max_rebalancing_gas_threshold"` // Maximum gas price for rebalancing txs per chain
 	FastTransferContractAddress     string           `yaml:"fast_transfer_contract_address"`
 	SolverAddress                   string           `yaml:"solver_address"`
 	USDCDenom                       string           `yaml:"usdc_denom"`

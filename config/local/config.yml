@@ -157,6 +157,7 @@ chains:
     max_fill_size: 100000
     usdc_denom: "ibc/498A0751C798A0D9A389AA3691123DADA57DAA4FE165D5C75894505B876BA6E4"
     hyperlane_domain: "875"
+    max_rebalancing_gas_threshold: 500000
     cosmos:
       address_prefix: "osmo"
       rpc: <osmosis_rpc_server_url>

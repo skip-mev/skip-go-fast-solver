@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
 	"github.com/skip-mev/go-fast-solver/shared/config"
@@ -244,6 +246,28 @@ func (r *FundRebalancer) MoveFundsToChain(
 			return nil, nil, fmt.Errorf("getting txns required for fund rebalancing: %w", err)
 		}
 
+		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(rebalanceFromChainID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("getting chain config for gas threshold check: %w", err)
+		}
+
+		// Check if total gas needed exceeds threshold to rebalance funds from this chain
+		totalGas, err := r.estimateTotalGas(ctx, txns, chainConfig.SolverAddress)
+		if err != nil {
+			return nil, nil, fmt.Errorf("estimating total gas for transactions: %w", err)
+		}
+
+		if totalGas > chainConfig.MaxRebalancingGasThreshold {
+			lmt.Logger(ctx).Info(
+				"skipping rebalance from chain "+rebalanceFromChainID+" due to rebalance txs exceeding gas threshold",
+				zap.String("sourceChainID", rebalanceFromChainID),
+				zap.String("destinationChainID", rebalanceToChain),
+				zap.Uint64("estimatedGas", totalGas),
+				zap.Uint64("gasThreshold", chainConfig.MaxRebalancingGasThreshold),
+			)
+			continue
+		}
+
 		signedTxns, err := r.SignTxns(ctx, txns)
 		if err != nil {
 			return nil, nil, fmt.Errorf("signing txns required for fund rebalancing: %w", err)
@@ -251,7 +275,7 @@ func (r *FundRebalancer) MoveFundsToChain(
 
 		txnHashes, err := r.SubmitTxns(ctx, signedTxns)
 		if err != nil {
-			return nil, nil, fmt.Errorf("submitting signed txns required for fund rebalancing: %w", err)
+			return nil, nil, fmt.Errorf("error submitting signed txns required for fund rebalancing: %w", err)
 		}
 
 		totalUSDCcMoved = new(big.Int).Add(totalUSDCcMoved, usdcToRebalance)
@@ -557,12 +581,13 @@ func (r *FundRebalancer) buildEVMTx(
 	)
 }
 
-// SubmitTxns submits txs to chain via Skip Go.
+// SubmitTxns submits txs to chain via Skip Go, checking gas thresholds per transaction
 func (r *FundRebalancer) SubmitTxns(
 	ctx context.Context,
 	signedTxns []TxnWithMetadata,
 ) ([]skipgo.TxHash, error) {
 	var hashes []skipgo.TxHash
+
 	for _, signedTxn := range signedTxns {
 		txBytes, err := signedTxn.Tx.MarshalBinary()
 		if err != nil {
@@ -577,7 +602,7 @@ func (r *FundRebalancer) SubmitTxns(
 		lmt.Logger(ctx).Info(
 			"submitted transaction to Skip Go to rebalance funds",
 			zap.String("sourceChainID", signedTxn.SourceChainID),
-			zap.String("destChainID", signedTxn.DestinationChainID),
+			zap.String("destinationChainID", signedTxn.DestinationChainID),
 			zap.String("txnHash", string(hash)),
 		)
 
@@ -595,4 +620,51 @@ func (r *FundRebalancer) SubmitTxns(
 	}
 
 	return hashes, nil
+}
+
+func (r *FundRebalancer) estimateTotalGas(ctx context.Context, txns []SkipGoTxnWithMetadata, from string) (uint64, error) {
+	var totalGas uint64
+
+	for _, txn := range txns {
+		// Only handle EVM transactions for now
+		if txn.tx.EVMTx == nil {
+			continue
+		}
+
+		client, err := r.evmClientManager.GetClient(ctx, txn.tx.EVMTx.ChainID)
+		if err != nil {
+			return 0, fmt.Errorf("getting evm client for chain %s: %w", txn.tx.EVMTx.ChainID, err)
+		}
+
+		decodedData, err := hex.DecodeString(txn.tx.EVMTx.Data)
+		if err != nil {
+			return 0, fmt.Errorf("hex decoding evm call data: %w", err)
+		}
+
+		value, ok := new(big.Int).SetString(txn.tx.EVMTx.Value, 10)
+		if !ok {
+			return 0, fmt.Errorf("could not convert value %s to *big.Int", txn.tx.EVMTx.Value)
+		}
+
+		callMsg := ethereum.CallMsg{
+			From:  common.HexToAddress(from),
+			To:    &common.Address{}, // Convert the To address
+			Value: value,
+			Data:  decodedData,
+		}
+
+		if txn.tx.EVMTx.To != "" {
+			to := common.HexToAddress(txn.tx.EVMTx.To)
+			callMsg.To = &to
+		}
+
+		gasEstimate, err := client.EstimateGas(ctx, callMsg)
+		if err != nil {
+			return 0, fmt.Errorf("estimating gas for transaction: %w", err)
+		}
+
+		totalGas += gasEstimate
+	}
+
+	return totalGas, nil
 }
