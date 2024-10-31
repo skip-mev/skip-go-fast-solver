@@ -4,13 +4,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
-	"github.com/skip-mev/go-fast-solver/shared/utils"
 
 	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/skip-mev/go-fast-solver/hyperlane/types"
+	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
+	"github.com/skip-mev/go-fast-solver/shared/utils"
 
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"

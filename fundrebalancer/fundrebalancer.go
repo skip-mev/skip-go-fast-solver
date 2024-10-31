@@ -4,8 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
-	"github.com/skip-mev/go-fast-solver/shared/utils"
 	"math/big"
 	"os"
 	"time"
@@ -14,12 +12,14 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
 
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
+	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
 	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/evmrpc"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
 	"github.com/skip-mev/go-fast-solver/shared/signing"
 	"github.com/skip-mev/go-fast-solver/shared/signing/evm"
+	"github.com/skip-mev/go-fast-solver/shared/utils"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )

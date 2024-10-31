@@ -4,28 +4,27 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/shared/utils"
 	"math/big"
 	"strconv"
 	"time"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
+	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/orderfulfiller"
 	"github.com/skip-mev/go-fast-solver/shared/bridges/cctp"
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
-	coingecko2 "github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
-	"github.com/skip-mev/go-fast-solver/shared/metrics"
-
-	"github.com/skip-mev/go-fast-solver/db/gen/db"
+	"github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
+	"github.com/skip-mev/go-fast-solver/shared/utils"
 	"go.uber.org/zap"
 )
 
 type orderFulfillmentHandler struct {
 	db            orderfulfiller.Database
 	clientManager *clientmanager.ClientManager
-	PriceClient   coingecko2.PriceClient
+	PriceClient   coingecko.PriceClient
 }
 
 func NewOrderFulfillmentHandler(ctx context.Context, db orderfulfiller.Database, clientManager *clientmanager.ClientManager) (*orderFulfillmentHandler, error) {
@@ -34,7 +33,7 @@ func NewOrderFulfillmentHandler(ctx context.Context, db orderfulfiller.Database,
 	return &orderFulfillmentHandler{
 		db:            db,
 		clientManager: clientManager,
-		PriceClient:   coingecko2.NewCachedPriceClient(coingecko2.DefaultCoingeckoClient(coingeckoConfig), coingeckoConfig.CacheRefreshInterval),
+		PriceClient:   coingecko.NewCachedPriceClient(coingecko.DefaultCoingeckoClient(coingeckoConfig), coingeckoConfig.CacheRefreshInterval),
 	}, nil
 }
 

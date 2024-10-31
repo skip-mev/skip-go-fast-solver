@@ -5,24 +5,21 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/shared/utils"
 	"math/big"
 	"strconv"
 	"time"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
-	"github.com/skip-mev/go-fast-solver/ordersettler/types"
-	"github.com/skip-mev/go-fast-solver/shared/metrics"
-	"golang.org/x/sync/errgroup"
-
-	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
-
-	coingecko2 "github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
-
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
+	"github.com/skip-mev/go-fast-solver/ordersettler/types"
+	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
+	"github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
+	"github.com/skip-mev/go-fast-solver/shared/utils"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
 type Config struct {
@@ -52,7 +49,7 @@ type Database interface {
 type OrderSettler struct {
 	db            Database
 	clientManager *clientmanager.ClientManager
-	PriceClient   coingecko2.PriceClient
+	PriceClient   coingecko.PriceClient
 }
 
 func NewOrderSettler(ctx context.Context, db Database, clientManager *clientmanager.ClientManager) (*OrderSettler, error) {
@@ -61,7 +58,7 @@ func NewOrderSettler(ctx context.Context, db Database, clientManager *clientmana
 	return &OrderSettler{
 		db:            db,
 		clientManager: clientManager,
-		PriceClient:   coingecko2.NewCachedPriceClient(coingecko2.DefaultCoingeckoClient(coingeckoConfig), coingeckoConfig.CacheRefreshInterval),
+		PriceClient:   coingecko.NewCachedPriceClient(coingecko.DefaultCoingeckoClient(coingeckoConfig), coingeckoConfig.CacheRefreshInterval),
 	}, nil
 }
 
