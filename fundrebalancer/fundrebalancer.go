@@ -40,7 +40,7 @@ type FundRebalancer struct {
 	chainIDToPrivateKey map[string]string
 	skipgo              skipgo.SkipGoClient
 	evmClientManager    evmrpc.EVMRPCClientManager
-	clientManager       *clientmanager.ClientManager
+	cctpClientManager   *clientmanager.ClientManager
 	config              map[string]config.FundRebalancerConfig
 	database            Database
 	trasferTracker      *TransferTracker
@@ -51,7 +51,7 @@ func NewFundRebalancer(
 	keysPath string,
 	skipgo skipgo.SkipGoClient,
 	evmClientManager evmrpc.EVMRPCClientManager,
-	clientmanager *clientmanager.ClientManager,
+	cctpClientManager *clientmanager.ClientManager,
 	database Database,
 ) (*FundRebalancer, error) {
 	chainIDToPriavateKey, err := loadChainIDToPrivateKeyMap(keysPath)
@@ -63,7 +63,7 @@ func NewFundRebalancer(
 		chainIDToPrivateKey: chainIDToPriavateKey,
 		skipgo:              skipgo,
 		evmClientManager:    evmClientManager,
-		clientManager:       clientmanager,
+		cctpClientManager:   cctpClientManager,
 		config:              config.GetConfigReader(ctx).Config().FundRebalancer,
 		database:            database,
 		trasferTracker:      NewTransferTracker(skipgo, database),
@@ -262,7 +262,7 @@ func (r *FundRebalancer) MoveFundsToChain(
 			return nil, nil, fmt.Errorf("submitting signed txns required for fund rebalancing: %w", err)
 		}
 
-		sourceChainClient, err := r.clientManager.GetClient(ctx, rebalanceFromChainID)
+		sourceChainClient, err := r.cctpClientManager.GetClient(ctx, rebalanceFromChainID)
 		if err != nil {
 			lmt.Logger(ctx).Error("failed to get chain client to monitor gas balance", zap.Error(err))
 		}
