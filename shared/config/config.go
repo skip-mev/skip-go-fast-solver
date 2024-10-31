@@ -190,7 +190,8 @@ func GetConfigReader(ctx context.Context) ConfigReader {
 }
 
 // Complex Config Queries
-
+//
+//go:generate mockery --name=ConfigReader --filename=mock_config_reader.go --case=underscore
 type ConfigReader interface {
 	Config() Config
 

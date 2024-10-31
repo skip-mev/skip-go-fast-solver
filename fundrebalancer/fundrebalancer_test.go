@@ -136,7 +136,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, nil, mockDatabse)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -204,7 +204,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, nil, mockDatabse)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -316,7 +316,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		// using an in memory database for this test
 		mockDatabse := mock_database.NewFakeDatabase()
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, nil, mockDatabse)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -436,7 +436,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, nil, mockDatabse)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
