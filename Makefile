@@ -23,16 +23,22 @@ deps:
 	go mod download
 
 run-solver:
-	quickstart=true ${SERVER_BIN} 
-
+	quickstart=true ${SERVER_BIN}
 
 ###############################################################################
 ###                                 Testing                                 ###
 ###############################################################################
-test:
-	go clean -testcache
-	go test --tags=test -v -race $(shell go list ./... | grep -v /scripts/)
+.PHONY: unit-test
+unit-test:
+	go test --tags=test -v -race $(shell go list ./... | grep -v /tests)
 
+.PHONY: setup-foundry
+setup-foundry:
+	cd tests/e2e && forge install foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts OpenZeppelin/openzeppelin-contracts-upgradeable --no-commit
+	
+.PHONY: e2e-test
+e2e-test: setup-foundry
+	cd tests/e2e && go test -v ./
 
 ###############################################################################
 ###                                 Developer Tools                         ###
