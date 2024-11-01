@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"math/big"
 	"os"
 	"strings"
 	"time"
