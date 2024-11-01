@@ -39,6 +39,13 @@ type Config struct {
 
 type OrderFillerConfig struct {
 	OrderFillWorkerCount int `yaml:"order_fill_worker_count"`
+
+	// MinFeeBps is the min fee amount the solver is willing to fill in bps.
+	// For example, if an order has an amount in of 100usdc and an amount out
+	// of 99usdc, that is an implied fee to the solver of 1usdc, or a 1%/100bps
+	// fee. Thus, if MinFeeBps is set to 200, and an order comes in with the
+	// above amount in and out, then the solver will ignore it.
+	MinFeeBps int `yaml:"min_fee_bps"`
 }
 
 type MetricsConfig struct {
@@ -100,6 +107,7 @@ type RelayerConfig struct {
 	ValidatorAnnounceContractAddress string `yaml:"validator_announce_contract_address"`
 	MerkleHookContractAddress        string `yaml:"merkle_hook_contract_address"`
 	MailboxAddress                   string `yaml:"mailbox_address"`
+	MaxGasPricePct                   *uint8 `yaml:"max_gas_price_pct"`
 }
 
 type SignerGasBalanceConfig struct {

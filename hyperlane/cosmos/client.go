@@ -3,6 +3,7 @@ package cosmos
 import (
 	"context"
 	"fmt"
+	"math/big"
 
 	"strconv"
 
@@ -220,6 +221,10 @@ func (c *HyperlaneClient) MerkleTreeLeafCount(ctx context.Context, domain string
 }
 
 func (c *HyperlaneClient) Process(ctx context.Context, domain string, message []byte, metadata []byte) ([]byte, error) {
+	panic("not implemented")
+}
+
+func (c *HyperlaneClient) QuoteProcessUUSDC(ctx context.Context, domain string, message []byte, metadata []byte) (*big.Int, error) {
 	panic("not implemented")
 }
 

@@ -4,21 +4,26 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/txverifier"
 	"os/signal"
 	"syscall"
+	"time"
 
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/skip-mev/go-fast-solver/db/connect"
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
+	"github.com/skip-mev/go-fast-solver/txverifier"
+
 	"github.com/skip-mev/go-fast-solver/fundrebalancer"
 	"github.com/skip-mev/go-fast-solver/hyperlane"
 	"github.com/skip-mev/go-fast-solver/orderfulfiller"
 	"github.com/skip-mev/go-fast-solver/orderfulfiller/order_fulfillment_handler"
 	"github.com/skip-mev/go-fast-solver/ordersettler"
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
+	"github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
 	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
+	"github.com/skip-mev/go-fast-solver/shared/clients/utils"
+
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/evmrpc"
 	"github.com/skip-mev/go-fast-solver/shared/keys"
@@ -75,6 +80,18 @@ func main() {
 	}
 
 	evmManager := evmrpc.NewEVMRPCClientManager()
+	rateLimitedClient := utils.DefaultRateLimitedHTTPClient(3)
+	coingeckoClient := coingecko.NewCoingeckoClient(rateLimitedClient, "https://api.coingecko.com/api/v3/", "")
+	cachedCoinGeckoClient := coingecko.NewCachedPriceClient(coingeckoClient, 15*time.Minute)
+	evmTxPriceOracle := evmrpc.NewOracle(cachedCoinGeckoClient)
+
+	hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmManager, keyStore, evmTxPriceOracle)
+	if err != nil {
+		lmt.Logger(ctx).Fatal("creating hyperlane multi client from config", zap.Error(err))
+	}
+
+	relayer := hyperlane.NewRelayer(hype, make(map[string]string))
+	relayerRunner := hyperlane.NewRelayerRunner(db.New(dbConn), hype, relayer)
 
 	eg, ctx := errgroup.WithContext(ctx)
 
@@ -88,16 +105,7 @@ func main() {
 	//})
 
 	eg.Go(func() error {
-		transferMonitor := transfermonitor.NewTransferMonitor(db.New(dbConn), *quickStart)
-		err := transferMonitor.Start(ctx)
-		if err != nil {
-			return fmt.Errorf("creating transfer monitor: %w", err)
-		}
-		return nil
-	})
-
-	eg.Go(func() error {
-		orderFillHandler, err := order_fulfillment_handler.NewOrderFulfillmentHandler(ctx, db.New(dbConn), clientManager)
+		orderFillHandler, err := order_fulfillment_handler.NewOrderFulfillmentHandler(ctx, db.New(dbConn), clientManager, relayerRunner)
 		if err != nil {
 			return err
 		}
@@ -117,16 +125,7 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		r, err := txverifier.NewTxVerifier(ctx, db.New(dbConn), clientManager)
-		if err != nil {
-			return err
-		}
-		r.Run(ctx)
-		return nil
-	})
-
-	eg.Go(func() error {
-		r, err := ordersettler.NewOrderSettler(ctx, db.New(dbConn), clientManager)
+		r, err := ordersettler.NewOrderSettler(ctx, db.New(dbConn), clientManager, relayerRunner)
 		if err != nil {
 			return fmt.Errorf("creating order settler: %w", err)
 		}
@@ -144,17 +143,20 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmManager, keyStore)
+		r, err := txverifier.NewTxVerifier(ctx, db.New(dbConn), clientManager)
 		if err != nil {
-			return fmt.Errorf("creating hyperlane multi client from config: %w", err)
+			return err
 		}
+		r.Run(ctx)
+		return nil
+	})
 
-		relayer := hyperlane.NewRelayer(hype, make(map[string]string))
-		err = hyperlane.NewRelayerRunner(db.New(dbConn), hype, relayer).Run(ctx)
+	eg.Go(func() error {
+		transferMonitor := transfermonitor.NewTransferMonitor(db.New(dbConn), *quickStart)
+		err := transferMonitor.Start(ctx)
 		if err != nil {
-			return fmt.Errorf("relaying message: %v", err)
+			return fmt.Errorf("creating transfer monitor: %w", err)
 		}
-
 		return nil
 	})
 
