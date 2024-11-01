@@ -4,13 +4,11 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	bech322 "github.com/cosmos/cosmos-sdk/types/bech32"
+	"gopkg.in/yaml.v3"
 	"math/big"
 	"os"
 	"strings"
-	"time"
-
-	bech322 "github.com/cosmos/cosmos-sdk/types/bech32"
-	"gopkg.in/yaml.v3"
 )
 
 // Config Enum Types
@@ -32,7 +30,6 @@ const (
 type Config struct {
 	Chains            map[string]ChainConfig          `yaml:"chains"`
 	Metrics           MetricsConfig                   `yaml:"metrics"`
-	Coingecko         CoingeckoConfig                 `yaml:"coingecko,omitempty"`
 	OrderFillerConfig OrderFillerConfig               `yaml:"order_filler_config"`
 	FundRebalancer    map[string]FundRebalancerConfig `yaml:"fund_rebalancer"`
 }
@@ -70,7 +67,6 @@ type ChainConfig struct {
 	Cosmos                          *CosmosConfig    `yaml:"cosmos,omitempty"`
 	EVM                             *EVMConfig       `yaml:"evm,omitempty"`
 	GasTokenSymbol                  string           `yaml:"gas_token_symbol"`
-	GasTokenCoingeckoID             *string          `yaml:"gas_token_coingecko_id"`
 	GasTokenDecimals                uint8            `yaml:"gas_token_decimals"`
 	NumBlockConfirmationsBeforeFill int64            `yaml:"num_block_confirmations_before_fill"`
 	HyperlaneDomain                 string           `yaml:"hyperlane_domain"`
@@ -138,13 +134,6 @@ type ContractsConfig struct {
 	USDCERC20Address string `yaml:"usdc_erc20_address"`
 }
 
-type CoingeckoConfig struct {
-	BaseURL              string        `yaml:"base_url"`
-	RequestsPerMinute    int           `yaml:"requests_per_minute"`
-	APIKey               string        `yaml:"api_key"`
-	CacheRefreshInterval time.Duration `yaml:"cache_refresh_interval"`
-}
-
 // Config Helpers
 
 func LoadConfig(path string) (Config, error) {
@@ -184,8 +173,6 @@ type ConfigReader interface {
 
 	GetChainConfig(chainID string) (ChainConfig, error)
 	GetAllChainConfigsOfType(chainType ChainType) ([]ChainConfig, error)
-
-	GetCoingeckoConfig() CoingeckoConfig
 
 	GetGatewayContractAddress(chainID string) (string, error)
 	GetChainIDByHyperlaneDomain(domain string) (string, error)
@@ -314,10 +301,6 @@ func (r configReader) GetAllChainConfigsOfType(chainType ChainType) ([]ChainConf
 		}
 	}
 	return chains, nil
-}
-
-func (r configReader) GetCoingeckoConfig() CoingeckoConfig {
-	return r.config.Coingecko
 }
 
 func (r configReader) GetGatewayContractAddress(chainID string) (string, error) {
