@@ -16,8 +16,6 @@ import (
 
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
 
-	coingecko2 "github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
-
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
@@ -51,16 +49,13 @@ type Database interface {
 type OrderSettler struct {
 	db            Database
 	clientManager *clientmanager.ClientManager
-	PriceClient   coingecko2.PriceClient
 }
 
 func NewOrderSettler(ctx context.Context, db Database, clientManager *clientmanager.ClientManager) (*OrderSettler, error) {
-	coingeckoConfig := config.GetConfigReader(ctx).GetCoingeckoConfig()
 
 	return &OrderSettler{
 		db:            db,
 		clientManager: clientManager,
-		PriceClient:   coingecko2.NewCachedPriceClient(coingecko2.DefaultCoingeckoClient(coingeckoConfig), coingeckoConfig.CacheRefreshInterval),
 	}, nil
 }
 
