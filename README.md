@@ -33,7 +33,7 @@ risk/reward profile and if they have the required resources on the destination c
 
 ### How to start server
 
-1. Update [config/local/keys.json](config/local/keys.json) with the appropriate solver private keys and addresses
+1. Update [config/local/keys.json](config/local/keys.json) with the corresponding solver private keys and addresses.
 2. Update [config/local/config.yml](config/local/config.yml) with the corresponding chain config. Values that need to be replaced are in`<>` brackets. Set these values to configure min/max order sizes, settlement thresholds, chain rpc links, etc. Reference the [shared/config/config.go](shared/config/config.go) file for more info about the config fields.
 
 ```shell
