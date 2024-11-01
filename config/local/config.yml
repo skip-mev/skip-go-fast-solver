@@ -2,11 +2,6 @@
 # Do NOT leave any angle brackets in the final configuration.
 metrics:
   prometheus_address: "0.0.0.0:8001"
-coingecko:
-  base_url: "https://pro-api.coingecko.com/api/v3/"
-  api_key: <api_key>  # e.g. "CG-1234567890abcdef1234567890abcdef"
-  requests_per_minute: 500
-  cache_refresh_interval: "5m"
 order_filler:
   worker_count: 10
 fund_rebalancer:
@@ -26,7 +21,6 @@ chains:
     type: "evm"
     environment: "mainnet"
     gas_token_symbol: "ETH"
-    gas_token_coingecko_id: "ethereum"
     gas_token_decimals: 18
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
@@ -77,7 +71,6 @@ chains:
     type: "evm"
     environment: "mainnet"
     gas_token_symbol: "AVAX"
-    gas_token_coingecko_id: "avalanche-2"
     gas_token_decimals: 18
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
@@ -103,7 +96,6 @@ chains:
     type: evm
     environment: "mainnet"
     gas_token_symbol: "ETH"
-    gas_token_coingecko_id: "ethereum"
     gas_token_decimals: 18
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
@@ -129,7 +121,6 @@ chains:
     type: evm
     environment: "mainnet"
     gas_token_symbol: "ETH"
-    gas_token_coingecko_id: "ethereum"
     gas_token_decimals: 18
     quick_start_num_blocks_back: 300000
     fast_transfer_contract_address: "0xD6F9F9E2C231E023fe0A8d752bc4080a112a1EbA"
@@ -162,7 +153,6 @@ chains:
     type: "cosmos"
     environment: "mainnet"
     gas_token_symbol: "OSMO"
-    gas_token_coingecko_id: "osmosis"
     gas_token_decimals: 6
     fast_transfer_contract_address: "osmo19a2a86dtmlrngnjs6f0trrk3sfr9hf75n6yvlpplx6rp7z9mq4wqgmxwpm"
     solver_address: <solver_address> # e.g. "osmo1f9qwat48ldgxrmssvpvpk3tea8l72mks20gehu"
@@ -197,7 +187,6 @@ chains:
     type: "cosmos"
     environment: "mainnet"
     gas_token_symbol: "NTRN"
-    gas_token_coingecko_id: "neutron"
     gas_token_decimals: 6
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
@@ -224,7 +213,6 @@ chains:
     type: "cosmos"
     environment: "mainnet"
     gas_token_symbol: "USDC"
-    gas_token_coingecko_id: "usd-coin"
     gas_token_decimals: 6
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
@@ -251,7 +239,6 @@ chains:
     type: evm
     environment: "mainnet"
     gas_token_symbol: "ETH"
-    gas_token_coingecko_id: "ethereum"
     gas_token_decimals: 18
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
@@ -277,7 +264,6 @@ chains:
     type: evm
     environment: "mainnet"
     gas_token_symbol: "MATIC"
-    gas_token_coingecko_id: "matic-network"
     gas_token_decimals: 18
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000

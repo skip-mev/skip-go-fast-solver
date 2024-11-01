@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"os"
 	"strings"
 	"time"
@@ -94,10 +95,10 @@ type ChainConfig struct {
 	QuickStartNumBlocksBack uint64 `yaml:"quick_start_num_blocks_back"`
 	// MinFillSize is the minimum amount of USDC that can be processed in a single
 	// order fill. Orders below this size will be abandoned
-	MinFillSize *uint64 `yaml:"min_fill_size"`
+	MinFillSize big.Int `yaml:"min_fill_size"`
 	// MaxFillSize is the maximum amount of USDC that can be processed in a single
 	// order fill. Orders exceeding this size will be abandoned
-	MaxFillSize *uint64 `yaml:"max_fill_size"`
+	MaxFillSize big.Int `yaml:"max_fill_size"`
 	// FastTransferContractAddress is the address of the Skip Go Fast Transfer
 	// Protocol contract deployed on this chain
 	FastTransferContractAddress string `yaml:"fast_transfer_contract_address"`
