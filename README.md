@@ -81,3 +81,22 @@ make build-cli # build cli tool
 ### Hyperlane Docs
 
 - [Hyperlane Docs Link](https://docs.hyperlane.xyz/)
+
+
+for each chain:
+1. batch_uusdc_settle_up_threshold
+2. evm.rpc
+3. evm.rpc_basic_auth_var
+4. cosmos|evm.gas_balance.warning_threshold_wei
+5. cosmos|evm.gas_balance.critical_threshold_wei
+6. cosmos.grpc
+7. cosmos.grpc_tls_enabled
+8. max_fill_size
+9. min_fill_size 
+10. max_rebalancing_gas_threshold
+11. num_block_confirmations_before_fill
+12. min_fee_bps
+
+
+1. fund_rebalancer.target_amount
+2. fund_rebalancer.min_allowed_amount

@@ -38,10 +38,16 @@ type Config struct {
 }
 
 type OrderFillerConfig struct {
+	// OrderFillWorkerCount specifies the number of concurrent workers that will
+	// process order fills. Each worker handles filling orders independently to
+	// increase throughput.
 	OrderFillWorkerCount int `yaml:"order_fill_worker_count"`
 }
 
 type MetricsConfig struct {
+	// PrometheusAddress is the address where the Prometheus metrics server will
+	// listen for scrape requests. This enables monitoring of solver performance
+	// and order processing statistics.
 	PrometheusAddress string `yaml:"prometheus_address"`
 }
 
@@ -51,7 +57,6 @@ type FundRebalancerConfig struct {
 	// that are above their target amount and move the uusdc to other chains
 	// that are below their MinAllowedAmount.
 	TargetAmount string `yaml:"target_amount"`
-
 	// MinAllowedAmount is the minimum amount of uusdc that this chain can hold
 	// before a rebalance is triggered to move uusdc from other chains to this
 	// chain.
@@ -63,31 +68,54 @@ type OrderSettlerConfig struct {
 }
 
 type ChainConfig struct {
-	ChainName                       string           `yaml:"chain_name"`
-	ChainID                         string           `yaml:"chain_id"`
-	Type                            ChainType        `yaml:"type"`
-	Environment                     ChainEnvironment `yaml:"environment"`
-	Cosmos                          *CosmosConfig    `yaml:"cosmos,omitempty"`
-	EVM                             *EVMConfig       `yaml:"evm,omitempty"`
-	GasTokenSymbol                  string           `yaml:"gas_token_symbol"`
-	GasTokenCoingeckoID             *string          `yaml:"gas_token_coingecko_id"`
-	GasTokenDecimals                uint8            `yaml:"gas_token_decimals"`
-	NumBlockConfirmationsBeforeFill int64            `yaml:"num_block_confirmations_before_fill"`
-	HyperlaneDomain                 string           `yaml:"hyperlane_domain"`
-	QuickStartNumBlocksBack         uint64           `yaml:"quick_start_num_blocks_back"`
-	MinFillSize                     *big.Int         `yaml:"min_fill_size"`
-	MaxFillSize                     *big.Int         `yaml:"max_fill_size"`
-	FastTransferContractAddress     string           `yaml:"fast_transfer_contract_address"`
-	SolverAddress                   string           `yaml:"solver_address"`
-	USDCDenom                       string           `yaml:"usdc_denom"`
-	Relayer                         RelayerConfig    `yaml:"relayer"`
-
+	// e.g. osmosis
+	ChainName string `yaml:"chain_name"`
+	// e.g. osmosis-1
+	ChainID string `yaml:"chain_id"`
+	// (cosmos, evm)
+	Type ChainType `yaml:"type"`
+	// Environment specifies whether this is a mainnet or testnet configuration
+	Environment ChainEnvironment `yaml:"environment"`
+	// Cosmos contains specific configuration for Cosmos-based chains
+	Cosmos *CosmosConfig `yaml:"cosmos,omitempty"`
+	// EVM contains specific configuration for Ethereum Virtual Machine based chains
+	EVM *EVMConfig `yaml:"evm,omitempty"`
+	// GasTokenSymbol is the symbol of the native gas token (e.g., "ETH", "MATIC")
+	GasTokenSymbol string `yaml:"gas_token_symbol"`
+	// GasTokenDecimals specifies the number of decimal places for the gas token
+	GasTokenDecimals uint8 `yaml:"gas_token_decimals"`
+	// NumBlockConfirmationsBeforeFill is the number of block confirmations required
+	// before the solver will attempt to fill an order
+	NumBlockConfirmationsBeforeFill int64 `yaml:"num_block_confirmations_before_fill"`
+	// HyperlaneDomain is the unique identifier for this chain in the Hyperlane
+	// cross-chain messaging system
+	HyperlaneDomain string `yaml:"hyperlane_domain"`
+	// QuickStartNumBlocksBack specifies how many blocks back to start scanning
+	// from when the solver is initialized
+	QuickStartNumBlocksBack uint64 `yaml:"quick_start_num_blocks_back"`
+	// MinFillSize is the minimum amount of USDC that can be processed in a single
+	// order fill. Orders below this size will be abandoned
+	MinFillSize *uint64 `yaml:"min_fill_size"`
+	// MaxFillSize is the maximum amount of USDC that can be processed in a single
+	// order fill. Orders exceeding this size will be abandoned
+	MaxFillSize *uint64 `yaml:"max_fill_size"`
+	// FastTransferContractAddress is the address of the Skip Go Fast Transfer
+	// Protocol contract deployed on this chain
+	FastTransferContractAddress string `yaml:"fast_transfer_contract_address"`
+	// SolverAddress is the address of the solver wallet on this chain that will
+	// be used to fulfill orders and receive fees
+	SolverAddress string `yaml:"solver_address"`
+	// USDCDenom is the denomination or contract address for USDC on this chain
+	// (ERC20 contract address for EVM chains or IBC denom for Cosmos chains)
+	USDCDenom string `yaml:"usdc_denom"`
+	// Relayer contains configuration for the Hyperlane relayer service
+	// used for cross-chain message passing during settlement
+	Relayer RelayerConfig `yaml:"relayer"`
 	// BatchUUSDCSettleUpThreshold is the amount of uusdc that needs to
 	// accumulate in filled (but not settled) orders before the solver will
 	// initiate a batch settlement. A settlement batch is per (source chain,
 	// destination chain).
 	BatchUUSDCSettleUpThreshold string `yaml:"batch_uusdc_settle_up_threshold"`
-
 	// MinFeeBps is the min fee amount the solver is willing to fill in bps.
 	// For example, if an order has an amount in of 100usdc and an amount out
 	// of 99usdc, that is an implied fee to the solver of 1usdc, or a 1%/100bps
@@ -97,44 +125,81 @@ type ChainConfig struct {
 }
 
 type RelayerConfig struct {
+	// ValidatorAnnounceContractAddress is the address of the Hyperlane validator
+	// announce contract used for cross-chain message validation
 	ValidatorAnnounceContractAddress string `yaml:"validator_announce_contract_address"`
-	MerkleHookContractAddress        string `yaml:"merkle_hook_contract_address"`
-	MailboxAddress                   string `yaml:"mailbox_address"`
+	// MerkleHookContractAddress is the address of the Hyperlane merkle hook
+	// contract used for verifying cross-chain message proofs
+	MerkleHookContractAddress string `yaml:"merkle_hook_contract_address"`
+	// MailboxAddress is the address of the Hyperlane mailbox contract used
+	// for sending and receiving cross-chain messages
+	MailboxAddress string `yaml:"mailbox_address"`
 }
 
+// Used to monitor gas balance prometheus metric per chain for the solver addresses
 type SignerGasBalanceConfig struct {
-	WarningThresholdWei  string `yaml:"warning_threshold_wei"`
+	// WarningThresholdWei specifies the gas balance threshold in Wei below which the solver
+	// gas balance metric for this chain will be set to Warning level
+	WarningThresholdWei string `yaml:"warning_threshold_wei"`
+	// CriticalThresholdWei specifies the gas balance threshold in Wei
+	// below which solver operations may be impacted
 	CriticalThresholdWei string `yaml:"critical_threshold_wei"`
 }
 
 type CosmosConfig struct {
-	RPC              string                 `yaml:"rpc"`
-	RPCBasicAuthVar  string                 `yaml:"rpc_basic_auth_var"`
-	GRPC             string                 `yaml:"grpc"`
-	GRPCTLSEnabled   bool                   `yaml:"grpc_tls_enabled"`
-	AddressPrefix    string                 `yaml:"address_prefix"`
+	// RPC is the HTTP endpoint for the Cosmos chain's RPC server
+	RPC string `yaml:"rpc"`
+	// RPCBasicAuthVar is the environment variable name containing the basic auth
+	// credentials for the RPC endpoint if required
+	RPCBasicAuthVar string `yaml:"rpc_basic_auth_var"`
+	// GRPC is the endpoint for the chain's gRPC server
+	GRPC string `yaml:"grpc"`
+	// GRPCTLSEnabled indicates whether TLS should be used for gRPC connections
+	GRPCTLSEnabled bool `yaml:"grpc_tls_enabled"`
+	// AddressPrefix is the bech32 prefix used for addresses on this chain
+	// (e.g., "osmo" for Osmosis addresses)
+	AddressPrefix string `yaml:"address_prefix"`
+	// GasBalance contains thresholds for monitoring the solver's gas balance
 	SignerGasBalance SignerGasBalanceConfig `yaml:"signer_gas_balance"`
-	USDCDenom        string                 `yaml:"usdc_denom"`
-	GasPrice         float64                `yaml:"gas_price"`
-	GasDenom         string                 `yaml:"gas_denom"`
+	// USDCDenom is the denomination identifier for USDC on this chain
+	// (typically an IBC denom hash for Cosmos chains)
+	USDCDenom string `yaml:"usdc_denom"`
+	// GasPrice is the amount of native tokens to pay per unit of gas
+	GasPrice float64 `yaml:"gas_price"`
+	// GasDenom is the denomination of the token used to pay for gas
+	// (e.g., "uosmo" for Osmosis)
+	GasDenom string `yaml:"gas_denom"`
 }
 
 type EVMConfig struct {
-	MinGasTipCap                *int64                 `yaml:"min_gas_tip_cap"`
-	ChainID                     string                 `yaml:"chain_id"`
-	FastTransferContractAddress string                 `yaml:"fast_transfer_contract_address"`
-	RPC                         string                 `yaml:"rpc"`
-	RPCBasicAuthVar             string                 `yaml:"rpc_basic_auth_var"`
-	GRPC                        string                 `yaml:"grpc"`
-	GRPCTLSEnabled              bool                   `yaml:"grpc_tls_enabled"`
-	AddressPrefix               string                 `yaml:"address_prefix"`
-	SignerGasBalance            SignerGasBalanceConfig `yaml:"signer_gas_balance"`
-	SolverAddress               string                 `yaml:"solver_address"`
-	USDCDenom                   string                 `yaml:"usdc_denom"`
-	Contracts                   ContractsConfig        `yaml:"contracts"`
+	// MinGasTipCap is the minimum tip to include for EIP-1559 transactions
+	MinGasTipCap *int64 `yaml:"min_gas_tip_cap"`
+	// FastTransferContractAddress is the address of Skip Go Fast
+	// gateway contract on this chain
+	FastTransferContractAddress string `yaml:"fast_transfer_contract_address"`
+	// RPC is the HTTP endpoint for the EVM chain's RPC server
+	RPC string `yaml:"rpc"`
+	// RPCBasicAuthVar is the environment variable name containing the basic auth
+	// credentials for the RPC endpoint if required
+	RPCBasicAuthVar string `yaml:"rpc_basic_auth_var"`
+	// GRPC is the endpoint for the chain's gRPC server
+	GRPC string `yaml:"grpc"`
+	// GRPCTLSEnabled indicates whether TLS should be used for gRPC connections
+	GRPCTLSEnabled bool `yaml:"grpc_tls_enabled"`
+	// GasBalance contains thresholds for monitoring the solver's gas balance
+	SignerGasBalance SignerGasBalanceConfig `yaml:"signer_gas_balance"`
+	// SolverAddress is the address of the solver wallet on this chain
+	SolverAddress string `yaml:"solver_address"`
+	// USDCDenom is the contract address of the USDC token on this chain
+	USDCDenom string `yaml:"usdc_denom"`
+	// Contracts contains addresses of various protocol contracts deployed on this chain
+	Contracts ContractsConfig `yaml:"contracts"`
 }
 
 type ContractsConfig struct {
+	// USDCERC20Address is the contract address of the USDC ERC20 token
+	// deployed on this EVM chain. This is used for token transfers and
+	// balance checks.
 	USDCERC20Address string `yaml:"usdc_erc20_address"`
 }
 
@@ -146,7 +211,6 @@ type CoingeckoConfig struct {
 }
 
 // Config Helpers
-
 func LoadConfig(path string) (Config, error) {
 	cfgBytes, err := os.ReadFile(path)
 	if err != nil {
