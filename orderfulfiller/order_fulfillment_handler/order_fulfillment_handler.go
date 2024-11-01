@@ -216,9 +216,9 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 
 	var abandonmentReason string
 	switch {
-	case destinationChainConfig.MinFillSize != nil && transferAmount.Cmp(destinationChainConfig.MinFillSize) < 0:
+	case transferAmount.Cmp(&destinationChainConfig.MinFillSize) < 0:
 		abandonmentReason = "transfer amount is below configured min fill size for chain " + orderFill.DestinationChainID
-	case destinationChainConfig.MaxFillSize != nil && transferAmount.Cmp(destinationChainConfig.MaxFillSize) > 0:
+	case transferAmount.Cmp(&destinationChainConfig.MaxFillSize) > 0:
 		abandonmentReason = "transfer amount exceeds configured max fill size for chain" + orderFill.DestinationChainID
 	default:
 		return true, nil
