@@ -12,7 +12,6 @@ import (
 	"github.com/skip-mev/go-fast-solver/orderfulfiller"
 	"github.com/skip-mev/go-fast-solver/shared/bridges/cctp"
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
-	coingecko2 "github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
 
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
@@ -24,16 +23,13 @@ import (
 type orderFulfillmentHandler struct {
 	db            orderfulfiller.Database
 	clientManager *clientmanager.ClientManager
-	PriceClient   coingecko2.PriceClient
 }
 
 func NewOrderFulfillmentHandler(ctx context.Context, db orderfulfiller.Database, clientManager *clientmanager.ClientManager) (*orderFulfillmentHandler, error) {
-	coingeckoConfig := config.GetConfigReader(ctx).GetCoingeckoConfig()
 
 	return &orderFulfillmentHandler{
 		db:            db,
 		clientManager: clientManager,
-		PriceClient:   coingecko2.NewCachedPriceClient(coingecko2.DefaultCoingeckoClient(coingeckoConfig), coingeckoConfig.CacheRefreshInterval),
 	}, nil
 }
 
@@ -218,31 +214,36 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 		return false, fmt.Errorf("failed to parse transfer amount: %s", orderFill.AmountOut)
 	}
 
-	if destinationChainConfig.MaxFillSize != nil {
-		maxFillSize := new(big.Int).SetUint64(*destinationChainConfig.MaxFillSize)
-		if transferAmount.Cmp(maxFillSize) > 0 {
-			_, err = r.db.SetOrderStatus(ctx, db.SetOrderStatusParams{
-				SourceChainID:                     orderFill.SourceChainID,
-				OrderID:                           orderFill.OrderID,
-				SourceChainGatewayContractAddress: orderFill.SourceChainGatewayContractAddress,
-				OrderStatus:                       dbtypes.OrderStatusAbandoned,
-				OrderStatusMessage:                sql.NullString{String: "amount exceeds max fill size", Valid: true},
-			})
-			if err != nil {
-				return false, fmt.Errorf("failed to set fill status to abandoned: %w", err)
-			}
-
-			lmt.Logger(ctx).Info(
-				"abandoning transaction due to amount exceeding max fill size",
-				zap.String("orderID", orderFill.OrderID),
-				zap.String("sourceChainID", orderFill.SourceChainID),
-				zap.String("orderAmountOut", orderFill.AmountOut),
-				zap.Uint64("maxAllowedFillSize", *destinationChainConfig.MaxFillSize),
-			)
-			return false, nil
-		}
+	var abandonmentReason string
+	switch {
+	case destinationChainConfig.MinFillSize != nil && transferAmount.Cmp(destinationChainConfig.MinFillSize) < 0:
+		abandonmentReason = "transfer amount is below configured min fill size for chain " + orderFill.DestinationChainID
+	case destinationChainConfig.MaxFillSize != nil && transferAmount.Cmp(destinationChainConfig.MaxFillSize) > 0:
+		abandonmentReason = "transfer amount exceeds configured max fill size for chain" + orderFill.DestinationChainID
+	default:
+		return true, nil
 	}
-	return true, nil
+
+	_, err = r.db.SetOrderStatus(ctx, db.SetOrderStatusParams{
+		SourceChainID:                     orderFill.SourceChainID,
+		OrderID:                           orderFill.OrderID,
+		SourceChainGatewayContractAddress: orderFill.SourceChainGatewayContractAddress,
+		OrderStatus:                       dbtypes.OrderStatusAbandoned,
+		OrderStatusMessage:                sql.NullString{String: abandonmentReason, Valid: true},
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to set fill status to abandoned: %w", err)
+	}
+
+	lmt.Logger(ctx).Info(
+		"abandoning transaction, "+abandonmentReason,
+		zap.String("orderID", orderFill.OrderID),
+		zap.String("sourceChainID", orderFill.SourceChainID),
+		zap.String("orderAmountOut", orderFill.AmountOut),
+		zap.Any("minAllowedFillSize", destinationChainConfig.MinFillSize),
+		zap.Any("maxAllowedFillSize", destinationChainConfig.MaxFillSize),
+	)
+	return false, nil
 }
 
 // checkFeeAmount checks if an order's solver fee is within the acceptable

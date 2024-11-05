@@ -6,10 +6,6 @@ packages:
     interfaces:
       EVMRPCClientManager:
       EVMChainRPC:
-  github.com/skip-mev/go-fast-solver/shared/svmrpc:
-    interfaces:
-      SVMRPCClientManager:
-      SolanaRPCClient:
   github.com/skip-mev/go-fast-solver/shared/http:
     interfaces:
       Client:
@@ -20,9 +16,6 @@ packages:
   github.com/skip-mev/go-fast-solver/shared/signing:
     interfaces:
       Signer:
-  github.com/skip-mev/go-fast-solver/shared/clients/coingecko:
-    interfaces:
-      PriceClient:
   github.com/skip-mev/go-fast-solver/shared/clients/utils:
     interfaces:
       HTTPClient:

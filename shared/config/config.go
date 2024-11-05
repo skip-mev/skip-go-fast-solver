@@ -4,14 +4,11 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	bech322 "github.com/cosmos/cosmos-sdk/types/bech32"
+	"gopkg.in/yaml.v3"
+	"math/big"
 	"os"
 	"strings"
-	"time"
-
-	bech322 "github.com/cosmos/cosmos-sdk/types/bech32"
-	"github.com/mr-tron/base58"
-
-	"gopkg.in/yaml.v3"
 )
 
 // Config Enum Types
@@ -20,7 +17,6 @@ type ChainType string
 const (
 	ChainType_COSMOS ChainType = "cosmos"
 	ChainType_EVM    ChainType = "evm"
-	ChainType_SVM    ChainType = "svm"
 )
 
 type ChainEnvironment string
@@ -34,7 +30,6 @@ const (
 type Config struct {
 	Chains            map[string]ChainConfig          `yaml:"chains"`
 	Metrics           MetricsConfig                   `yaml:"metrics"`
-	Coingecko         CoingeckoConfig                 `yaml:"coingecko,omitempty"`
 	OrderFillerConfig OrderFillerConfig               `yaml:"order_filler_config"`
 	FundRebalancer    map[string]FundRebalancerConfig `yaml:"fund_rebalancer"`
 }
@@ -71,15 +66,14 @@ type ChainConfig struct {
 	Environment                     ChainEnvironment `yaml:"environment"`
 	Cosmos                          *CosmosConfig    `yaml:"cosmos,omitempty"`
 	EVM                             *EVMConfig       `yaml:"evm,omitempty"`
-	SVM                             *SVMConfig       `yaml:"svm,omitempty"`
 	GasTokenSymbol                  string           `yaml:"gas_token_symbol"`
-	GasTokenCoingeckoID             *string          `yaml:"gas_token_coingecko_id"`
 	GasTokenDecimals                uint8            `yaml:"gas_token_decimals"`
 	NumBlockConfirmationsBeforeFill int64            `yaml:"num_block_confirmations_before_fill"`
 	HyperlaneDomain                 string           `yaml:"hyperlane_domain"`
 	QuickStartNumBlocksBack         uint64           `yaml:"quick_start_num_blocks_back"`
-	MaxFillSize                     *uint64          `yaml:"max_fill_size"`
 	MaxRebalancingGasThreshold      uint64           `yaml:"max_rebalancing_gas_threshold"` // Maximum total gas cost for rebalancing txs per chain
+	MinFillSize                     *big.Int         `yaml:"min_fill_size"`
+	MaxFillSize                     *big.Int         `yaml:"max_fill_size"`
 	FastTransferContractAddress     string           `yaml:"fast_transfer_contract_address"`
 	SolverAddress                   string           `yaml:"solver_address"`
 	USDCDenom                       string           `yaml:"usdc_denom"`
@@ -137,24 +131,8 @@ type EVMConfig struct {
 	Contracts                   ContractsConfig        `yaml:"contracts"`
 }
 
-type SVMConfig struct {
-	RPC                         string                 `yaml:"rpc"`
-	WS                          string                 `yaml:"ws"`
-	SignerGasBalance            SignerGasBalanceConfig `yaml:"signer_gas_balance"`
-	FastTransferContractAddress string                 `yaml:"fast_transfer_contract_address"`
-	PriorityFee                 uint64                 `yaml:"priority_fee"`
-	SubmitRPCs                  []string               `yaml:"submit_rpcs"`
-}
-
 type ContractsConfig struct {
 	USDCERC20Address string `yaml:"usdc_erc20_address"`
-}
-
-type CoingeckoConfig struct {
-	BaseURL              string        `yaml:"base_url"`
-	RequestsPerMinute    int           `yaml:"requests_per_minute"`
-	APIKey               string        `yaml:"api_key"`
-	CacheRefreshInterval time.Duration `yaml:"cache_refresh_interval"`
 }
 
 // Config Helpers
@@ -196,8 +174,6 @@ type ConfigReader interface {
 
 	GetChainConfig(chainID string) (ChainConfig, error)
 	GetAllChainConfigsOfType(chainType ChainType) ([]ChainConfig, error)
-
-	GetCoingeckoConfig() CoingeckoConfig
 
 	GetGatewayContractAddress(chainID string) (string, error)
 	GetChainIDByHyperlaneDomain(domain string) (string, error)
@@ -258,12 +234,6 @@ func (r configReader) GetSolverAddress(domain uint32, environment ChainEnvironme
 			return "", nil, err
 		}
 		return chain.SolverAddress, addressBytes, nil
-	case ChainType_SVM:
-		addressBytes, err := base58.Decode(chain.SolverAddress)
-		if err != nil {
-			return "", nil, err
-		}
-		return chain.SolverAddress, addressBytes, nil
 	default:
 		return "", nil, fmt.Errorf("unknown chain type")
 	}
@@ -289,8 +259,6 @@ func (r configReader) GetRPCEndpoint(chainID string) (string, error) {
 		return chain.Cosmos.RPC, nil
 	case ChainType_EVM:
 		return chain.EVM.RPC, nil
-	case ChainType_SVM:
-		return chain.SVM.RPC, nil
 	}
 
 	return "", fmt.Errorf("unknown chain type")
@@ -336,10 +304,6 @@ func (r configReader) GetAllChainConfigsOfType(chainType ChainType) ([]ChainConf
 	return chains, nil
 }
 
-func (r configReader) GetCoingeckoConfig() CoingeckoConfig {
-	return r.config.Coingecko
-}
-
 func (r configReader) GetGatewayContractAddress(chainID string) (string, error) {
 	chain, ok := r.chainIDIndex[chainID]
 	if !ok {
@@ -377,8 +341,6 @@ func (r configReader) GetUSDCDenom(chainID string) (string, error) {
 		return chainConfig.Cosmos.USDCDenom, nil
 	case ChainType_EVM:
 		return chainConfig.EVM.Contracts.USDCERC20Address, nil
-	case ChainType_SVM:
-		return "", fmt.Errorf("no usdc denom available for svm chains")
 	default:
 		return "", fmt.Errorf("no usdc denom available for chain type %s", chainConfig.Type)
 	}

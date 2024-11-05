@@ -73,8 +73,6 @@ func (cm *ClientManager) GetClient(
 	switch chainCfg.Type {
 	case config.ChainType_COSMOS:
 		newClient, err = cm.createCosmosClient(ctx, chainID)
-	case config.ChainType_SVM:
-		newClient, err = cm.createSVMClient(ctx, chainID)
 	case config.ChainType_EVM:
 		newClient, err = cm.createEVMClient(ctx, chainID)
 	default:
@@ -216,41 +214,6 @@ func (cm *ClientManager) createEVMClient(
 		chainID,
 		signing.NewLocalEthereumSigner(privateKey),
 		minGasTip,
-	)
-
-	return bridgeClient, err
-}
-
-func (cm *ClientManager) createSVMClient(
-	ctx context.Context,
-	chainID string,
-) (cctp.BridgeClient, error) {
-	chainCfg, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
-	if err != nil {
-		return nil, err
-	}
-
-	rpc, err := config.GetConfigReader(ctx).GetRPCEndpoint(chainID)
-	if err != nil {
-		return nil, err
-	}
-
-	privateKeyBase58, ok := cm.keyStore.GetPrivateKey(chainID)
-	if !ok {
-		return nil, fmt.Errorf("solver private key not found for chainID %s", chainID)
-	}
-
-	signer, err := signing.NewLocalSolanaSigner(privateKeyBase58)
-	if err != nil {
-		return nil, err
-	}
-
-	bridgeClient, err := cctp.NewSvmBridgeClient(
-		rpc,
-		chainCfg.SVM.WS,
-		signer,
-		chainCfg.SVM.PriorityFee,
-		chainCfg.SVM.SubmitRPCs,
 	)
 
 	return bridgeClient, err

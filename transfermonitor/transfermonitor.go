@@ -335,8 +335,6 @@ func getChainID(chain config.ChainConfig) (string, error) {
 		return chain.ChainID, nil
 	case config.ChainType_EVM:
 		return chain.ChainID, nil
-	case config.ChainType_SVM:
-		return chain.ChainID, nil
 	default:
 		return "", fmt.Errorf("unknown chain type")
 	}

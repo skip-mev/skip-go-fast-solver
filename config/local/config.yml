@@ -1,10 +1,5 @@
 metrics:
   prometheus_address: "0.0.0.0:8001"
-coingecko:
-  base_url: "https://pro-api.coingecko.com/api/v3/"
-  api_key: <api_key>
-  requests_per_minute: 500
-  cache_refresh_interval: "5m"
 order_filler:
   worker_count: 10
 chains:
@@ -154,7 +149,8 @@ chains:
     gas_token_decimals: 6
     fast_transfer_contract_address: "osmo19a2a86dtmlrngnjs6f0trrk3sfr9hf75n6yvlpplx6rp7z9mq4wqgmxwpm"
     solver_address: "osmo1f9qwat48ldgxrmssvpvpk3tea8l72mks20gehu"
-    max_fill_size: 100000
+    min_fill_size: "5000000"
+    max_fill_size: "10000000000"
     usdc_denom: "ibc/498A0751C798A0D9A389AA3691123DADA57DAA4FE165D5C75894505B876BA6E4"
     hyperlane_domain: "875"
     max_rebalancing_gas_threshold: 500000
@@ -279,42 +275,4 @@ chains:
         usdc_erc20_address: 0x41e94eb019c0762f9bfcf9fb1e58725bfb0e7582
       signer_gas_balance:
         warning_threshold_wei: 250000000000000000
-        critical_threshold_wei: 0
-  solana:
-    chain_name: "solana"
-    chain_id: "solana"
-    type: svm
-    environment: "mainnet"
-    gas_token_symbol: "SOL"
-    gas_token_coingecko_id: "solana"
-    gas_token_decimals: 9
-    svm:
-      rpc: <solana_rpc_server_url>
-      ws: <solana_websocker_server_url>
-      submit_rpcs:
-        - <solana_submit_rpc_server_urls>
-      programs:
-        message_transmitter: CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd
-        token_messenger_minter: CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3
-        usdc: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
-      signer_gas_balance:
-        warning_threshold_wei: 2150000000
-        critical_threshold_wei: 720000000
-      priority_fee: 600000
-  solana-devnet:
-    chain_name: "solana"
-    chain_id: "solana-devnet"
-    type: svm
-    environment: "testnet"
-    gas_token_symbol: "SOL"
-    gas_token_decimals: 9
-    svm:
-      rpc: <solana_devnet_rpc_server_url>
-      ws: <solana_websocket_rpc_server_url>
-      programs:
-        message_transmitter: CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd
-        token_messenger_minter: CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3
-        usdc: 4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU
-      signer_gas_balance:
-        warning_threshold_wei: 1000000000
         critical_threshold_wei: 0
