@@ -234,7 +234,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 			Return(skipgo.TxHash("arbitrum hash"), nil).Once()
 
 		// setup mock evm client txn construction calls
-		mockEVMClient.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100), nil).Once()
+		mockEVMClient.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100), nil).Twice()
 		mockEVMClient.On("SuggestGasTipCap", mock.Anything).Return(big.NewInt(50), nil).Once()
 		mockEVMClient.On("SuggestGasPrice", mock.Anything).Return(big.NewInt(25), nil).Once()
 		mockEVMClient.On("PendingNonceAt", mock.Anything, common.HexToAddress(arbitrumAddress)).Return(uint64(1), nil).Once()

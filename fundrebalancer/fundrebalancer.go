@@ -250,13 +250,11 @@ func (r *FundRebalancer) MoveFundsToChain(
 		}
 
 		if chainConfig.MaxRebalancingGasThreshold != 0 {
-			// Check if total gas needed exceeds threshold to rebalance funds from this chain
-			totalRebalancingGas, err := r.estimateTotalGas(txns)
+			gasAcceptable, totalRebalancingGas, err := r.isGasAcceptable(txns, chainConfig.MaxRebalancingGasThreshold)
 			if err != nil {
-				return nil, nil, fmt.Errorf("estimating total gas for transactions: %w", err)
+				return nil, nil, fmt.Errorf("checking if gas amount is acceptable: %w", err)
 			}
-
-			if totalRebalancingGas > chainConfig.MaxRebalancingGasThreshold {
+			if !gasAcceptable {
 				lmt.Logger(ctx).Info(
 					"skipping rebalance from chain "+rebalanceFromChainID+" due to rebalancing txs exceeding gas threshold",
 					zap.String("sourceChainID", rebalanceFromChainID),
@@ -275,7 +273,7 @@ func (r *FundRebalancer) MoveFundsToChain(
 
 		txnHashes, err := r.SubmitTxns(ctx, signedTxns)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error submitting signed txns required for fund rebalancing: %w", err)
+			return nil, nil, fmt.Errorf("submitting signed txns required for fund rebalancing: %w", err)
 		}
 
 		totalUSDCcMoved = new(big.Int).Add(totalUSDCcMoved, usdcToRebalance)
@@ -603,7 +601,7 @@ func (r *FundRebalancer) buildEVMTx(
 		evm.WithTo(tx.To),
 		evm.WithChainID(chainID),
 		evm.WithNonce(chainConfig.SolverAddress),
-		evm.WithEstimatedGasLimit(gasEstimate),
+		evm.WithEstimatedGasLimit(chainConfig.SolverAddress, tx.To, tx.Value, decodedData),
 		evm.WithEstimatedGasFeeCap(),
 		evm.WithEstimatedGasTipCap(),
 	)
@@ -656,4 +654,18 @@ func (r *FundRebalancer) estimateTotalGas(txns []SkipGoTxnWithMetadata) (uint64,
 		totalGas += txn.gasEstimate
 	}
 	return totalGas, nil
+}
+
+func (r *FundRebalancer) isGasAcceptable(txns []SkipGoTxnWithMetadata, maxRebalancingGasThreshold uint64) (bool, uint64, error) {
+	// Check if total gas needed exceeds threshold to rebalance funds from this chain
+	totalRebalancingGas, err := r.estimateTotalGas(txns)
+	if err != nil {
+		return false, 0, fmt.Errorf("estimating total gas for transactions: %w", err)
+	}
+
+	if totalRebalancingGas > maxRebalancingGasThreshold {
+		return false, totalRebalancingGas, nil
+	}
+
+	return true, totalRebalancingGas, nil
 }

@@ -123,8 +123,25 @@ func (b TxBuilder) EstimateGasForTx(ctx context.Context, from, to, value string,
 	return gasLimit, nil
 }
 
-func WithEstimatedGasLimit(gasLimit uint64) TxBuildOption {
+func WithEstimatedGasLimit(from, to, value string, data []byte) TxBuildOption {
 	return func(ctx context.Context, b TxBuilder, tx *types.DynamicFeeTx) error {
+		to := common.HexToAddress(to)
+
+		value, ok := new(big.Int).SetString(value, 10)
+		if !ok {
+			return fmt.Errorf("could not convert value %s to *big.Int", value)
+		}
+
+		gasLimit, err := b.rpc.EstimateGas(ctx, ethereum.CallMsg{
+			From:  common.HexToAddress(from),
+			To:    &to,
+			Value: value,
+			Data:  data,
+		})
+		if err != nil {
+			return fmt.Errorf("estimating gas limit: %w", err)
+		}
+
 		tx.Gas = gasLimit
 		return nil
 	}
