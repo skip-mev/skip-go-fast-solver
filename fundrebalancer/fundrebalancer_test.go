@@ -357,7 +357,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 			Return(ethTxs, nil).Once()
 
 		mockSkipGo.EXPECT().SubmitTx(mockContext, mock.Anything, ethChainID).
-			Return("ethhash", nil).Once()
+			Return(skipgo.TxHash("ethhash"), nil).Once()
 
 		// setup mock evm client txn construction calls
 		mockEVMClient.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100), nil)
