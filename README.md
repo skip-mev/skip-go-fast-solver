@@ -46,7 +46,8 @@ make run-solver --config <configFilePath> --keys <keysFilePath> --key-store-type
 ### How to run tests
 
 ```shell
-make test # run all tests
+make unit-test
+make e2e-test
 ```
 
 ### Database access
