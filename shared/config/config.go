@@ -96,6 +96,8 @@ type ChainConfig struct {
 	// MaxFillSize is the maximum amount of USDC that can be processed in a single
 	// order fill. Orders exceeding this size will be abandoned
 	MaxFillSize big.Int `yaml:"max_fill_size"`
+	// Maximum total gas cost for rebalancing txs per chain, fails if gas sum of rebalancing txs exceeds this threshold
+	MaxRebalancingGasThreshold uint64 `yaml:"max_rebalancing_gas_threshold"`
 	// FastTransferContractAddress is the address of the Skip Go Fast Transfer
 	// Protocol contract deployed on this chain
 	FastTransferContractAddress string `yaml:"fast_transfer_contract_address"`
