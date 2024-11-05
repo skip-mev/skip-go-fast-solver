@@ -33,11 +33,8 @@ risk/reward profile and if they have the required resources on the destination c
 
 ### How to start server
 
-1. Update config/local/keys.json with the appropriate solver private keys and addresses
-2. Update config/local/config.yml with the appropriate config needed for each chain (all values needed to be set are placed between <> brackets)
-   a. set the SERVER_PASSWORD environment variable to the RPC servers basic auth secret
-   b. ensure the rpc_basic_auth_var field in config.yml references this environment variable
-   c. update the coingecko.api_key config field with a valid coingecko api key
+1. Update [config/local/keys.json](config/local/keys.json) with the corresponding solver private keys and addresses.
+2. Update [config/local/config.yml](config/local/config.yml) with the corresponding chain config. Values that need to be replaced are in`<>` brackets. Set these values to configure min/max order sizes, settlement thresholds, chain rpc links, etc. Reference the [shared/config/config.go](shared/config/config.go) file for more info about the config fields.
 
 ```shell
 make build # build solver server binary
