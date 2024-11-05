@@ -312,7 +312,7 @@ func (r *orderFulfillmentHandler) checkBlockConfirmations(ctx context.Context, s
 		lmt.Logger(ctx).Debug("required block confirmations not met", zap.String("orderId", order.OrderID), zap.String("sourceChainID", order.SourceChainID))
 		return false, nil
 	} else {
-		exists, err := sourceChainBridgeClient.OrderExists(ctx, order.SourceChainGatewayContractAddress, order.OrderID, big.NewInt(order.OrderCreationTxBlockHeight))
+		exists, _, err := sourceChainBridgeClient.OrderExists(ctx, order.SourceChainGatewayContractAddress, order.OrderID, big.NewInt(order.OrderCreationTxBlockHeight))
 		if err != nil {
 			return false, err
 		}

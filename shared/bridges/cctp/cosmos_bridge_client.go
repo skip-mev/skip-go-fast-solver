@@ -540,8 +540,8 @@ func (c *CosmosBridgeClient) WaitForTx(ctx context.Context, txHash string) error
 	}, retry.Context(ctx), retry.Delay(1*time.Second), retry.MaxDelay(5*time.Second), retry.Attempts(20))
 }
 
-func (c *CosmosBridgeClient) OrderExists(ctx context.Context, gatewayContractAddress, orderID string, blockNumber *big.Int) (bool, error) {
-	return false, errors.New("not implemented")
+func (c *CosmosBridgeClient) OrderExists(ctx context.Context, gatewayContractAddress, orderID string, blockNumber *big.Int) (bool, *big.Int, error) {
+	return false, nil, errors.New("not implemented")
 }
 
 func (c *CosmosBridgeClient) Close() {}

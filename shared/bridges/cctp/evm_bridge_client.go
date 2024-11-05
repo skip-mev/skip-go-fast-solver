@@ -141,24 +141,24 @@ type SettlementDetails struct {
 	Amount            *big.Int
 }
 
-func (c *EVMBridgeClient) OrderExists(ctx context.Context, gatewayContractAddress, orderID string, blockNumber *big.Int) (bool, error) {
+func (c *EVMBridgeClient) OrderExists(ctx context.Context, gatewayContractAddress, orderID string, blockNumber *big.Int) (bool, *big.Int, error) {
 	fastTransferGateway, err := fast_transfer_gateway.NewFastTransferGateway(
 		common.HexToAddress(gatewayContractAddress),
 		c.client,
 	)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	orderIDBytes, err := hex.DecodeString(orderID)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	settlementDetails, err := fastTransferGateway.SettlementDetails(&bind.CallOpts{Context: ctx, BlockNumber: blockNumber}, [32]byte(orderIDBytes))
 	if err != nil {
-		return false, fmt.Errorf("querying fast transfer gateway for orders settlement details: %w", err)
+		return false, nil, fmt.Errorf("querying fast transfer gateway for orders settlement details: %w", err)
 	}
 
-	return settlementDetails.Nonce != nil && settlementDetails.DestinationDomain != 0 && settlementDetails.Amount != nil, nil
+	return settlementDetails.Nonce != nil && settlementDetails.DestinationDomain != 0 && settlementDetails.Amount != nil, settlementDetails.Amount, nil
 }
 
 func (c *EVMBridgeClient) IsOrderRefunded(ctx context.Context, gatewayContractAddress, orderID string) (bool, string, error) {

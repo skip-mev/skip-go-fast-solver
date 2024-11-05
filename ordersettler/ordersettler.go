@@ -132,26 +132,11 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 			}
 
 			// ensure order exists on source chain
-			exists, err := sourceBridgeClient.OrderExists(ctx, sourceGatewayAddress, fill.OrderID, big.NewInt(int64(height)))
+			exists, amount, err := sourceBridgeClient.OrderExists(ctx, sourceGatewayAddress, fill.OrderID, big.NewInt(int64(height)))
 			if err != nil {
 				return fmt.Errorf("checking if order %s exists on chainID %s: %w", fill.OrderID, sourceChainID, err)
 			}
 			if !exists {
-				// if the order does not exist on the source, set the
-				// status to abandoned and do not try and settle it
-				// TODO: since we fetch all fills for this filler every time,
-				// we are marking the same orders as abounded over and over not
-				// a big issue but we may want some kind of filter here
-				_, err = r.db.SetOrderStatus(ctx, db.SetOrderStatusParams{
-					OrderStatus:                       dbtypes.OrderStatusAbandoned,
-					OrderStatusMessage:                sql.NullString{String: "order does not exist on source chain", Valid: true},
-					SourceChainID:                     sourceChainID,
-					OrderID:                           fill.OrderID,
-					SourceChainGatewayContractAddress: sourceGatewayAddress,
-				})
-				if err != nil && !errors.Is(err, sql.ErrNoRows) {
-					return fmt.Errorf("order %s does not exist, setting status to abandoned: %w", fill.OrderID, err)
-				}
 				continue
 			}
 
@@ -161,6 +146,7 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 				SourceChainGatewayContractAddress: sourceGatewayAddress,
 				OrderID:                           fill.OrderID,
 				SettlementStatus:                  dbtypes.SettlementStatusPending,
+				Amount:                            amount.String(),
 			})
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return fmt.Errorf("failed to insert settlement: %w", err)
@@ -213,12 +199,16 @@ func (r *OrderSettler) settleOrders(ctx context.Context) error {
 // verifyOrderSettlements checks on all instated settlements and updates their
 // status in the db with their on chain tx results.
 func (r *OrderSettler) verifyOrderSettlements(ctx context.Context) error {
+	pendingSettlements, err := r.db.GetAllOrderSettlementsWithSettlementStatus(ctx, dbtypes.SettlementStatusPending)
+	if err != nil {
+		return fmt.Errorf("getting pending settlements: %w", err)
+	}
 	initatedSettlements, err := r.InitiatedSettlements(ctx)
 	if err != nil {
 		return fmt.Errorf("getting initiated settlements: %w", err)
 	}
 
-	for _, settlement := range initatedSettlements {
+	for _, settlement := range append(pendingSettlements, initatedSettlements...) {
 		if !settlement.InitiateSettlementTx.Valid {
 			continue
 		}
@@ -250,7 +240,13 @@ func (r *OrderSettler) PendingSettlementBatches(ctx context.Context) ([]types.Se
 	if err != nil {
 		return nil, fmt.Errorf("getting orders pending settlement: %w", err)
 	}
-	return types.IntoSettlementBatches(pendingSettlements)
+	var uniniatedSettlements []db.OrderSettlement
+	for _, settlement := range pendingSettlements {
+		if !settlement.InitiateSettlementTx.Valid {
+			uniniatedSettlements = append(uniniatedSettlements, settlement)
+		}
+	}
+	return types.IntoSettlementBatches(uniniatedSettlements)
 }
 
 func (r *OrderSettler) InitiatedSettlements(ctx context.Context) ([]db.OrderSettlement, error) {

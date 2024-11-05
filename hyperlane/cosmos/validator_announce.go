@@ -78,6 +78,9 @@ func (va *ValidatorAnnounceQuerier) GetAnnouncedValidatorStorageLocations(ctx co
 		if !ok {
 			return nil, fmt.Errorf("got unexpected type for second element of validator storge location, exepcted []any")
 		}
+		if len(locationsAny) == 0 {
+			return nil, fmt.Errorf("expected at least one storage location for validator %s, got none", validator)
+		}
 		location, ok := locationsAny[len(locationsAny)-1].(string)
 		if !ok {
 			return nil, fmt.Errorf("got unexpected type for second element of validator storge location, exepcted string")

@@ -123,7 +123,7 @@ chains:
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
     quick_start_num_blocks_back: 300000
-    fast_transfer_contract_address: "0xD6F9F9E2C231E023fe0A8d752bc4080a112a1EbA"
+    fast_transfer_contract_address: "0x9c75534d7d6670a3ddd69a55b4067460f3e8744b"
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     hyperlane_domain: "42161"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
@@ -145,8 +145,22 @@ chains:
     relayer:
       validator_announce_contract_address: "0x1df063280C4166AF9a725e3828b4dAC6c7113B08"
       merkle_hook_contract_address: "0xb49a14568f9CC440f2c7DCf7FC6766040a5eb860"
-      mailbox_address: "0xB0D479FF725668bAB83aD4F24485851927Fc56D7"
-
+      mailbox_address: "0x979Ca5202784112f4738403dBec5D0F3B9daabB9"
+  arbitrum-testnet:
+    chain_name: "arbitrum"
+    chain_id: "421614"
+    type: evm
+    environment: "testnet"
+    gas_token_symbol: "ETH"
+    gas_token_decimals: 18
+    evm:
+      rpc: <arbitrum_rpc_server_url>
+      rpc_basic_auth_var: <server_password>
+      contracts:
+        usdc_erc20_address: 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
+      signer_gas_balance:
+        warning_threshold_wei: 250000000000000000
+        critical_threshold_wei: 0
   osmosis:
     chain_name: "osmosis"
     chain_id: "osmosis-1"
@@ -154,8 +168,8 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "OSMO"
     gas_token_decimals: 6
-    fast_transfer_contract_address: "osmo19a2a86dtmlrngnjs6f0trrk3sfr9hf75n6yvlpplx6rp7z9mq4wqgmxwpm"
-    solver_address: <solver_address> # e.g. "osmo1f9qwat48ldgxrmssvpvpk3tea8l72mks20gehu"
+    fast_transfer_contract_address: "osmo1cnze5c4y7jw69ghzczsnu9v9qz3xuvevw5ayr2g0pa3ayafumlusej3pf5"
+    solver_address: <solver_address>
     hyperlane_domain: "875"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
@@ -177,7 +191,7 @@ chains:
       gas_price: <gas_price> # e.g. "0.0025"
       gas_denom: "uosmo"
     relayer:
-      validator_announce_contract_address: "osmo1zpnls63zlgwrt0xxat6cqtm7nvqkpc74rkr34zmvyly974htw4rq2wu98m"
+      validator_announce_contract_address: "osmo147r8mfdsngswujgkr4tln9rhcrzz6yq0xn448ksd96mlcmp9wg6stvznke"
       merkle_hook_contract_address: "osmo1e765uc5mctl7rz8dzl9decl5ghgxggeqyxutkjp2xkggrg6zma3qgdq2g4"
       mailbox_address: "osmo1r6u37zv47ke4d2k9tkzun72ch466w6594kv8gqgrtmsvf7qxpm9sj95v98"
 
