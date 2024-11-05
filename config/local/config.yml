@@ -157,7 +157,6 @@ chains:
     fast_transfer_contract_address: "osmo19a2a86dtmlrngnjs6f0trrk3sfr9hf75n6yvlpplx6rp7z9mq4wqgmxwpm"
     solver_address: <solver_address> # e.g. "osmo1f9qwat48ldgxrmssvpvpk3tea8l72mks20gehu"
     hyperlane_domain: "875"
-    max_rebalancing_gas_threshold: 500000
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
