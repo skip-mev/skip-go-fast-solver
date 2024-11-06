@@ -349,6 +349,51 @@ func (_c *MockConfigReader_GetChainIDByHyperlaneDomain_Call) RunAndReturn(run fu
 	return _c
 }
 
+// GetCoingeckoConfig provides a mock function with given fields:
+func (_m *MockConfigReader) GetCoingeckoConfig() config.CoingeckoConfig {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetCoingeckoConfig")
+	}
+
+	var r0 config.CoingeckoConfig
+	if rf, ok := ret.Get(0).(func() config.CoingeckoConfig); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(config.CoingeckoConfig)
+	}
+
+	return r0
+}
+
+// MockConfigReader_GetCoingeckoConfig_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetCoingeckoConfig'
+type MockConfigReader_GetCoingeckoConfig_Call struct {
+	*mock.Call
+}
+
+// GetCoingeckoConfig is a helper method to define mock.On call
+func (_e *MockConfigReader_Expecter) GetCoingeckoConfig() *MockConfigReader_GetCoingeckoConfig_Call {
+	return &MockConfigReader_GetCoingeckoConfig_Call{Call: _e.mock.On("GetCoingeckoConfig")}
+}
+
+func (_c *MockConfigReader_GetCoingeckoConfig_Call) Run(run func()) *MockConfigReader_GetCoingeckoConfig_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockConfigReader_GetCoingeckoConfig_Call) Return(_a0 config.CoingeckoConfig) *MockConfigReader_GetCoingeckoConfig_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockConfigReader_GetCoingeckoConfig_Call) RunAndReturn(run func() config.CoingeckoConfig) *MockConfigReader_GetCoingeckoConfig_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetGatewayContractAddress provides a mock function with given fields: chainID
 func (_m *MockConfigReader) GetGatewayContractAddress(chainID string) (string, error) {
 	ret := _m.Called(chainID)

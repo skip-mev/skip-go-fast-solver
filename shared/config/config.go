@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/cosmos/cosmos-sdk/types/bech32"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
@@ -33,6 +34,7 @@ const (
 type Config struct {
 	Chains            map[string]ChainConfig          `yaml:"chains"`
 	Metrics           MetricsConfig                   `yaml:"metrics"`
+	Coingecko         CoingeckoConfig                 `yaml:"coingecko,omitempty"`
 	OrderFillerConfig OrderFillerConfig               `yaml:"order_filler_config"`
 	FundRebalancer    map[string]FundRebalancerConfig `yaml:"fund_rebalancer"`
 }
@@ -215,6 +217,13 @@ type ContractsConfig struct {
 	USDCERC20Address string `yaml:"usdc_erc20_address"`
 }
 
+type CoingeckoConfig struct {
+	BaseURL              string        `yaml:"base_url"`
+	RequestsPerMinute    int           `yaml:"requests_per_minute"`
+	APIKey               string        `yaml:"api_key"`
+	CacheRefreshInterval time.Duration `yaml:"cache_refresh_interval"`
+}
+
 // Config Helpers
 func LoadConfig(path string) (Config, error) {
 	cfgBytes, err := os.ReadFile(path)
@@ -253,6 +262,8 @@ type ConfigReader interface {
 
 	GetChainConfig(chainID string) (ChainConfig, error)
 	GetAllChainConfigsOfType(chainType ChainType) ([]ChainConfig, error)
+
+	GetCoingeckoConfig() CoingeckoConfig
 
 	GetGatewayContractAddress(chainID string) (string, error)
 	GetChainIDByHyperlaneDomain(domain string) (string, error)
@@ -406,6 +417,10 @@ func (r configReader) GetAllChainConfigsOfType(chainType ChainType) ([]ChainConf
 		}
 	}
 	return chains, nil
+}
+
+func (r configReader) GetCoingeckoConfig() CoingeckoConfig {
+	return r.config.Coingecko
 }
 
 func (r configReader) GetGatewayContractAddress(chainID string) (string, error) {

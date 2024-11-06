@@ -8,10 +8,13 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
 	"time"
 
+	coingecko2 "github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
+
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
+	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
 )
 
@@ -31,12 +34,16 @@ type Database interface {
 type TxVerifier struct {
 	db            Database
 	clientManager *clientmanager.ClientManager
+	PriceClient   coingecko2.PriceClient
 }
 
 func NewTxVerifier(ctx context.Context, db Database, clientManager *clientmanager.ClientManager) (*TxVerifier, error) {
+	coingeckoConfig := config.GetConfigReader(ctx).GetCoingeckoConfig()
+
 	return &TxVerifier{
 		db:            db,
 		clientManager: clientManager,
+		PriceClient:   coingecko2.NewCachedPriceClient(coingecko2.DefaultCoingeckoClient(coingeckoConfig), coingeckoConfig.CacheRefreshInterval),
 	}, nil
 }
 

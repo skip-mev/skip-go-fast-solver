@@ -2,6 +2,11 @@
 # Do NOT leave any angle brackets in the final configuration.
 metrics:
   prometheus_address: "0.0.0.0:8001"
+coingecko:
+  base_url: "https://pro-api.coingecko.com/api/v3/"
+  api_key: <api_key>
+  requests_per_minute: 500
+  cache_refresh_interval: "5m"
 order_filler:
   worker_count: 10
 fund_rebalancer:
