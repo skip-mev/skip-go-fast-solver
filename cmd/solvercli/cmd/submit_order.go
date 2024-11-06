@@ -30,13 +30,16 @@ var submitCmd = &cobra.Command{
 	Short: "Submit a new fast transfer order",
 	Long: `Submit a new fast transfer order through the FastTransferGateway contract.
 Example:
-  ./build/solver_cli submit \
-    --token 0xaf88d065e77c8cC2239327C5EDb3A432268e5831 \
-    --recipient osmo1v57fx2l2rt6ehujuu99u2fw05779m5e2ux4z2h \
-    --amount 5000000 \
-    --source-chain-id 42161 \
-    --destination-domain 875 \
-    --gateway 0x9c75534d7d6670a3ddd69a55b4067460f3e8744b`,
+  ./build/solvercli submit \
+  --config ./config/local/config.yml \
+  --token 0xaf88d065e77c8cC2239327C5EDb3A432268e5831 \
+  --recipient osmo13c9seh3vgvtfvdufz4eh2zhp0cepq4wj0egc02 \
+  --amount 1000000 \
+  --source-chain-id 42161 \
+  --destination-chain-id osmosis-1 \
+  --gateway 0x9c75534d7d6670a3ddd69a55b4067460f3e8744b \
+  --private-key 0xf6079d30f832f998c86e5841385a4be06b6ca2b0875b90dcab8e167eba4dcab1 \
+  --deadline-hours 24`,
 	Run: submitOrder,
 }
 
