@@ -248,13 +248,21 @@ func init() {
 	submitCmd.Flags().String("gateway", "", "Gateway contract address")
 	submitCmd.Flags().String("private-key", "", "Private key to sign the transaction")
 
-	submitCmd.MarkFlagRequired("token")
-	submitCmd.MarkFlagRequired("recipient")
-	submitCmd.MarkFlagRequired("amount")
-	submitCmd.MarkFlagRequired("source-chain-id")
-	submitCmd.MarkFlagRequired("destination-chain-id")
-	submitCmd.MarkFlagRequired("gateway")
-	submitCmd.MarkFlagRequired("private-key")
+	requiredFlags := []string{
+		"token",
+		"recipient",
+		"amount",
+		"source-chain-id",
+		"destination-chain-id",
+		"gateway",
+		"private-key",
+	}
+
+	for _, flag := range requiredFlags {
+		if err := submitCmd.MarkFlagRequired(flag); err != nil {
+			panic(fmt.Sprintf("failed to mark %s flag as required: %v", flag, err))
+		}
+	}
 }
 
 func addressTo32Bytes(addr string) ([32]byte, error) {
