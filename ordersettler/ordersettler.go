@@ -32,6 +32,7 @@ var params = Config{
 
 type Database interface {
 	GetAllOrderSettlementsWithSettlementStatus(ctx context.Context, settlementStatus string) ([]db.OrderSettlement, error)
+	GetSubmittedTxsByOrderSettlementId(ctx context.Context, orderSettlementId sql.NullInt64) ([]db.SubmittedTx, error)
 
 	SetSettlementStatus(ctx context.Context, arg db.SetSettlementStatusParams) (db.OrderSettlement, error)
 
@@ -298,7 +299,7 @@ func (r *OrderSettler) SettleBatches(ctx context.Context, batches []types.Settle
 	return g.Wait()
 }
 
-// SettleBatch initates a settlement on chain for a SettlementBatch.
+// SettleBatch initiates a settlement on chain for a SettlementBatch.
 func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBatch) error {
 	destinationBridgeClient, err := r.clientManager.GetClient(ctx, batch.DestinationChainID())
 	if err != nil {
@@ -314,6 +315,7 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 	}
 
 	err = r.db.InTx(ctx, func(ctx context.Context, q db.Querier) error {
+		// First update all settlements with the initiate settlement tx
 		for _, settlement := range batch {
 			settlementTx := db.SetInitiateSettlementTxParams{
 				SourceChainID:                     settlement.SourceChainID,
@@ -326,7 +328,18 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 			}
 
 			if rawTx == "" {
-				continue
+				return nil
+			}
+
+			submittedTxs, err := r.db.GetSubmittedTxsByOrderSettlementId(ctx, sql.NullInt64{Int64: settlement.ID, Valid: true})
+			if err != nil {
+				return fmt.Errorf("checking for existing submitted tx for settlement %d: %w", settlement.ID, err)
+			}
+			if len(submittedTxs) > 0 {
+				lmt.Logger(ctx).Info("Settlement already has submitted transaction, skipping",
+					zap.Int64("settlementID", settlement.ID),
+					zap.String("existingTxHash", submittedTxs[0].TxHash))
+				return nil
 			}
 
 			submittedTx := db.InsertSubmittedTxParams{
@@ -423,6 +436,8 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 	if settlementIsComplete, err := sourceBridgeClient.IsSettlementComplete(ctx, settlement.SourceChainGatewayContractAddress, settlement.OrderID); err != nil {
 		return fmt.Errorf("failed to check if settlement is complete: %w", err)
 	} else if settlementIsComplete {
+		lmt.Logger(ctx).Info("dbtypes.SettlementStatusComplete",
+			zap.String("settlement.OrderID", settlement.OrderID), zap.String("settlement.SourceChainID", settlement.SourceChainID))
 		if _, err := r.db.SetSettlementStatus(ctx, db.SetSettlementStatusParams{
 			SourceChainID:                     settlement.SourceChainID,
 			OrderID:                           settlement.OrderID,
@@ -433,5 +448,9 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 		}
 		return nil
 	}
+	lmt.Logger(ctx).Info("settlement is not complete",
+		zap.String("settlement.OrderID", settlement.OrderID), zap.String("settlement.SourceChainID", settlement.SourceChainID),
+		zap.String("settlement.SettlementStatus", settlement.SettlementStatus))
+
 	return fmt.Errorf("settlement is not complete")
 }

@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	bech322 "github.com/cosmos/cosmos-sdk/types/bech32"
-	"gopkg.in/yaml.v3"
 	"math/big"
 	"os"
 	"strings"
+
+	bech322 "github.com/cosmos/cosmos-sdk/types/bech32"
+	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v3"
 )
 
 // Config Enum Types
@@ -265,11 +268,36 @@ func (r *configReader) createIndexes() {
 	r.cctpDomainIndex = make(map[ChainEnvironment]map[uint32]ChainConfig)
 	r.chainIDIndex = make(map[string]ChainConfig)
 
-	for _, chain := range r.config.Chains {
+	for chainID, chain := range r.config.Chains {
 		if _, ok := r.cctpDomainIndex[chain.Environment]; !ok {
 			r.cctpDomainIndex[chain.Environment] = make(map[uint32]ChainConfig)
 		}
-		r.chainIDIndex[chain.ChainID] = chain
+
+		// Validate chain configuration
+		if chain.Type == ChainType_COSMOS && chain.Cosmos == nil {
+			lmt.Logger(context.Background()).Error(
+				"invalid chain configuration",
+				zap.String("chainID", chainID),
+				zap.String("type", string(chain.Type)),
+				zap.Bool("hasCosmosConfig", chain.Cosmos != nil),
+			)
+		}
+
+		if chain.Type == ChainType_EVM && chain.EVM == nil {
+			lmt.Logger(context.Background()).Error(
+				"invalid chain configuration",
+				zap.String("chainID", chainID),
+				zap.String("type", string(chain.Type)),
+				zap.Bool("hasEVMConfig", chain.EVM != nil),
+			)
+		}
+
+		r.chainIDIndex[chainID] = chain
+
+		lmt.Logger(context.Background()).Debug(
+			"indexed chain configuration",
+			zap.String("chainID", chainID),
+			zap.Any("chainConfig", chain))
 	}
 }
 
@@ -404,10 +432,19 @@ func (r configReader) GetUSDCDenom(chainID string) (string, error) {
 
 	switch chainConfig.Type {
 	case ChainType_COSMOS:
+		if chainConfig.Cosmos == nil {
+			return "", fmt.Errorf("cosmos config is nil for chain %s", chainID)
+		}
+		if chainConfig.Cosmos.USDCDenom == "" {
+			return "", fmt.Errorf("usdc denom not configured for cosmos chain %s", chainID)
+		}
 		return chainConfig.Cosmos.USDCDenom, nil
 	case ChainType_EVM:
+		if chainConfig.EVM == nil || chainConfig.EVM.Contracts.USDCERC20Address == "" {
+			return "", fmt.Errorf("usdc contract address not configured for evm chain %s", chainID)
+		}
 		return chainConfig.EVM.Contracts.USDCERC20Address, nil
 	default:
-		return "", fmt.Errorf("no usdc denom available for chain type %s", chainConfig.Type)
+		return "", fmt.Errorf("unsupported chain type %s for chain %s", chainConfig.Type, chainID)
 	}
 }

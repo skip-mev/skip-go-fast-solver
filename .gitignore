@@ -5,3 +5,5 @@ keys.json.plaintext
 solver.db
 vendor
 .idea
+config/local/config.yml
+config/local/keys.json

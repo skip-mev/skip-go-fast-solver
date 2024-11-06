@@ -15,3 +15,6 @@ UPDATE submitted_txs SET tx_status = ?, tx_status_message = ?, updated_at = CURR
 
 -- name: GetSubmittedTxsByOrderStatusAndType :many
 SELECT submitted_txs.* FROM submitted_txs INNER JOIN orders on submitted_txs.order_id = orders.id WHERE orders.order_status = ? AND submitted_txs.tx_type = ?;
+
+-- name: GetSubmittedTxsByOrderSettlementId :many
+SELECT * FROM submitted_txs WHERE order_settlement_id = ?;

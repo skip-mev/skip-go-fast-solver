@@ -1,22 +1,25 @@
 package cmd
 
 import (
-	"crypto/ecdsa"
 	"fmt"
 	"math/big"
+	"os/signal"
+	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
+	"github.com/cosmos/cosmos-sdk/types/bech32"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
-	"github.com/skip-mev/go-fast-solver/shared/keys"
+	"github.com/skip-mev/go-fast-solver/shared/contracts/usdc"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
-	"golang.org/x/net/context"
-
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"golang.org/x/net/context"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -27,80 +30,124 @@ var submitCmd = &cobra.Command{
 	Short: "Submit a new fast transfer order",
 	Long: `Submit a new fast transfer order through the FastTransferGateway contract.
 Example:
-  fast-solver submit \
+  ./build/solver_cli submit \
     --token 0xaf88d065e77c8cC2239327C5EDb3A432268e5831 \
     --recipient osmo1v57fx2l2rt6ehujuu99u2fw05779m5e2ux4z2h \
     --amount 5000000 \
     --source-chain-id 42161 \
-    --destination-chain-id osmosis-1 \
-    --gateway 0x24a9267cE9e0a8F4467B584FDDa12baf1Df772B5`,
+    --destination-domain 875 \
+    --gateway 0x9c75534d7d6670a3ddd69a55b4067460f3e8744b`,
 	Run: submitOrder,
 }
 
 func submitOrder(cmd *cobra.Command, args []string) {
-	ctx := cmd.Context()
-	logger := lmt.Logger(ctx)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	lmt.ConfigureLogger()
+	ctx = lmt.LoggerContext(ctx)
 
 	flags, err := parseFlags(cmd)
 	if err != nil {
-		logger.Error("Failed to parse flags", zap.Error(err))
+		lmt.Logger(ctx).Error("Failed to parse flags", zap.Error(err))
 		return
 	}
 
 	cfg, err := config.LoadConfig(flags.configPath)
 	if err != nil {
-		logger.Error("Unable to load config", zap.Error(err))
+		lmt.Logger(ctx).Error("Unable to load config", zap.Error(err))
 		return
 	}
 
+	ctx = config.ConfigReaderContext(ctx, config.NewConfigReader(cfg))
+
 	client, err := ethclient.Dial(cfg.Chains[flags.sourceChainID].EVM.RPC)
 	if err != nil {
-		logger.Error("Failed to connect to the network", zap.Error(err))
+		lmt.Logger(ctx).Error("Failed to connect to the network", zap.Error(err))
 		return
 	}
 
 	gateway, auth, err := setupGatewayAndAuth(ctx, client, flags)
 	if err != nil {
-		logger.Error("Failed to setup gateway and auth", zap.Error(err))
+		lmt.Logger(ctx).Error("Failed to setup gateway and auth", zap.Error(err))
 		return
 	}
 
-	tx, err := submitTransferOrder(gateway, auth, flags)
+	usdc, err := usdc.NewUsdc(common.HexToAddress(flags.token), client)
 	if err != nil {
-		logger.Error("Failed to submit order", zap.Error(err))
+		lmt.Logger(ctx).Error("Failed to create USDC contract instance", zap.Error(err))
 		return
 	}
 
-	logSuccess(logger, tx, flags)
+	// Create auth for USDC approval
+	amountBig := new(big.Int)
+	amountBig.SetString(flags.amount, 10)
+
+	// Approve USDC spending
+	tx, err := usdc.Approve(auth, common.HexToAddress(flags.gatewayAddr), amountBig)
+	if err != nil {
+		lmt.Logger(ctx).Error("Failed to approve USDC spending", zap.Error(err))
+		return
+	}
+
+	lmt.Logger(ctx).Info("USDC approval submitted",
+		zap.String("tx_hash", tx.Hash().Hex()),
+		zap.String("amount", flags.amount),
+	)
+
+	// Wait for approval transaction to be mined
+	_, err = bind.WaitMined(ctx, client, tx)
+	if err != nil {
+		lmt.Logger(ctx).Error("Failed waiting for USDC approval to be mined", zap.Error(err))
+		return
+	}
+
+	destChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(flags.destinationChainId)
+	if err != nil {
+		lmt.Logger(ctx).Error("Failed to get destination chain config: %w", zap.Error(err))
+		return
+	}
+
+	destDomain, err := strconv.ParseUint(destChainConfig.HyperlaneDomain, 10, 32)
+	if err != nil {
+		lmt.Logger(ctx).Error("parsing destination hyperlane domain: %w", zap.Error(err))
+		return
+	}
+
+	tx, err = submitTransferOrder(gateway, auth, flags, uint32(destDomain))
+	if err != nil {
+		lmt.Logger(ctx).Error("Failed to submit order", zap.Error(err))
+		return
+	}
+
+	lmt.Logger(ctx).Info("Order submitted successfully",
+		zap.String("tx_hash", tx.Hash().Hex()),
+		zap.String("token", flags.token),
+		zap.String("recipient", flags.recipient),
+		zap.String("amount", flags.amount),
+		zap.String("source_chain_id", flags.sourceChainID),
+		zap.String("destination_chain_id", flags.destinationChainId),
+		zap.Uint32("destination_domain", uint32(destDomain)),
+		zap.Uint32("deadline_hours", flags.deadlineHours),
+	)
 }
 
 type submitFlags struct {
-	keysPath          string
-	keyStoreType      string
-	aesKeyHex         string
-	token             string
-	recipient         string
-	amount            string
-	destinationDomain uint32
-	deadlineHours     uint32
-	gatewayAddr       string
-	configPath        string
-	sourceChainID     string
+	token              string
+	recipient          string
+	amount             string
+	destinationChainId string
+	deadlineHours      uint32
+	gatewayAddr        string
+	configPath         string
+	sourceChainID      string
+	privateKey         string
 }
 
 func parseFlags(cmd *cobra.Command) (*submitFlags, error) {
 	flags := &submitFlags{}
 	var err error
 
-	if flags.keysPath, err = cmd.Flags().GetString("keys"); err != nil {
-		return nil, err
-	}
-	if flags.keyStoreType, err = cmd.Flags().GetString("key-store-type"); err != nil {
-		return nil, err
-	}
-	if flags.aesKeyHex, err = cmd.Flags().GetString("aes-key-hex"); err != nil {
-		return nil, err
-	}
 	if flags.token, err = cmd.Flags().GetString("token"); err != nil {
 		return nil, err
 	}
@@ -110,7 +157,7 @@ func parseFlags(cmd *cobra.Command) (*submitFlags, error) {
 	if flags.amount, err = cmd.Flags().GetString("amount"); err != nil {
 		return nil, err
 	}
-	if flags.destinationDomain, err = cmd.Flags().GetUint32("destination-chain-id"); err != nil {
+	if flags.destinationChainId, err = cmd.Flags().GetString("destination-chain-id"); err != nil {
 		return nil, err
 	}
 	if flags.deadlineHours, err = cmd.Flags().GetUint32("deadline-hours"); err != nil {
@@ -123,6 +170,9 @@ func parseFlags(cmd *cobra.Command) (*submitFlags, error) {
 		return nil, err
 	}
 	if flags.sourceChainID, err = cmd.Flags().GetString("source-chain-id"); err != nil {
+		return nil, err
+	}
+	if flags.privateKey, err = cmd.Flags().GetString("private-key"); err != nil {
 		return nil, err
 	}
 
@@ -140,15 +190,12 @@ func setupGatewayAndAuth(ctx context.Context, client *ethclient.Client, flags *s
 		return nil, nil, err
 	}
 
-	keystore, err := keys.GetKeyStore(flags.keyStoreType, keys.GetKeyStoreOpts{
-		KeyFilePath: flags.keysPath,
-		AESKeyHex:   flags.aesKeyHex,
-	})
-	if err != nil {
-		return nil, nil, err
+	privateKeyStr := flags.privateKey
+	if privateKeyStr[:2] == "0x" {
+		privateKeyStr = privateKeyStr[2:]
 	}
 
-	privateKey, err := getPrivateKey(keystore, flags.sourceChainID)
+	privateKey, err := crypto.HexToECDSA(privateKeyStr)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -161,43 +208,30 @@ func setupGatewayAndAuth(ctx context.Context, client *ethclient.Client, flags *s
 	return gateway, auth, nil
 }
 
-func getPrivateKey(keystore map[string]string, chainID string) (*ecdsa.PrivateKey, error) {
-	privateKeyStr, ok := keystore[chainID]
-	if !ok {
-		return nil, fmt.Errorf("private key not found for chain ID: %s", chainID)
-	}
-	if privateKeyStr[:2] == "0x" {
-		privateKeyStr = privateKeyStr[2:]
-	}
-	return crypto.HexToECDSA(privateKeyStr)
-}
-
-func submitTransferOrder(gateway *fast_transfer_gateway.FastTransferGateway, auth *bind.TransactOpts, flags *submitFlags) (*types.Transaction, error) {
+func submitTransferOrder(gateway *fast_transfer_gateway.FastTransferGateway, auth *bind.TransactOpts, flags *submitFlags, destDomain uint32) (*types.Transaction, error) {
 	amountBig := new(big.Int)
 	amountBig.SetString(flags.amount, 10)
 	deadline := time.Now().Add(time.Duration(flags.deadlineHours) * time.Hour)
 
+	senderBytes, err := addressTo32Bytes(auth.From.Hex())
+	if err != nil {
+		return nil, fmt.Errorf("converting sender address: %w", err)
+	}
+
+	recipientBytes, err := addressTo32Bytes(flags.recipient)
+	if err != nil {
+		return nil, fmt.Errorf("converting recipient address: %w", err)
+	}
+
 	return gateway.SubmitOrder(
 		auth,
-		addressTo32Bytes(auth.From),
-		addressTo32Bytes(common.HexToAddress(flags.recipient)),
+		senderBytes,
+		recipientBytes,
 		amountBig,
 		amountBig,
-		flags.destinationDomain,
+		destDomain,
 		big.NewInt(deadline.Unix()),
 		[]byte{},
-	)
-}
-
-func logSuccess(logger *zap.Logger, tx *types.Transaction, flags *submitFlags) {
-	logger.Info("Order submitted successfully",
-		zap.String("tx_hash", tx.Hash().Hex()),
-		zap.String("token", flags.token),
-		zap.String("recipient", flags.recipient),
-		zap.String("amount", flags.amount),
-		zap.String("source_chain_id", flags.sourceChainID),
-		zap.Uint32("destination_chain_id", flags.destinationDomain),
-		zap.Uint32("deadline_hours", flags.deadlineHours),
 	)
 }
 
@@ -208,9 +242,10 @@ func init() {
 	submitCmd.Flags().String("recipient", "", "Recipient address")
 	submitCmd.Flags().String("amount", "", "Amount to transfer (in token decimals)")
 	submitCmd.Flags().String("source-chain-id", "", "Source chain ID")
-	submitCmd.Flags().Uint32("destination-chain-id", 0, "Destination chain ID")
+	submitCmd.Flags().String("destination-chain-id", "", "Destination chain ID")
 	submitCmd.Flags().Uint32("deadline-hours", 24, "Deadline in hours (default of 24 hours, after which the order expires)")
 	submitCmd.Flags().String("gateway", "", "Gateway contract address")
+	submitCmd.Flags().String("private-key", "", "Private key to sign the transaction")
 
 	submitCmd.MarkFlagRequired("token")
 	submitCmd.MarkFlagRequired("recipient")
@@ -218,10 +253,25 @@ func init() {
 	submitCmd.MarkFlagRequired("source-chain-id")
 	submitCmd.MarkFlagRequired("destination-chain-id")
 	submitCmd.MarkFlagRequired("gateway")
+	submitCmd.MarkFlagRequired("private-key")
 }
 
-func addressTo32Bytes(addr common.Address) [32]byte {
+func addressTo32Bytes(addr string) ([32]byte, error) {
 	var result [32]byte
-	copy(result[12:], addr.Bytes())
-	return result
+
+	// EVM address
+	if strings.HasPrefix(addr, "0x") {
+		addr = addr[2:]
+		ethAddr := common.HexToAddress(addr)
+		copy(result[12:], ethAddr.Bytes())
+		return result, nil
+	} else {
+		// Bech32 address
+		_, bz, err := bech32.DecodeAndConvert(addr)
+		if err != nil {
+			return result, err
+		}
+		copy(result[12:], bz)
+		return result, nil
+	}
 }

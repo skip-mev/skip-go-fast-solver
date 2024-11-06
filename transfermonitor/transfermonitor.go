@@ -193,6 +193,10 @@ func (t *TransferMonitor) findNewTransferIntentsOnEVMChain(ctx context.Context, 
 		lmt.Logger(ctx).Error("Error finding burn transactions", zap.Error(err))
 		return nil, 0, err
 	}
+
+	if orders != nil {
+		lmt.Logger(ctx).Debug("EVM transfer intents found", zap.Any("Orders", orders))
+	}
 	return orders, endBlockHeight, nil
 }
 
