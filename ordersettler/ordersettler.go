@@ -436,8 +436,6 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 	if settlementIsComplete, err := sourceBridgeClient.IsSettlementComplete(ctx, settlement.SourceChainGatewayContractAddress, settlement.OrderID); err != nil {
 		return fmt.Errorf("failed to check if settlement is complete: %w", err)
 	} else if settlementIsComplete {
-		lmt.Logger(ctx).Info("dbtypes.SettlementStatusComplete",
-			zap.String("settlement.OrderID", settlement.OrderID), zap.String("settlement.SourceChainID", settlement.SourceChainID))
 		if _, err := r.db.SetSettlementStatus(ctx, db.SetSettlementStatusParams{
 			SourceChainID:                     settlement.SourceChainID,
 			OrderID:                           settlement.OrderID,
@@ -448,9 +446,6 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 		}
 		return nil
 	}
-	lmt.Logger(ctx).Info("settlement is not complete",
-		zap.String("settlement.OrderID", settlement.OrderID), zap.String("settlement.SourceChainID", settlement.SourceChainID),
-		zap.String("settlement.SettlementStatus", settlement.SettlementStatus))
 
 	return fmt.Errorf("settlement is not complete")
 }

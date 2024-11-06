@@ -82,11 +82,9 @@ func submitOrder(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Create auth for USDC approval
 	amountBig := new(big.Int)
 	amountBig.SetString(flags.amount, 10)
 
-	// Approve USDC spending
 	tx, err := usdc.Approve(auth, common.HexToAddress(flags.gatewayAddr), amountBig)
 	if err != nil {
 		lmt.Logger(ctx).Error("Failed to approve USDC spending", zap.Error(err))
