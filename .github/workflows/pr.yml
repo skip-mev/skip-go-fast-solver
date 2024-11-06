@@ -27,6 +27,7 @@ jobs:
         uses: golangci/golangci-lint-action@v3
         with:
           args: --timeout=6m ./...
+          skip-cache: true
       - name: prettier
         run: |
           npm install -g prettier
