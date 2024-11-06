@@ -13,7 +13,6 @@ import (
 	"github.com/skip-mev/go-fast-solver/orderfulfiller"
 	"github.com/skip-mev/go-fast-solver/shared/bridges/cctp"
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
-	coingecko2 "github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
 
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
@@ -30,17 +29,14 @@ type orderFulfillmentHandler struct {
 	db            orderfulfiller.Database
 	clientManager *clientmanager.ClientManager
 	relayer       Relayer
-	PriceClient   coingecko2.PriceClient
 }
 
-func NewOrderFulfillmentHandler(ctx context.Context, db orderfulfiller.Database, clientManager *clientmanager.ClientManager) (*orderFulfillmentHandler, error) {
-	coingeckoConfig := config.GetConfigReader(ctx).GetCoingeckoConfig()
-
+func NewOrderFulfillmentHandler(db orderfulfiller.Database, clientManager *clientmanager.ClientManager, relayer Relayer) *orderFulfillmentHandler {
 	return &orderFulfillmentHandler{
 		db:            db,
 		clientManager: clientManager,
-		PriceClient:   coingecko2.NewCachedPriceClient(coingecko2.DefaultCoingeckoClient(coingeckoConfig), coingeckoConfig.CacheRefreshInterval),
-	}, nil
+		relayer:       relayer,
+	}
 }
 
 // TODO: feels like this functions is doing too many different things and the
