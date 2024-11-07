@@ -32,7 +32,6 @@ var params = Config{
 
 type Database interface {
 	GetAllOrderSettlementsWithSettlementStatus(ctx context.Context, settlementStatus string) ([]db.OrderSettlement, error)
-	GetSubmittedTxsByOrderSettlementId(ctx context.Context, orderSettlementId sql.NullInt64) ([]db.SubmittedTx, error)
 
 	SetSettlementStatus(ctx context.Context, arg db.SetSettlementStatusParams) (db.OrderSettlement, error)
 
@@ -328,17 +327,6 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 			}
 
 			if rawTx == "" {
-				return nil
-			}
-
-			submittedTxs, err := r.db.GetSubmittedTxsByOrderSettlementId(ctx, sql.NullInt64{Int64: settlement.ID, Valid: true})
-			if err != nil {
-				return fmt.Errorf("checking for existing submitted tx for settlement %d: %w", settlement.ID, err)
-			}
-			if len(submittedTxs) > 0 {
-				lmt.Logger(ctx).Info("Settlement already has submitted transaction, skipping",
-					zap.Int64("settlementID", settlement.ID),
-					zap.String("existingTxHash", submittedTxs[0].TxHash))
 				return nil
 			}
 

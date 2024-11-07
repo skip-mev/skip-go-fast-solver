@@ -17,7 +17,6 @@ type Querier interface {
 	GetPendingRebalanceTransfersToChain(ctx context.Context, destinationChainID string) ([]GetPendingRebalanceTransfersToChainRow, error)
 	GetSubmittedTxsByHyperlaneTransferId(ctx context.Context, hyperlaneTransferID sql.NullInt64) ([]SubmittedTx, error)
 	GetSubmittedTxsByOrderIdAndType(ctx context.Context, arg GetSubmittedTxsByOrderIdAndTypeParams) ([]SubmittedTx, error)
-	GetSubmittedTxsByOrderSettlementId(ctx context.Context, orderSettlementID sql.NullInt64) ([]SubmittedTx, error)
 	GetSubmittedTxsByOrderStatusAndType(ctx context.Context, arg GetSubmittedTxsByOrderStatusAndTypeParams) ([]SubmittedTx, error)
 	GetSubmittedTxsWithStatus(ctx context.Context, txStatus string) ([]SubmittedTx, error)
 	GetTransferMonitorMetadata(ctx context.Context, chainID string) (TransferMonitorMetadatum, error)

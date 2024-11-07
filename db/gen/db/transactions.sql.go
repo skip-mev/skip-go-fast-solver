@@ -95,46 +95,6 @@ func (q *Queries) GetSubmittedTxsByOrderIdAndType(ctx context.Context, arg GetSu
 	return items, nil
 }
 
-const getSubmittedTxsByOrderSettlementId = `-- name: GetSubmittedTxsByOrderSettlementId :many
-SELECT id, created_at, updated_at, order_id, order_settlement_id, hyperlane_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status, tx_status_message FROM submitted_txs WHERE order_settlement_id = ?
-`
-
-func (q *Queries) GetSubmittedTxsByOrderSettlementId(ctx context.Context, orderSettlementID sql.NullInt64) ([]SubmittedTx, error) {
-	rows, err := q.db.QueryContext(ctx, getSubmittedTxsByOrderSettlementId, orderSettlementID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []SubmittedTx
-	for rows.Next() {
-		var i SubmittedTx
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OrderID,
-			&i.OrderSettlementID,
-			&i.HyperlaneTransferID,
-			&i.ChainID,
-			&i.TxHash,
-			&i.RawTx,
-			&i.TxType,
-			&i.TxStatus,
-			&i.TxStatusMessage,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getSubmittedTxsByOrderStatusAndType = `-- name: GetSubmittedTxsByOrderStatusAndType :many
 SELECT submitted_txs.id, submitted_txs.created_at, submitted_txs.updated_at, submitted_txs.order_id, submitted_txs.order_settlement_id, submitted_txs.hyperlane_transfer_id, submitted_txs.chain_id, submitted_txs.tx_hash, submitted_txs.raw_tx, submitted_txs.tx_type, submitted_txs.tx_status, submitted_txs.tx_status_message FROM submitted_txs INNER JOIN orders on submitted_txs.order_id = orders.id WHERE orders.order_status = ? AND submitted_txs.tx_type = ?
 `
