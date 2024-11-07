@@ -309,6 +309,12 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 		return fmt.Errorf("initiating batch settlement on chain %s: %w", batch.DestinationChainID(), err)
 	}
 
+	if rawTx == "" {
+		lmt.Logger(ctx).Error("batch settlement rawTx is empty",
+			zap.String("batchDestinationChainId", batch.DestinationChainID()), zap.Any("batchOrderIDs", batch.OrderIDs()))
+		return fmt.Errorf("empty batch settlement transaction")
+	}
+
 	if err = recordBatchSettlementSubmittedMetric(ctx, batch); err != nil {
 		return fmt.Errorf("recording batch settlement submitted metrics: %w", err)
 	}
@@ -324,10 +330,6 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 			}
 			if _, err = q.SetInitiateSettlementTx(ctx, settlementTx); err != nil {
 				return fmt.Errorf("setting initiate settlement tx for settlement from source chain %s with order id %s: %w", settlement.SourceChainID, settlement.OrderID, err)
-			}
-
-			if rawTx == "" {
-				return nil
 			}
 
 			submittedTx := db.InsertSubmittedTxParams{
