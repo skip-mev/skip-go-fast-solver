@@ -1,4 +1,4 @@
-SERVER_BIN=./build/fast_transfer_solver
+SERVER_BIN=./build/skip_go_fast_solver
 export PATH:=$(shell pwd)/tools/bin:$(PATH)
 SHELL := env PATH='$(PATH)' /bin/sh
 
@@ -9,7 +9,7 @@ GO_DEPS=go.mod go.sum
 ###                                 Builds                                  ###
 ###############################################################################
 ${SERVER_BIN}: ${GO_FILES} ${GO_DEPS}
-	go build -o ./build/fast_transfer_solver github.com/skip-mev/go-fast-solver/cmd/solver
+	go build -o ./build/skip_go_fast_solver github.com/skip-mev/go-fast-solver/cmd/solver
 
 .PHONY: tidy build deps
 tidy:
