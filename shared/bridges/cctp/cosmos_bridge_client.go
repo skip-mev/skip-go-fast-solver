@@ -187,7 +187,7 @@ type FastTransferOrder struct {
 	SourceDomain      uint32 `json:"source_domain"`
 	DestinationDomain uint32 `json:"destination_domain"`
 	TimeoutTimestamp  uint64 `json:"timeout_timestamp"`
-	Data              []byte `json:"data,omitempty"`
+	Data              string `json:"data,omitempty"`
 }
 
 func (c *CosmosBridgeClient) FillOrder(ctx context.Context, order db.Order, gatewayContractAddress string) (string, string, *uint64, error) {
@@ -230,11 +230,7 @@ func (c *CosmosBridgeClient) FillOrder(ctx context.Context, order db.Order, gate
 		},
 	}
 	if order.Data.Valid {
-		data, err := hex.DecodeString(order.Data.String)
-		if err != nil {
-			return "", "", nil, fmt.Errorf("decoding hex order data to string: %w", err)
-		}
-		fillOrderMsg.FillOrder.Order.Data = data
+		fillOrderMsg.FillOrder.Order.Data = order.Data.String
 	}
 
 	fillOrderMsgBytes, err := json.Marshal(fillOrderMsg)
