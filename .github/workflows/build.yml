@@ -12,7 +12,7 @@ jobs:
   build:
     strategy:
       matrix:
-        image: [{file: "Dockerfile", name: "skip-go-fast-solver"}]
+        image: [{ file: "Dockerfile", name: "skip-go-fast-solver" }]
     runs-on: ubuntu-latest
     permissions:
       contents: read
