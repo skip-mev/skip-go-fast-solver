@@ -86,10 +86,10 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 				isTransferValid, err := r.validateHyperlaneTransfer(ctx, transfer)
 				if err != nil {
 					lmt.Logger(ctx).Warn(
-						"failed to validate Hyperlane transfer",
-						zap.Error(err),
+						"failed to validate hyperlane transfer",
 						zap.Int64("transferId", transfer.ID),
 						zap.String("txHash", transfer.MessageSentTx),
+						zap.Error(err),
 					)
 					continue
 				}
@@ -97,7 +97,8 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 				if !isTransferValid {
 					lmt.Logger(ctx).Warn(
 						"abandoning invalid hyperlane transfer",
-						zap.Any("transfer", transfer),
+						zap.Int64("transferId", transfer.ID),
+						zap.String("txHash", transfer.MessageSentTx),
 						zap.Error(err),
 					)
 
@@ -109,9 +110,9 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 					}); err != nil {
 						lmt.Logger(ctx).Error(
 							"error updating invalid transfer status",
-							zap.Error(err),
 							zap.Int64("transferId", transfer.ID),
 							zap.String("txHash", transfer.MessageSentTx),
+							zap.Error(err),
 						)
 					}
 					continue
