@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strconv"
 
 	"strings"
 
@@ -284,5 +285,25 @@ func (r *relayer) isRelayProfitable(
 	// tx fee in uusdc / total relay value in uusdc
 	totalValueFeePctDec := new(big.Float).Quo(new(big.Float).SetInt(txFeeUUSDC), new(big.Float).SetInt(profitability.TotalRelayValue))
 	totalValueFeePct := new(big.Float).Mul(totalValueFeePctDec, big.NewFloat(100))
-	return totalValueFeePct.Cmp(big.NewFloat(float64(profitability.MaxGasPricePct))) <= 0, nil
+	isProfitable := totalValueFeePct.Cmp(big.NewFloat(float64(profitability.MaxGasPricePct))) <= 0
+
+	if isProfitable {
+		lmt.Logger(ctx).Debug(
+			"relay is profitable",
+			zap.String("estimatedTxFeeUUSDC", txFeeUUSDC.String()),
+			zap.String("totalRelayValueUUSDC", profitability.TotalRelayValue.String()),
+			zap.String("feePercentage", fmt.Sprintf("%s%%", totalValueFeePct.Text('f', 4))),
+			zap.String("maxAllowedFeePercentage", strconv.FormatUint(uint64(profitability.MaxGasPricePct), 10)),
+		)
+	} else {
+		lmt.Logger(ctx).Info(
+			"relay is not currently profitable",
+			zap.String("estimatedTxFeeUUSDC", txFeeUUSDC.String()),
+			zap.String("totalRelayValueUUSDC", profitability.TotalRelayValue.String()),
+			zap.String("feePercentage", fmt.Sprintf("%s%%", totalValueFeePct.Text('f', 4))),
+			zap.String("maxAllowedFeePercentage", strconv.FormatUint(uint64(profitability.MaxGasPricePct), 10)),
+		)
+	}
+
+	return isProfitable, nil
 }

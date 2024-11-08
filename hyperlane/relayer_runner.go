@@ -20,14 +20,18 @@ const (
 )
 
 type Database interface {
+	RelaySubmitter
 	GetAllOrderSettlementsWithSettlementStatus(ctx context.Context, settlementStatus string) ([]db.OrderSettlement, error)
-	InsertHyperlaneTransfer(ctx context.Context, arg db.InsertHyperlaneTransferParams) (db.HyperlaneTransfer, error)
 	SetMessageStatus(ctx context.Context, arg db.SetMessageStatusParams) (db.HyperlaneTransfer, error)
 	GetSubmittedTxsByHyperlaneTransferId(ctx context.Context, hyperlaneTransferID sql.NullInt64) ([]db.SubmittedTx, error)
 	GetAllHyperlaneTransfersWithTransferStatus(ctx context.Context, transferStatus string) ([]db.HyperlaneTransfer, error)
 	InsertSubmittedTx(ctx context.Context, arg db.InsertSubmittedTxParams) (db.SubmittedTx, error)
 	GetSubmittedTxsByOrderStatusAndType(ctx context.Context, arg db.GetSubmittedTxsByOrderStatusAndTypeParams) ([]db.SubmittedTx, error)
 	GetAllOrdersWithOrderStatus(ctx context.Context, orderStatus string) ([]db.Order, error)
+}
+
+type RelaySubmitter interface {
+	InsertHyperlaneTransfer(ctx context.Context, arg db.InsertHyperlaneTransferParams) (db.HyperlaneTransfer, error)
 }
 
 type RelayerRunner struct {
@@ -74,12 +78,22 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 
 				destinationTxHash, destinationChainID, err := r.relayTransfer(ctx, transfer)
 				if err != nil {
-					lmt.Logger(ctx).Error(
-						"error relaying pending hyperlane transfer",
-						zap.Error(err),
-						zap.String("sourceChainID", transfer.SourceChainID),
-						zap.String("txHash", transfer.MessageSentTx),
-					)
+					switch {
+					case errors.Is(err, ErrRelayNotProfitable):
+						lmt.Logger(ctx).Warn(
+							"not currently profitable to relay transfer, waiting to relay until better conditions",
+							zap.String("sourceChainID", transfer.SourceChainID),
+							zap.String("txHash", transfer.MessageSentTx),
+						)
+					default:
+						lmt.Logger(ctx).Error(
+							"error relaying pending hyperlane transfer",
+							zap.Error(err),
+							zap.String("sourceChainID", transfer.SourceChainID),
+							zap.String("txHash", transfer.MessageSentTx),
+						)
+					}
+					continue
 				}
 
 				if _, err := r.db.InsertSubmittedTx(ctx, db.InsertSubmittedTxParams{
@@ -176,7 +190,7 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 	return true, nil
 }
 
-// RelayOpts provides users options for how the relayer should be have when
+// RelayOpts provides users options for how the relayer should behave when
 // relaying a tx.
 type RelayOpts struct {
 	// Profitability provides relaying options regarding how profitable it is to
@@ -185,6 +199,16 @@ type RelayOpts struct {
 	// conditions (i.e. not pay too much for gas, relative to the value that it is
 	// relaying).
 	Profitability *Profitability
+
+	// Submitter allows for users to customize the back end for how this relay
+	// submission is recorded. Typically this is used to allow users to have
+	// the relay submission run in a transaction, since submitting tx to be
+	// relayed often times must be atomic with some other actions.
+	Submitter RelaySubmitter
+
+	// Delay is how long the submitter should wait before checking on chain for
+	// the tx hash.
+	Delay time.Duration
 }
 
 type Profitability struct {
@@ -226,6 +250,8 @@ func (r *RelayerRunner) SubmitTxToRelay(ctx context.Context, txHash string, sour
 		return fmt.Errorf("getting source chain config for chainID %s: %w", sourceChainID, err)
 	}
 
+	time.Sleep(opts.Delay)
+
 	dispatch, _, err := r.hyperlane.GetHyperlaneDispatch(ctx, sourceChainConfig.HyperlaneDomain, sourceChainID, txHash)
 	if err != nil {
 		return fmt.Errorf("parsing tx results: %w", err)
@@ -234,6 +260,11 @@ func (r *RelayerRunner) SubmitTxToRelay(ctx context.Context, txHash string, sour
 	destinationChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(dispatch.DestinationDomain)
 	if err != nil {
 		return fmt.Errorf("getting destination chainID by hyperlane domain %s: %w", dispatch.DestinationDomain, err)
+	}
+
+	var submitter RelaySubmitter = r.db
+	if opts.Submitter != nil {
+		submitter = opts.Submitter
 	}
 
 	insert := db.InsertHyperlaneTransferParams{
@@ -247,7 +278,7 @@ func (r *RelayerRunner) SubmitTxToRelay(ctx context.Context, txHash string, sour
 		insert.MaxGasPricePct = sql.NullInt64{Int64: int64(opts.Profitability.MaxGasPricePct), Valid: true}
 		insert.TransferValue = sql.NullString{String: opts.Profitability.TotalRelayValue.String(), Valid: true}
 	}
-	if _, err := r.db.InsertHyperlaneTransfer(ctx, insert); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if _, err := submitter.InsertHyperlaneTransfer(ctx, insert); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("inserting hyperlane transfer: %w", err)
 	}
 
