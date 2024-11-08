@@ -4,6 +4,10 @@ metrics:
   prometheus_address: "0.0.0.0:8001"
 order_filler:
   worker_count: 10
+# The fund_rebalancer config is optional. If you do not want the solver to
+# rebalance your funds across chains via Skip GO (via the CCTP slow path CCTP, they
+# will not be fast transferred via Skip Go Fast), you can omit the
+# fund_rebalancer config all together.
 fund_rebalancer:
   ethereum:
     target_amount: <target_amount> # e.g. "1000000000"
