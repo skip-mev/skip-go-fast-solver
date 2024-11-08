@@ -1,4 +1,5 @@
 SERVER_BIN=./build/skip_go_fast_solver
+CLI_BIN=./build/solvercli
 export PATH:=$(shell pwd)/tools/bin:$(PATH)
 SHELL := env PATH='$(PATH)' /bin/sh
 
@@ -11,12 +12,18 @@ GO_DEPS=go.mod go.sum
 ${SERVER_BIN}: ${GO_FILES} ${GO_DEPS}
 	go build -o ./build/skip_go_fast_solver github.com/skip-mev/go-fast-solver/cmd/solver
 
+${CLI_BIN}: ${GO_FILES} ${GO_DEPS}
+	go build -v -o ${CLI_BIN} github.com/skip-mev/go-fast-solver/cmd/solvercli
+
 .PHONY: tidy build deps
 tidy:
 	go mod tidy
 
 .PHONY: build
 build: ${SERVER_BIN} 
+
+.PHONY: build-cli
+build-cli: ${CLI_BIN}
 
 deps:
 	go env

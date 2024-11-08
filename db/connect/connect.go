@@ -2,11 +2,12 @@ package connect
 
 import (
 	"database/sql"
+	"net/url"
+	"path/filepath"
+
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
-	"net/url"
-	"path/filepath"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"

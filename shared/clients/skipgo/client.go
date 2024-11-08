@@ -81,7 +81,7 @@ func (s *skipGoClient) Balance(
 	address string,
 	denom string,
 ) (string, error) {
-	const endpoint = "/v2/info/balance"
+	const endpoint = "/v2/info/balances"
 	u, err := url.JoinPath(s.baseURL.String(), endpoint)
 	if err != nil {
 		return "", fmt.Errorf("joining base url to endpoint %s: %w", endpoint, err)

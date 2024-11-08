@@ -92,10 +92,10 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 	}
 
 	if !allTransfersDone {
-		lmt.Logger(ctx).Info(
+		lmt.Logger(ctx).Debug(
 			"waiting for transaction to complete",
 			zap.String("latestState", string(latestState)),
-			zap.String("txnHash", string(hash)),
+			zap.String("txnHash", hash),
 			zap.String("chainID", chainID),
 		)
 		return nil

@@ -2,7 +2,9 @@ package cosmos
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"google.golang.org/grpc/credentials"
 
 	"strconv"
 
@@ -35,7 +37,14 @@ func NewHyperlaneClient(ctx context.Context, hyperlaneDomain string) (*Hyperlane
 		return nil, fmt.Errorf("getting config for chain %s: %w", chainID, err)
 	}
 
-	conn, err := grpc.DialContext(ctx, chainConfig.Cosmos.GRPC, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	creds := insecure.NewCredentials()
+	if chainConfig.Cosmos.GRPCTLSEnabled {
+		creds = credentials.NewTLS(&tls.Config{
+			InsecureSkipVerify: true,
+		})
+	}
+
+	conn, err := grpc.DialContext(ctx, chainConfig.Cosmos.GRPC, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, fmt.Errorf("dialing grpc address %s: %w", chainConfig.Cosmos.GRPC, err)
 	}

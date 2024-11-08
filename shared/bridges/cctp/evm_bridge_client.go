@@ -8,15 +8,14 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/skip-mev/go-fast-solver/db/gen/db"
-	settlement "github.com/skip-mev/go-fast-solver/ordersettler/types"
-
 	"github.com/avast/retry-go/v4"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/skip-mev/go-fast-solver/db/gen/db"
+	settlement "github.com/skip-mev/go-fast-solver/ordersettler/types"
 	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/contracts/usdc"
 	"github.com/skip-mev/go-fast-solver/shared/signing"
@@ -131,7 +130,7 @@ func (c *EVMBridgeClient) IsSettlementComplete(ctx context.Context, gatewayContr
 	if err != nil {
 		return false, err
 	}
-	return orderStatus == 1, nil // TODO: is this right?
+	return orderStatus == 1, nil
 }
 
 type SettlementDetails struct {
@@ -243,4 +242,26 @@ func (c *EVMBridgeClient) OrderFillsByFiller(ctx context.Context, gatewayContrac
 
 func (c *EVMBridgeClient) Balance(ctx context.Context, address, denom string) (*big.Int, error) {
 	return nil, errors.New("not implemented")
+}
+
+func (c *EVMBridgeClient) OrderStatus(ctx context.Context, gatewayContractAddress string, orderID string) (uint8, error) {
+	fastTransferGateway, err := fast_transfer_gateway.NewFastTransferGateway(
+		common.HexToAddress(gatewayContractAddress),
+		c.client,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	orderIDBytes, err := hex.DecodeString(orderID)
+	if err != nil {
+		return 0, err
+	}
+
+	status, err := fastTransferGateway.OrderStatuses(&bind.CallOpts{Context: ctx}, [32]byte(orderIDBytes))
+	if err != nil {
+		return 0, fmt.Errorf("querying orderID %s status: %w", orderID, err)
+	}
+
+	return status, nil
 }

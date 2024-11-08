@@ -187,7 +187,7 @@ type FastTransferOrder struct {
 	SourceDomain      uint32 `json:"source_domain"`
 	DestinationDomain uint32 `json:"destination_domain"`
 	TimeoutTimestamp  uint64 `json:"timeout_timestamp"`
-	Data              []byte `json:"data,omitempty"`
+	Data              string `json:"data,omitempty"`
 }
 
 func (c *CosmosBridgeClient) FillOrder(ctx context.Context, order db.Order, gatewayContractAddress string) (string, string, *uint64, error) {
@@ -230,11 +230,7 @@ func (c *CosmosBridgeClient) FillOrder(ctx context.Context, order db.Order, gate
 		},
 	}
 	if order.Data.Valid {
-		data, err := hex.DecodeString(order.Data.String)
-		if err != nil {
-			return "", "", nil, fmt.Errorf("decoding hex order data to string: %w", err)
-		}
-		fillOrderMsg.FillOrder.Order.Data = data
+		fillOrderMsg.FillOrder.Order.Data = order.Data.String
 	}
 
 	fillOrderMsgBytes, err := json.Marshal(fillOrderMsg)
@@ -319,6 +315,10 @@ func (c *CosmosBridgeClient) InitiateTimeout(ctx context.Context, order db.Order
 			},
 		},
 	}
+	if order.Data.Valid {
+		initiateTimeoutMsg.InitiateTimeout.Orders[0].Data = order.Data.String
+	}
+
 	initiateTimeoutMsgBytes, err := json.Marshal(initiateTimeoutMsg)
 	if err != nil {
 		return "", "", nil, err
@@ -542,6 +542,10 @@ func (c *CosmosBridgeClient) WaitForTx(ctx context.Context, txHash string) error
 
 func (c *CosmosBridgeClient) OrderExists(ctx context.Context, gatewayContractAddress, orderID string, blockNumber *big.Int) (bool, *big.Int, error) {
 	return false, nil, errors.New("not implemented")
+}
+
+func (c *CosmosBridgeClient) OrderStatus(ctx context.Context, gatewayContractAddress, orderID string) (uint8, error) {
+	return 0, errors.New("not implemented")
 }
 
 func (c *CosmosBridgeClient) Close() {}

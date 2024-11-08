@@ -11,6 +11,7 @@ import (
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/ordersettler/types"
+	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"golang.org/x/sync/errgroup"
 
@@ -137,6 +138,16 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 				return fmt.Errorf("checking if order %s exists on chainID %s: %w", fill.OrderID, sourceChainID, err)
 			}
 			if !exists {
+				continue
+			}
+
+			// ensure order is not already filled (an order is only marked as
+			// filled on the source chain once it is settled)
+			status, err := sourceBridgeClient.OrderStatus(ctx, sourceGatewayAddress, fill.OrderID)
+			if err != nil {
+				return fmt.Errorf("getting order %s status on chainID %s: %w", fill.OrderID, sourceChainID, err)
+			}
+			if status != fast_transfer_gateway.OrderStatusUnfilled {
 				continue
 			}
 
@@ -298,7 +309,7 @@ func (r *OrderSettler) SettleBatches(ctx context.Context, batches []types.Settle
 	return g.Wait()
 }
 
-// SettleBatch initates a settlement on chain for a SettlementBatch.
+// SettleBatch initiates a settlement on chain for a SettlementBatch.
 func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBatch) error {
 	destinationBridgeClient, err := r.clientManager.GetClient(ctx, batch.DestinationChainID())
 	if err != nil {
@@ -309,11 +320,18 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 		return fmt.Errorf("initiating batch settlement on chain %s: %w", batch.DestinationChainID(), err)
 	}
 
+	if rawTx == "" {
+		lmt.Logger(ctx).Error("batch settlement rawTx is empty",
+			zap.String("batchDestinationChainId", batch.DestinationChainID()), zap.Any("batchOrderIDs", batch.OrderIDs()))
+		return fmt.Errorf("empty batch settlement transaction")
+	}
+
 	if err = recordBatchSettlementSubmittedMetric(ctx, batch); err != nil {
 		return fmt.Errorf("recording batch settlement submitted metrics: %w", err)
 	}
 
 	err = r.db.InTx(ctx, func(ctx context.Context, q db.Querier) error {
+		// First update all settlements with the initiate settlement tx
 		for _, settlement := range batch {
 			settlementTx := db.SetInitiateSettlementTxParams{
 				SourceChainID:                     settlement.SourceChainID,
@@ -324,23 +342,26 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 			if _, err = q.SetInitiateSettlementTx(ctx, settlementTx); err != nil {
 				return fmt.Errorf("setting initiate settlement tx for settlement from source chain %s with order id %s: %w", settlement.SourceChainID, settlement.OrderID, err)
 			}
-
-			if rawTx == "" {
-				continue
-			}
-
-			submittedTx := db.InsertSubmittedTxParams{
-				OrderSettlementID: sql.NullInt64{Int64: settlement.ID, Valid: true},
-				ChainID:           settlement.DestinationChainID,
-				TxHash:            txHash,
-				RawTx:             rawTx,
-				TxType:            dbtypes.TxTypeSettlement,
-				TxStatus:          dbtypes.TxStatusPending,
-			}
-			if _, err = q.InsertSubmittedTx(ctx, submittedTx); err != nil {
-				return fmt.Errorf("inserting raw tx for settlement with hash %s: %w", txHash, err)
-			}
 		}
+
+		// we do not insert a submitted tx for each settlement, since many
+		// settlements are settled by a single tx (batch settlements)
+
+		submittedTx := db.InsertSubmittedTxParams{
+			// technically this an link back to many order settlement ids,
+			// since many settlements are being settled by a single tx.
+			// However, we are just choosing the first one here.
+			OrderSettlementID: sql.NullInt64{Int64: batch[0].ID, Valid: true},
+			ChainID:           batch.DestinationChainID(),
+			TxHash:            txHash,
+			RawTx:             rawTx,
+			TxType:            dbtypes.TxTypeSettlement,
+			TxStatus:          dbtypes.TxStatusPending,
+		}
+		if _, err = q.InsertSubmittedTx(ctx, submittedTx); err != nil {
+			return fmt.Errorf("inserting raw tx for settlement with hash %s: %w", txHash, err)
+		}
+
 		return nil
 	}, nil)
 	if err != nil {
@@ -433,5 +454,6 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 		}
 		return nil
 	}
+
 	return fmt.Errorf("settlement is not complete")
 }
