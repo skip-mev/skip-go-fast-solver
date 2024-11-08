@@ -78,7 +78,7 @@ make build-cli
   --amount <usdc amount in token decimals> \ # e.g. 1000000
   --source-chain-id <source chain id>  \ # e.g. 42161
   --destination-chain-id <destination chain id>  \ # e.g. osmosis-1
-  --gateway <source chain fast transfer contract gateway> \ # e.g. 0x9c75534d7d6670a3ddd69a55b4067460f3e8744b
+  --gateway <source chain fast transfer contract gateway> \ # e.g. 0x23cb6147e5600c23d1fb5543916d3d5457c9b54c
   --private-key <source wallet EVM private key string> \ # e.g. 0xf6079d30f832f998c86e5841385a4be06b6ca2b0875b90dcab8e167eba4dcab1 (this is not stored anywhere, and is used to sign the transfer transactions)
   --deadline-hours <transfer timeout in hours> # e.g. 24
 ```
