@@ -109,7 +109,7 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 	// there
 	quorumCheckpoint, err := r.checkpointAtIndex(ctx, merkleHookPostDispatch.Index, checkpointFetchers, threshold, dispatch.MessageID)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("getting checkpoint at index %d: %w", merkleHookPostDispatch.Index, err)
 	}
 
 	lmt.Logger(ctx).Debug("found checkpoint with quorum", zap.Uint64("index", merkleHookPostDispatch.Index))
