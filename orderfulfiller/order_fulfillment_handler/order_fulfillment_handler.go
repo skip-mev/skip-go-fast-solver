@@ -10,7 +10,6 @@ import (
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/hyperlane"
-	"github.com/skip-mev/go-fast-solver/orderfulfiller"
 	"github.com/skip-mev/go-fast-solver/shared/bridges/cctp"
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
@@ -25,13 +24,26 @@ type Relayer interface {
 	SubmitTxToRelay(ctx context.Context, txHash string, sourceChainID string, opts hyperlane.RelayOpts) error
 }
 
+type Database interface {
+	hyperlane.RelaySubmitter
+	GetAllOrdersWithOrderStatus(ctx context.Context, orderStatus string) ([]db.Order, error)
+
+	SetFillTx(ctx context.Context, arg db.SetFillTxParams) (db.Order, error)
+	SetOrderStatus(ctx context.Context, arg db.SetOrderStatusParams) (db.Order, error)
+
+	InsertSubmittedTx(ctx context.Context, arg db.InsertSubmittedTxParams) (db.SubmittedTx, error)
+	GetSubmittedTxsByOrderIdAndType(ctx context.Context, arg db.GetSubmittedTxsByOrderIdAndTypeParams) ([]db.SubmittedTx, error)
+
+	SetRefundTx(ctx context.Context, arg db.SetRefundTxParams) (db.Order, error)
+}
+
 type orderFulfillmentHandler struct {
-	db            orderfulfiller.Database
+	db            Database
 	clientManager *clientmanager.ClientManager
 	relayer       Relayer
 }
 
-func NewOrderFulfillmentHandler(db orderfulfiller.Database, clientManager *clientmanager.ClientManager, relayer Relayer) *orderFulfillmentHandler {
+func NewOrderFulfillmentHandler(db Database, clientManager *clientmanager.ClientManager, relayer Relayer) *orderFulfillmentHandler {
 	return &orderFulfillmentHandler{
 		db:            db,
 		clientManager: clientManager,
@@ -182,7 +194,7 @@ func (r *orderFulfillmentHandler) FillOrder(
 	txHash, rawTx, _, err := destinationChainBridgeClient.FillOrder(ctx, order, destinationChainGatewayContractAddress)
 	metrics.FromContext(ctx).AddTransactionSubmitted(err == nil, order.SourceChainID, order.DestinationChainID, sourceChainConfig.ChainName, destinationChainConfig.ChainName, string(sourceChainConfig.Environment))
 	if err != nil {
-		return "", fmt.Errorf("filling order on destination chain at address %s: %w", destinationChainBridgeClient, err)
+		return "", fmt.Errorf("filling order on destination chain at address %s: %w", destinationChainGatewayContractAddress, err)
 	}
 
 	if _, err := r.db.InsertSubmittedTx(ctx, db.InsertSubmittedTxParams{
@@ -209,6 +221,7 @@ func (r *orderFulfillmentHandler) checkOrderAssetBalance(ctx context.Context, de
 		return false, err
 	}
 	if balance.Cmp(new(big.Int).SetUint64(transferAmount)) < 0 {
+		lmt.Logger(ctx).Warn("insufficient balance", zap.String("balance", balance.String()), zap.Uint64("transferAmount", transferAmount))
 		return false, nil
 	}
 	return true, nil
@@ -338,7 +351,10 @@ func (r *orderFulfillmentHandler) checkBlockConfirmations(ctx context.Context, s
 	}
 }
 
-func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.Order) (string, error) {
+func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.Order, tx Database) (string, error) {
+	if tx == nil {
+		tx = r.db
+	}
 	destinationChainBridgeClient, err := r.clientManager.GetClient(ctx, order.DestinationChainID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get client: %w", err)
@@ -356,7 +372,7 @@ func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.
 	if err != nil {
 		return "", err
 	}
-	if submittedTxs, err := r.db.GetSubmittedTxsByOrderIdAndType(ctx, db.GetSubmittedTxsByOrderIdAndTypeParams{
+	if submittedTxs, err := tx.GetSubmittedTxsByOrderIdAndType(ctx, db.GetSubmittedTxsByOrderIdAndTypeParams{
 		OrderID: sql.NullInt64{Int64: order.ID, Valid: true},
 		TxType:  dbtypes.TxTypeInitiateTimeout,
 	}); err != nil {
@@ -370,8 +386,11 @@ func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.
 	if err != nil {
 		return "", fmt.Errorf("initiating timeout: %w", err)
 	}
+	if txHash == "" {
+		return "", fmt.Errorf("empty tx hash after submitting order for timeout to address %s", destinationChainGatewayContractAddress)
+	}
 
-	if _, err := r.db.InsertSubmittedTx(ctx, db.InsertSubmittedTxParams{
+	if _, err := tx.InsertSubmittedTx(ctx, db.InsertSubmittedTxParams{
 		OrderID:  sql.NullInt64{Int64: order.ID, Valid: true},
 		ChainID:  order.DestinationChainID,
 		TxHash:   txHash,
@@ -384,7 +403,7 @@ func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.
 	return txHash, nil
 }
 
-func (r *orderFulfillmentHandler) SubmitTimeoutForRelay(ctx context.Context, order db.Order, txHash string) error {
+func (r *orderFulfillmentHandler) SubmitTimeoutForRelay(ctx context.Context, order db.Order, txHash string, tx Database) error {
 	// the source chain for the relay is the chain that the timeout was
 	// initiated on, which is the orders destination chain
 	initiateTimeoutChain := order.DestinationChainID
@@ -392,5 +411,9 @@ func (r *orderFulfillmentHandler) SubmitTimeoutForRelay(ctx context.Context, ord
 	// note that there is no profitability option being passed to the relayer
 	// here, timeouts transfer no value to the solver so if we pass a config
 	// for a min allowed gas % the timeout will never be relayed
-	return r.relayer.SubmitTxToRelay(ctx, txHash, initiateTimeoutChain, hyperlane.RelayOpts{})
+	opts := hyperlane.RelayOpts{
+		Submitter: tx,
+		Delay:     5 * time.Second,
+	}
+	return r.relayer.SubmitTxToRelay(ctx, txHash, initiateTimeoutChain, opts)
 }

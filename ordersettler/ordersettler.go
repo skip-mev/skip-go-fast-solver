@@ -30,7 +30,7 @@ type Config struct {
 }
 
 var params = Config{
-	Delay: 5 * time.Second,
+	Delay: 20 * time.Second,
 }
 
 type Database interface {
@@ -207,18 +207,12 @@ func (r *OrderSettler) settleOrders(ctx context.Context) error {
 
 	lmt.Logger(ctx).Info("initiating order settlements", zap.Stringers("batches", toSettle))
 
-	txHashes, err := r.SettleBatches(ctx, toSettle)
+	hashes, err := r.SettleBatches(ctx, toSettle)
 	if err != nil {
 		return fmt.Errorf("initiating order settlements: %w", err)
 	}
 
-	lmt.Logger(ctx).Info("order settlements initiated on chain")
-
-	if err := r.relaySettlements(ctx, txHashes, toSettle); err != nil {
-		return fmt.Errorf("relaying settlements: %w", err)
-	}
-
-	lmt.Logger(ctx).Info("submitted order settlements to be relayed")
+	lmt.Logger(ctx).Info("order settlements initiated on chain", zap.Any("hashes", hashes))
 
 	return nil
 }
@@ -226,7 +220,12 @@ func (r *OrderSettler) settleOrders(ctx context.Context) error {
 // relaySettlements submits tx hashes for settlements to be relayed from the
 // settlements initiation chain (the orders destination chain), to the payout
 // chain (the orders source chain).
-func (r *OrderSettler) relaySettlements(ctx context.Context, txHashes []string, batches []types.SettlementBatch) error {
+func (r *OrderSettler) relaySettlements(
+	ctx context.Context,
+	txHashes []string,
+	batches []types.SettlementBatch,
+	submitter hyperlane.RelaySubmitter,
+) error {
 	for i, txHash := range txHashes {
 		// the orders destination chain is where the settlement is initiated
 		settlementInitiationChainID := batches[i].DestinationChainID()
@@ -251,6 +250,8 @@ func (r *OrderSettler) relaySettlements(ctx context.Context, txHashes []string, 
 					MaxGasPricePct:  *settlementPayoutChainConfig.Relayer.MaxGasPricePct,
 					TotalRelayValue: totalValue,
 				},
+				Submitter: submitter,
+				Delay:     time.Duration(5 * time.Second),
 			}
 		}
 		if err = r.relayer.SubmitTxToRelay(ctx, txHash, settlementInitiationChainID, opts); err != nil {
@@ -419,14 +420,13 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 				return fmt.Errorf("setting initiate settlement tx for settlement from source chain %s with order id %s: %w", settlement.SourceChainID, settlement.OrderID, err)
 			}
 		}
-
 		// we do not insert a submitted tx for each settlement, since many
 		// settlements are settled by a single tx (batch settlements)
 
+		// technically this can link back to many order settlement ids,
+		// since many settlements are being settled by a single tx.
+		// However, we are just choosing the first one here.
 		submittedTx := db.InsertSubmittedTxParams{
-			// technically this an link back to many order settlement ids,
-			// since many settlements are being settled by a single tx.
-			// However, we are just choosing the first one here.
 			OrderSettlementID: sql.NullInt64{Int64: batch[0].ID, Valid: true},
 			ChainID:           batch.DestinationChainID(),
 			TxHash:            txHash,
@@ -438,6 +438,15 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 			return fmt.Errorf("inserting raw tx for settlement with hash %s: %w", txHash, err)
 		}
 
+		// submitting the settlements to be relayed needs to be included in
+		// this db tx, or else we may run into the situation where txs have been
+		// submitted on chain, but they have not been submitted to be relayed
+		// yet
+		if err := r.relaySettlements(ctx, []string{txHash}, []types.SettlementBatch{batch}, q); err != nil {
+			return fmt.Errorf("relaying settlements: %w", err)
+		}
+
+		lmt.Logger(ctx).Info("submitted order settlements to be relayed")
 		return nil
 	}, nil)
 	if err != nil {
