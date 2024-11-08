@@ -157,6 +157,13 @@ func main() {
 		return nil
 	})
 
+	eg.Go(func() error {
+		if err := relayerRunner.Run(ctx); err != nil {
+			return fmt.Errorf("relayer runner: %w", err)
+		}
+		return nil
+	})
+
 	if err := eg.Wait(); err != nil {
 		lmt.Logger(ctx).Fatal("error running solver", zap.Error(err))
 	}
