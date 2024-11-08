@@ -100,7 +100,7 @@ jobs:
       - name: Update the image tags
         uses: skip-mev/gitops-actions/update-values@main
         with:
-          service: "skip-go-fast-solver"
+          service: "solver"
           app_id: ${{ vars.DEPLOYER_APP_ID }}
           app_private_key: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
           manifests_repo: "solve-manifests"
