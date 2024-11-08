@@ -40,14 +40,15 @@ risk/reward profile and if they have the required resources on the destination c
 make build # build solver server binary
 # quickstart mode determines whether solver starts monitoring for user intent events from latest chain block height,
 # or from the last block the solver has previously processed
-make run-solver quickstart=true 
+make run-solver quickstart=true
 ```
 
 ### How to run Solver docker image
+
 ```shell
 # Choose right platform to build Docker image
 docker build --platform <linux/amd64|linux/arm64> -t skip-mev/skip-go-fast-solver .
-docker run skip-mev/skip-go-fast-solver 
+docker run skip-mev/skip-go-fast-solver
 ```
 
 ### How to run tests
@@ -64,32 +65,35 @@ make db-clean # clean all existing db entries
 ```
 
 ### CLI Tool
+
 submit-order: submit a fast transfer order to the deployed gateway contract specifying an amount in USDC and a recipient.
-This only supports transferring USDC from EVM -> Osmosis, as any pre/post transfer swaps are typically handled by the [Skip Go](https://docs.skip.build/go/general/getting-started) API. 
+This only supports transferring USDC from EVM -> Osmosis, as any pre/post transfer swaps are typically handled by the [Skip Go](https://docs.skip.build/go/general/getting-started) API.
+
 ```shell
 make build-cli
 ./solver ./build/solvercli submit-transfer \
-  --config <configFilePath> \ # e.g ./config/local/config.yml 
-  --token  <usdc address for source chain> \ # e.g. 0xaf88d065e77c8cC2239327C5EDb3A432268e5831 
+  --config <configFilePath> \ # e.g ./config/local/config.yml
+  --token  <usdc address for source chain> \ # e.g. 0xaf88d065e77c8cC2239327C5EDb3A432268e5831
   --recipient <recipient address on destination chain>  \ # e.g. osmo13c9seh3vgvtfvdufz4eh2zhp0cepq4wj0egc02
   --amount <usdc amount in token decimals> \ # e.g. 1000000
   --source-chain-id <source chain id>  \ # e.g. 42161
-  --destination-chain-id <destination chain id>  \ # e.g. osmosis-1 
-  --gateway <source chain fast transfer contract gateway> \ # e.g. 0x9c75534d7d6670a3ddd69a55b4067460f3e8744b 
+  --destination-chain-id <destination chain id>  \ # e.g. osmosis-1
+  --gateway <source chain fast transfer contract gateway> \ # e.g. 0x9c75534d7d6670a3ddd69a55b4067460f3e8744b
   --private-key <source wallet EVM private key string> \ # e.g. 0xf6079d30f832f998c86e5841385a4be06b6ca2b0875b90dcab8e167eba4dcab1 (this is not stored anywhere, and is used to sign the transfer transactions)
   --deadline-hours <transfer timeout in hours> # e.g. 24
 ```
 
 relay: manually relay a hyperlane transaction
+
 ```shell
 make build-cli # build cli tool
 # manually relay a transaction
 ./solvercli relay \
---config <configFilePath> \ # e.g ./config/local/config.yml 
---keys <keysFilePath> \ # e.g ./config/local/keys.json 
---key-store-type <plaintext-file|encrypted-file|env> \  
---aes-key-hex <hexEncodedAesKey> \ 
---origin-chain-id <originChainId> \ # e.g. 42161 
+--config <configFilePath> \ # e.g ./config/local/config.yml
+--keys <keysFilePath> \ # e.g ./config/local/keys.json
+--key-store-type <plaintext-file|encrypted-file|env> \
+--aes-key-hex <hexEncodedAesKey> \
+--origin-chain-id <originChainId> \ # e.g. 42161
 --originTxHash <tx hash to relay> \ # e.g. 0x8a345e4fb67309b230997ed222b35fd82ee31807fcd24f9ca80a4839119bb9ba
 --checkpoint-storage-location-override <hplStorageFileOverride> \
 ```
