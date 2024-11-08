@@ -12,6 +12,7 @@ import (
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/ordersettler/types"
+	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"golang.org/x/sync/errgroup"
 
@@ -138,6 +139,16 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 				return fmt.Errorf("checking if order %s exists on chainID %s: %w", fill.OrderID, sourceChainID, err)
 			}
 			if !exists {
+				continue
+			}
+
+			// ensure order is not already filled (an order is only marked as
+			// filled on the source chain once it is settled)
+			status, err := sourceBridgeClient.OrderStatus(ctx, sourceGatewayAddress, fill.OrderID)
+			if err != nil {
+				return fmt.Errorf("getting order %s status on chainID %s: %w", fill.OrderID, sourceChainID, err)
+			}
+			if status != fast_transfer_gateway.OrderStatusUnfilled {
 				continue
 			}
 
@@ -332,19 +343,26 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 			if _, err = q.SetInitiateSettlementTx(ctx, settlementTx); err != nil {
 				return fmt.Errorf("setting initiate settlement tx for settlement from source chain %s with order id %s: %w", settlement.SourceChainID, settlement.OrderID, err)
 			}
-
-			submittedTx := db.InsertSubmittedTxParams{
-				OrderSettlementID: sql.NullInt64{Int64: settlement.ID, Valid: true},
-				ChainID:           settlement.DestinationChainID,
-				TxHash:            txHash,
-				RawTx:             rawTx,
-				TxType:            dbtypes.TxTypeSettlement,
-				TxStatus:          dbtypes.TxStatusPending,
-			}
-			if _, err = q.InsertSubmittedTx(ctx, submittedTx); err != nil {
-				return fmt.Errorf("inserting raw tx for settlement with hash %s: %w", txHash, err)
-			}
 		}
+
+		// we do not insert a submitted tx for each settlement, since many
+		// settlements are settled by a single tx (batch settlements)
+
+		submittedTx := db.InsertSubmittedTxParams{
+			// technically this an link back to many order settlement ids,
+			// since many settlements are being settled by a single tx.
+			// However, we are just choosing the first one here.
+			OrderSettlementID: sql.NullInt64{Int64: batch[0].ID, Valid: true},
+			ChainID:           batch.DestinationChainID(),
+			TxHash:            txHash,
+			RawTx:             rawTx,
+			TxType:            dbtypes.TxTypeSettlement,
+			TxStatus:          dbtypes.TxStatusPending,
+		}
+		if _, err = q.InsertSubmittedTx(ctx, submittedTx); err != nil {
+			return fmt.Errorf("inserting raw tx for settlement with hash %s: %w", txHash, err)
+		}
+
 		return nil
 	}, nil)
 	if err != nil {

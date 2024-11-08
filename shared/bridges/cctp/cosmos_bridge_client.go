@@ -315,6 +315,10 @@ func (c *CosmosBridgeClient) InitiateTimeout(ctx context.Context, order db.Order
 			},
 		},
 	}
+	if order.Data.Valid {
+		initiateTimeoutMsg.InitiateTimeout.Orders[0].Data = order.Data.String
+	}
+
 	initiateTimeoutMsgBytes, err := json.Marshal(initiateTimeoutMsg)
 	if err != nil {
 		return "", "", nil, err
@@ -538,6 +542,10 @@ func (c *CosmosBridgeClient) WaitForTx(ctx context.Context, txHash string) error
 
 func (c *CosmosBridgeClient) OrderExists(ctx context.Context, gatewayContractAddress, orderID string, blockNumber *big.Int) (bool, *big.Int, error) {
 	return false, nil, errors.New("not implemented")
+}
+
+func (c *CosmosBridgeClient) OrderStatus(ctx context.Context, gatewayContractAddress, orderID string) (uint8, error) {
+	return 0, errors.New("not implemented")
 }
 
 func (c *CosmosBridgeClient) Close() {}

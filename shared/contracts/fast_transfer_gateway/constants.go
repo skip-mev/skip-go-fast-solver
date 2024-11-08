@@ -1,3 +1,7 @@
 package fast_transfer_gateway
 
-const OrderStatusRefunded = 2
+const (
+	OrderStatusUnfilled uint8 = iota
+	OrderStatusFilled
+	OrderStatusRefunded
+)

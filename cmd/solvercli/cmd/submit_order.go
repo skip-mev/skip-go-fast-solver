@@ -231,7 +231,7 @@ func submitTransferOrder(gateway *fast_transfer_gateway.FastTransferGateway, aut
 		amountBig,
 		amountBig,
 		destDomain,
-		big.NewInt(deadline.Unix()),
+		uint64(deadline.Unix()),
 		[]byte{},
 	)
 }
