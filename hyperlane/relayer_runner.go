@@ -96,7 +96,7 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 
 				if !isTransferValid {
 					lmt.Logger(ctx).Warn(
-						"skipping invalid hyperlane transfer",
+						"abandoning invalid hyperlane transfer",
 						zap.Any("transfer", transfer),
 						zap.Error(err),
 					)
