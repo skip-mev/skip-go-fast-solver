@@ -35,16 +35,16 @@ type FastTransferOrder struct {
 	Recipient         [32]byte
 	AmountIn          *big.Int
 	AmountOut         *big.Int
-	Nonce             *big.Int
+	Nonce             uint32
 	SourceDomain      uint32
 	DestinationDomain uint32
-	TimeoutTimestamp  *big.Int
+	TimeoutTimestamp  uint64
 	Data              []byte
 }
 
 // FastTransferGatewayMetaData contains all meta data concerning the FastTransferGateway contract.
 var FastTransferGatewayMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"constructor\",\"inputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"PERMIT2\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"contractIPermit2\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"UPGRADE_INTERFACE_VERSION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"fillOrder\",\"inputs\":[{\"name\":\"order\",\"type\":\"tuple\",\"internalType\":\"structFastTransferOrder\",\"components\":[{\"name\":\"sender\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"recipient\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"amountIn\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amountOut\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"nonce\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"sourceDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"destinationDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"timeoutTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"handle\",\"inputs\":[{\"name\":\"_origin\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"_sender\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"_message\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"_localDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"_owner\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_token\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_mailbox\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_permit2\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"initiateSettlement\",\"inputs\":[{\"name\":\"repaymentAddress\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"orderIDs\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"initiateTimeout\",\"inputs\":[{\"name\":\"orders\",\"type\":\"tuple[]\",\"internalType\":\"structFastTransferOrder[]\",\"components\":[{\"name\":\"sender\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"recipient\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"amountIn\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amountOut\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"nonce\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"sourceDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"destinationDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"timeoutTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"localDomain\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint32\",\"internalType\":\"uint32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"mailbox\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"nonce\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint32\",\"internalType\":\"uint32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"orderFills\",\"inputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"orderID\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"filler\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"sourceDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"orderStatuses\",\"inputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint8\",\"internalType\":\"enumOrderStatus\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"owner\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proxiableUUID\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"quoteInitiateSettlement\",\"inputs\":[{\"name\":\"sourceDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"repaymentAddress\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"orderIDs\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"quoteInitiateTimeout\",\"inputs\":[{\"name\":\"sourceDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"orders\",\"type\":\"tuple[]\",\"internalType\":\"structFastTransferOrder[]\",\"components\":[{\"name\":\"sender\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"recipient\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"amountIn\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amountOut\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"nonce\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"sourceDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"destinationDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"timeoutTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"remoteDomains\",\"inputs\":[{\"name\":\"\",\"type\":\"uint32\",\"internalType\":\"uint32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"renounceOwnership\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setRemoteDomain\",\"inputs\":[{\"name\":\"domain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"remoteContract\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"settlementDetails\",\"inputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"sender\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"nonce\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"destinationDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"submitOrder\",\"inputs\":[{\"name\":\"sender\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"recipient\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"amountIn\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amountOut\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"destinationDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"timeoutTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"submitOrderWithPermit\",\"inputs\":[{\"name\":\"sender\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"recipient\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"amountIn\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amountOut\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"destinationDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"timeoutTimestamp\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"permitDeadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"signature\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"token\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"transferOwnership\",\"inputs\":[{\"name\":\"newOwner\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"upgradeToAndCall\",\"inputs\":[{\"name\":\"newImplementation\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OrderAlreadySettled\",\"inputs\":[{\"name\":\"orderID\",\"type\":\"bytes32\",\"indexed\":true,\"internalType\":\"bytes32\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OrderRefunded\",\"inputs\":[{\"name\":\"orderID\",\"type\":\"bytes32\",\"indexed\":true,\"internalType\":\"bytes32\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OrderSettled\",\"inputs\":[{\"name\":\"orderID\",\"type\":\"bytes32\",\"indexed\":true,\"internalType\":\"bytes32\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OrderSubmitted\",\"inputs\":[{\"name\":\"orderID\",\"type\":\"bytes32\",\"indexed\":true,\"internalType\":\"bytes32\"},{\"name\":\"order\",\"type\":\"bytes\",\"indexed\":false,\"internalType\":\"bytes\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OwnershipTransferred\",\"inputs\":[{\"name\":\"previousOwner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"newOwner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Upgraded\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"AddressEmptyCode\",\"inputs\":[{\"name\":\"target\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"AddressInsufficientBalance\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC1967InvalidImplementation\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC1967NonPayable\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"FailedInnerCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidInitialization\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotInitializing\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"OwnableInvalidOwner\",\"inputs\":[{\"name\":\"owner\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"OwnableUnauthorizedAccount\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ReentrancyGuardReentrantCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"SafeERC20FailedOperation\",\"inputs\":[{\"name\":\"token\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"UUPSUnauthorizedCallContext\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnsupportedProxiableUUID\",\"inputs\":[{\"name\":\"slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]}]",
+	ABI: "[{\"type\":\"constructor\",\"inputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"PERMIT2\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"contractIPermit2\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"UPGRADE_INTERFACE_VERSION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"fillOrder\",\"inputs\":[{\"name\":\"filler\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"order\",\"type\":\"tuple\",\"internalType\":\"structFastTransferOrder\",\"components\":[{\"name\":\"sender\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"recipient\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"amountIn\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amountOut\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"nonce\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"sourceDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"destinationDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"timeoutTimestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"goFastCaller\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"contractGoFastCaller\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"handle\",\"inputs\":[{\"name\":\"_origin\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"_sender\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"_message\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"_localDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"_owner\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_token\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_mailbox\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_interchainSecurityModule\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_permit2\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_goFastCaller\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"initiateSettlement\",\"inputs\":[{\"name\":\"repaymentAddress\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"orderIDs\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"initiateTimeout\",\"inputs\":[{\"name\":\"orders\",\"type\":\"tuple[]\",\"internalType\":\"structFastTransferOrder[]\",\"components\":[{\"name\":\"sender\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"recipient\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"amountIn\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amountOut\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"nonce\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"sourceDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"destinationDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"timeoutTimestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"interchainSecurityModule\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"localDomain\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint32\",\"internalType\":\"uint32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"mailbox\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"nonce\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint32\",\"internalType\":\"uint32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"orderFills\",\"inputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"orderID\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"filler\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"sourceDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"orderStatuses\",\"inputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint8\",\"internalType\":\"enumOrderStatus\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"owner\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proxiableUUID\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"quoteInitiateSettlement\",\"inputs\":[{\"name\":\"sourceDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"repaymentAddress\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"orderIDs\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"quoteInitiateTimeout\",\"inputs\":[{\"name\":\"sourceDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"orders\",\"type\":\"tuple[]\",\"internalType\":\"structFastTransferOrder[]\",\"components\":[{\"name\":\"sender\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"recipient\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"amountIn\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amountOut\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"nonce\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"sourceDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"destinationDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"timeoutTimestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}]}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"remoteDomains\",\"inputs\":[{\"name\":\"\",\"type\":\"uint32\",\"internalType\":\"uint32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"renounceOwnership\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setInterchainSecurityModule\",\"inputs\":[{\"name\":\"_interchainSecurityModule\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setMailbox\",\"inputs\":[{\"name\":\"_mailbox\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setRemoteDomain\",\"inputs\":[{\"name\":\"domain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"remoteContract\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"settlementDetails\",\"inputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"sender\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"nonce\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"destinationDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"submitOrder\",\"inputs\":[{\"name\":\"sender\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"recipient\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"amountIn\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amountOut\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"destinationDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"timeoutTimestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"submitOrderWithPermit\",\"inputs\":[{\"name\":\"sender\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"recipient\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"amountIn\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amountOut\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"destinationDomain\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"timeoutTimestamp\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"permitDeadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"signature\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"token\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"transferOwnership\",\"inputs\":[{\"name\":\"newOwner\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"upgradeToAndCall\",\"inputs\":[{\"name\":\"newImplementation\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OrderAlreadySettled\",\"inputs\":[{\"name\":\"orderID\",\"type\":\"bytes32\",\"indexed\":true,\"internalType\":\"bytes32\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OrderRefunded\",\"inputs\":[{\"name\":\"orderID\",\"type\":\"bytes32\",\"indexed\":true,\"internalType\":\"bytes32\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OrderSettled\",\"inputs\":[{\"name\":\"orderID\",\"type\":\"bytes32\",\"indexed\":true,\"internalType\":\"bytes32\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OrderSubmitted\",\"inputs\":[{\"name\":\"orderID\",\"type\":\"bytes32\",\"indexed\":true,\"internalType\":\"bytes32\"},{\"name\":\"order\",\"type\":\"bytes\",\"indexed\":false,\"internalType\":\"bytes\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OwnershipTransferred\",\"inputs\":[{\"name\":\"previousOwner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"newOwner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Upgraded\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"AddressEmptyCode\",\"inputs\":[{\"name\":\"target\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"AddressInsufficientBalance\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC1967InvalidImplementation\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC1967NonPayable\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"FailedInnerCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidInitialization\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotInitializing\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"OwnableInvalidOwner\",\"inputs\":[{\"name\":\"owner\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"OwnableUnauthorizedAccount\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ReentrancyGuardReentrantCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"SafeERC20FailedOperation\",\"inputs\":[{\"name\":\"token\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"UUPSUnauthorizedCallContext\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnsupportedProxiableUUID\",\"inputs\":[{\"name\":\"slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]}]",
 }
 
 // FastTransferGatewayABI is the input ABI used to generate the binding from.
@@ -253,6 +253,68 @@ func (_FastTransferGateway *FastTransferGatewaySession) UPGRADEINTERFACEVERSION(
 // Solidity: function UPGRADE_INTERFACE_VERSION() view returns(string)
 func (_FastTransferGateway *FastTransferGatewayCallerSession) UPGRADEINTERFACEVERSION() (string, error) {
 	return _FastTransferGateway.Contract.UPGRADEINTERFACEVERSION(&_FastTransferGateway.CallOpts)
+}
+
+// GoFastCaller is a free data retrieval call binding the contract method 0xc87d1240.
+//
+// Solidity: function goFastCaller() view returns(address)
+func (_FastTransferGateway *FastTransferGatewayCaller) GoFastCaller(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _FastTransferGateway.contract.Call(opts, &out, "goFastCaller")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// GoFastCaller is a free data retrieval call binding the contract method 0xc87d1240.
+//
+// Solidity: function goFastCaller() view returns(address)
+func (_FastTransferGateway *FastTransferGatewaySession) GoFastCaller() (common.Address, error) {
+	return _FastTransferGateway.Contract.GoFastCaller(&_FastTransferGateway.CallOpts)
+}
+
+// GoFastCaller is a free data retrieval call binding the contract method 0xc87d1240.
+//
+// Solidity: function goFastCaller() view returns(address)
+func (_FastTransferGateway *FastTransferGatewayCallerSession) GoFastCaller() (common.Address, error) {
+	return _FastTransferGateway.Contract.GoFastCaller(&_FastTransferGateway.CallOpts)
+}
+
+// InterchainSecurityModule is a free data retrieval call binding the contract method 0xde523cf3.
+//
+// Solidity: function interchainSecurityModule() view returns(address)
+func (_FastTransferGateway *FastTransferGatewayCaller) InterchainSecurityModule(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _FastTransferGateway.contract.Call(opts, &out, "interchainSecurityModule")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// InterchainSecurityModule is a free data retrieval call binding the contract method 0xde523cf3.
+//
+// Solidity: function interchainSecurityModule() view returns(address)
+func (_FastTransferGateway *FastTransferGatewaySession) InterchainSecurityModule() (common.Address, error) {
+	return _FastTransferGateway.Contract.InterchainSecurityModule(&_FastTransferGateway.CallOpts)
+}
+
+// InterchainSecurityModule is a free data retrieval call binding the contract method 0xde523cf3.
+//
+// Solidity: function interchainSecurityModule() view returns(address)
+func (_FastTransferGateway *FastTransferGatewayCallerSession) InterchainSecurityModule() (common.Address, error) {
+	return _FastTransferGateway.Contract.InterchainSecurityModule(&_FastTransferGateway.CallOpts)
 }
 
 // LocalDomain is a free data retrieval call binding the contract method 0x8d3638f4.
@@ -522,9 +584,9 @@ func (_FastTransferGateway *FastTransferGatewayCallerSession) QuoteInitiateSettl
 	return _FastTransferGateway.Contract.QuoteInitiateSettlement(&_FastTransferGateway.CallOpts, sourceDomain, repaymentAddress, orderIDs)
 }
 
-// QuoteInitiateTimeout is a free data retrieval call binding the contract method 0x1cabc26f.
+// QuoteInitiateTimeout is a free data retrieval call binding the contract method 0x4eae2607.
 //
-// Solidity: function quoteInitiateTimeout(uint32 sourceDomain, (bytes32,bytes32,uint256,uint256,uint256,uint32,uint32,uint256,bytes)[] orders) view returns(uint256)
+// Solidity: function quoteInitiateTimeout(uint32 sourceDomain, (bytes32,bytes32,uint256,uint256,uint32,uint32,uint32,uint64,bytes)[] orders) view returns(uint256)
 func (_FastTransferGateway *FastTransferGatewayCaller) QuoteInitiateTimeout(opts *bind.CallOpts, sourceDomain uint32, orders []FastTransferOrder) (*big.Int, error) {
 	var out []interface{}
 	err := _FastTransferGateway.contract.Call(opts, &out, "quoteInitiateTimeout", sourceDomain, orders)
@@ -539,16 +601,16 @@ func (_FastTransferGateway *FastTransferGatewayCaller) QuoteInitiateTimeout(opts
 
 }
 
-// QuoteInitiateTimeout is a free data retrieval call binding the contract method 0x1cabc26f.
+// QuoteInitiateTimeout is a free data retrieval call binding the contract method 0x4eae2607.
 //
-// Solidity: function quoteInitiateTimeout(uint32 sourceDomain, (bytes32,bytes32,uint256,uint256,uint256,uint32,uint32,uint256,bytes)[] orders) view returns(uint256)
+// Solidity: function quoteInitiateTimeout(uint32 sourceDomain, (bytes32,bytes32,uint256,uint256,uint32,uint32,uint32,uint64,bytes)[] orders) view returns(uint256)
 func (_FastTransferGateway *FastTransferGatewaySession) QuoteInitiateTimeout(sourceDomain uint32, orders []FastTransferOrder) (*big.Int, error) {
 	return _FastTransferGateway.Contract.QuoteInitiateTimeout(&_FastTransferGateway.CallOpts, sourceDomain, orders)
 }
 
-// QuoteInitiateTimeout is a free data retrieval call binding the contract method 0x1cabc26f.
+// QuoteInitiateTimeout is a free data retrieval call binding the contract method 0x4eae2607.
 //
-// Solidity: function quoteInitiateTimeout(uint32 sourceDomain, (bytes32,bytes32,uint256,uint256,uint256,uint32,uint32,uint256,bytes)[] orders) view returns(uint256)
+// Solidity: function quoteInitiateTimeout(uint32 sourceDomain, (bytes32,bytes32,uint256,uint256,uint32,uint32,uint32,uint64,bytes)[] orders) view returns(uint256)
 func (_FastTransferGateway *FastTransferGatewayCallerSession) QuoteInitiateTimeout(sourceDomain uint32, orders []FastTransferOrder) (*big.Int, error) {
 	return _FastTransferGateway.Contract.QuoteInitiateTimeout(&_FastTransferGateway.CallOpts, sourceDomain, orders)
 }
@@ -670,25 +732,25 @@ func (_FastTransferGateway *FastTransferGatewayCallerSession) Token() (common.Ad
 	return _FastTransferGateway.Contract.Token(&_FastTransferGateway.CallOpts)
 }
 
-// FillOrder is a paid mutator transaction binding the contract method 0xbdaa4e2f.
+// FillOrder is a paid mutator transaction binding the contract method 0xb549117c.
 //
-// Solidity: function fillOrder((bytes32,bytes32,uint256,uint256,uint256,uint32,uint32,uint256,bytes) order) returns()
-func (_FastTransferGateway *FastTransferGatewayTransactor) FillOrder(opts *bind.TransactOpts, order FastTransferOrder) (*types.Transaction, error) {
-	return _FastTransferGateway.contract.Transact(opts, "fillOrder", order)
+// Solidity: function fillOrder(address filler, (bytes32,bytes32,uint256,uint256,uint32,uint32,uint32,uint64,bytes) order) returns()
+func (_FastTransferGateway *FastTransferGatewayTransactor) FillOrder(opts *bind.TransactOpts, filler common.Address, order FastTransferOrder) (*types.Transaction, error) {
+	return _FastTransferGateway.contract.Transact(opts, "fillOrder", filler, order)
 }
 
-// FillOrder is a paid mutator transaction binding the contract method 0xbdaa4e2f.
+// FillOrder is a paid mutator transaction binding the contract method 0xb549117c.
 //
-// Solidity: function fillOrder((bytes32,bytes32,uint256,uint256,uint256,uint32,uint32,uint256,bytes) order) returns()
-func (_FastTransferGateway *FastTransferGatewaySession) FillOrder(order FastTransferOrder) (*types.Transaction, error) {
-	return _FastTransferGateway.Contract.FillOrder(&_FastTransferGateway.TransactOpts, order)
+// Solidity: function fillOrder(address filler, (bytes32,bytes32,uint256,uint256,uint32,uint32,uint32,uint64,bytes) order) returns()
+func (_FastTransferGateway *FastTransferGatewaySession) FillOrder(filler common.Address, order FastTransferOrder) (*types.Transaction, error) {
+	return _FastTransferGateway.Contract.FillOrder(&_FastTransferGateway.TransactOpts, filler, order)
 }
 
-// FillOrder is a paid mutator transaction binding the contract method 0xbdaa4e2f.
+// FillOrder is a paid mutator transaction binding the contract method 0xb549117c.
 //
-// Solidity: function fillOrder((bytes32,bytes32,uint256,uint256,uint256,uint32,uint32,uint256,bytes) order) returns()
-func (_FastTransferGateway *FastTransferGatewayTransactorSession) FillOrder(order FastTransferOrder) (*types.Transaction, error) {
-	return _FastTransferGateway.Contract.FillOrder(&_FastTransferGateway.TransactOpts, order)
+// Solidity: function fillOrder(address filler, (bytes32,bytes32,uint256,uint256,uint32,uint32,uint32,uint64,bytes) order) returns()
+func (_FastTransferGateway *FastTransferGatewayTransactorSession) FillOrder(filler common.Address, order FastTransferOrder) (*types.Transaction, error) {
+	return _FastTransferGateway.Contract.FillOrder(&_FastTransferGateway.TransactOpts, filler, order)
 }
 
 // Handle is a paid mutator transaction binding the contract method 0x56d5d475.
@@ -712,25 +774,25 @@ func (_FastTransferGateway *FastTransferGatewayTransactorSession) Handle(_origin
 	return _FastTransferGateway.Contract.Handle(&_FastTransferGateway.TransactOpts, _origin, _sender, _message)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0xf2c20924.
+// Initialize is a paid mutator transaction binding the contract method 0x0b5e0b68.
 //
-// Solidity: function initialize(uint32 _localDomain, address _owner, address _token, address _mailbox, address _permit2) returns()
-func (_FastTransferGateway *FastTransferGatewayTransactor) Initialize(opts *bind.TransactOpts, _localDomain uint32, _owner common.Address, _token common.Address, _mailbox common.Address, _permit2 common.Address) (*types.Transaction, error) {
-	return _FastTransferGateway.contract.Transact(opts, "initialize", _localDomain, _owner, _token, _mailbox, _permit2)
+// Solidity: function initialize(uint32 _localDomain, address _owner, address _token, address _mailbox, address _interchainSecurityModule, address _permit2, address _goFastCaller) returns()
+func (_FastTransferGateway *FastTransferGatewayTransactor) Initialize(opts *bind.TransactOpts, _localDomain uint32, _owner common.Address, _token common.Address, _mailbox common.Address, _interchainSecurityModule common.Address, _permit2 common.Address, _goFastCaller common.Address) (*types.Transaction, error) {
+	return _FastTransferGateway.contract.Transact(opts, "initialize", _localDomain, _owner, _token, _mailbox, _interchainSecurityModule, _permit2, _goFastCaller)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0xf2c20924.
+// Initialize is a paid mutator transaction binding the contract method 0x0b5e0b68.
 //
-// Solidity: function initialize(uint32 _localDomain, address _owner, address _token, address _mailbox, address _permit2) returns()
-func (_FastTransferGateway *FastTransferGatewaySession) Initialize(_localDomain uint32, _owner common.Address, _token common.Address, _mailbox common.Address, _permit2 common.Address) (*types.Transaction, error) {
-	return _FastTransferGateway.Contract.Initialize(&_FastTransferGateway.TransactOpts, _localDomain, _owner, _token, _mailbox, _permit2)
+// Solidity: function initialize(uint32 _localDomain, address _owner, address _token, address _mailbox, address _interchainSecurityModule, address _permit2, address _goFastCaller) returns()
+func (_FastTransferGateway *FastTransferGatewaySession) Initialize(_localDomain uint32, _owner common.Address, _token common.Address, _mailbox common.Address, _interchainSecurityModule common.Address, _permit2 common.Address, _goFastCaller common.Address) (*types.Transaction, error) {
+	return _FastTransferGateway.Contract.Initialize(&_FastTransferGateway.TransactOpts, _localDomain, _owner, _token, _mailbox, _interchainSecurityModule, _permit2, _goFastCaller)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0xf2c20924.
+// Initialize is a paid mutator transaction binding the contract method 0x0b5e0b68.
 //
-// Solidity: function initialize(uint32 _localDomain, address _owner, address _token, address _mailbox, address _permit2) returns()
-func (_FastTransferGateway *FastTransferGatewayTransactorSession) Initialize(_localDomain uint32, _owner common.Address, _token common.Address, _mailbox common.Address, _permit2 common.Address) (*types.Transaction, error) {
-	return _FastTransferGateway.Contract.Initialize(&_FastTransferGateway.TransactOpts, _localDomain, _owner, _token, _mailbox, _permit2)
+// Solidity: function initialize(uint32 _localDomain, address _owner, address _token, address _mailbox, address _interchainSecurityModule, address _permit2, address _goFastCaller) returns()
+func (_FastTransferGateway *FastTransferGatewayTransactorSession) Initialize(_localDomain uint32, _owner common.Address, _token common.Address, _mailbox common.Address, _interchainSecurityModule common.Address, _permit2 common.Address, _goFastCaller common.Address) (*types.Transaction, error) {
+	return _FastTransferGateway.Contract.Initialize(&_FastTransferGateway.TransactOpts, _localDomain, _owner, _token, _mailbox, _interchainSecurityModule, _permit2, _goFastCaller)
 }
 
 // InitiateSettlement is a paid mutator transaction binding the contract method 0x30c5b926.
@@ -754,23 +816,23 @@ func (_FastTransferGateway *FastTransferGatewayTransactorSession) InitiateSettle
 	return _FastTransferGateway.Contract.InitiateSettlement(&_FastTransferGateway.TransactOpts, repaymentAddress, orderIDs)
 }
 
-// InitiateTimeout is a paid mutator transaction binding the contract method 0x13d9c7f9.
+// InitiateTimeout is a paid mutator transaction binding the contract method 0x88efb875.
 //
-// Solidity: function initiateTimeout((bytes32,bytes32,uint256,uint256,uint256,uint32,uint32,uint256,bytes)[] orders) payable returns()
+// Solidity: function initiateTimeout((bytes32,bytes32,uint256,uint256,uint32,uint32,uint32,uint64,bytes)[] orders) payable returns()
 func (_FastTransferGateway *FastTransferGatewayTransactor) InitiateTimeout(opts *bind.TransactOpts, orders []FastTransferOrder) (*types.Transaction, error) {
 	return _FastTransferGateway.contract.Transact(opts, "initiateTimeout", orders)
 }
 
-// InitiateTimeout is a paid mutator transaction binding the contract method 0x13d9c7f9.
+// InitiateTimeout is a paid mutator transaction binding the contract method 0x88efb875.
 //
-// Solidity: function initiateTimeout((bytes32,bytes32,uint256,uint256,uint256,uint32,uint32,uint256,bytes)[] orders) payable returns()
+// Solidity: function initiateTimeout((bytes32,bytes32,uint256,uint256,uint32,uint32,uint32,uint64,bytes)[] orders) payable returns()
 func (_FastTransferGateway *FastTransferGatewaySession) InitiateTimeout(orders []FastTransferOrder) (*types.Transaction, error) {
 	return _FastTransferGateway.Contract.InitiateTimeout(&_FastTransferGateway.TransactOpts, orders)
 }
 
-// InitiateTimeout is a paid mutator transaction binding the contract method 0x13d9c7f9.
+// InitiateTimeout is a paid mutator transaction binding the contract method 0x88efb875.
 //
-// Solidity: function initiateTimeout((bytes32,bytes32,uint256,uint256,uint256,uint32,uint32,uint256,bytes)[] orders) payable returns()
+// Solidity: function initiateTimeout((bytes32,bytes32,uint256,uint256,uint32,uint32,uint32,uint64,bytes)[] orders) payable returns()
 func (_FastTransferGateway *FastTransferGatewayTransactorSession) InitiateTimeout(orders []FastTransferOrder) (*types.Transaction, error) {
 	return _FastTransferGateway.Contract.InitiateTimeout(&_FastTransferGateway.TransactOpts, orders)
 }
@@ -796,6 +858,48 @@ func (_FastTransferGateway *FastTransferGatewayTransactorSession) RenounceOwners
 	return _FastTransferGateway.Contract.RenounceOwnership(&_FastTransferGateway.TransactOpts)
 }
 
+// SetInterchainSecurityModule is a paid mutator transaction binding the contract method 0x0e72cc06.
+//
+// Solidity: function setInterchainSecurityModule(address _interchainSecurityModule) returns()
+func (_FastTransferGateway *FastTransferGatewayTransactor) SetInterchainSecurityModule(opts *bind.TransactOpts, _interchainSecurityModule common.Address) (*types.Transaction, error) {
+	return _FastTransferGateway.contract.Transact(opts, "setInterchainSecurityModule", _interchainSecurityModule)
+}
+
+// SetInterchainSecurityModule is a paid mutator transaction binding the contract method 0x0e72cc06.
+//
+// Solidity: function setInterchainSecurityModule(address _interchainSecurityModule) returns()
+func (_FastTransferGateway *FastTransferGatewaySession) SetInterchainSecurityModule(_interchainSecurityModule common.Address) (*types.Transaction, error) {
+	return _FastTransferGateway.Contract.SetInterchainSecurityModule(&_FastTransferGateway.TransactOpts, _interchainSecurityModule)
+}
+
+// SetInterchainSecurityModule is a paid mutator transaction binding the contract method 0x0e72cc06.
+//
+// Solidity: function setInterchainSecurityModule(address _interchainSecurityModule) returns()
+func (_FastTransferGateway *FastTransferGatewayTransactorSession) SetInterchainSecurityModule(_interchainSecurityModule common.Address) (*types.Transaction, error) {
+	return _FastTransferGateway.Contract.SetInterchainSecurityModule(&_FastTransferGateway.TransactOpts, _interchainSecurityModule)
+}
+
+// SetMailbox is a paid mutator transaction binding the contract method 0xf3c61d6b.
+//
+// Solidity: function setMailbox(address _mailbox) returns()
+func (_FastTransferGateway *FastTransferGatewayTransactor) SetMailbox(opts *bind.TransactOpts, _mailbox common.Address) (*types.Transaction, error) {
+	return _FastTransferGateway.contract.Transact(opts, "setMailbox", _mailbox)
+}
+
+// SetMailbox is a paid mutator transaction binding the contract method 0xf3c61d6b.
+//
+// Solidity: function setMailbox(address _mailbox) returns()
+func (_FastTransferGateway *FastTransferGatewaySession) SetMailbox(_mailbox common.Address) (*types.Transaction, error) {
+	return _FastTransferGateway.Contract.SetMailbox(&_FastTransferGateway.TransactOpts, _mailbox)
+}
+
+// SetMailbox is a paid mutator transaction binding the contract method 0xf3c61d6b.
+//
+// Solidity: function setMailbox(address _mailbox) returns()
+func (_FastTransferGateway *FastTransferGatewayTransactorSession) SetMailbox(_mailbox common.Address) (*types.Transaction, error) {
+	return _FastTransferGateway.Contract.SetMailbox(&_FastTransferGateway.TransactOpts, _mailbox)
+}
+
 // SetRemoteDomain is a paid mutator transaction binding the contract method 0xe5dc8496.
 //
 // Solidity: function setRemoteDomain(uint32 domain, bytes32 remoteContract) returns()
@@ -817,45 +921,45 @@ func (_FastTransferGateway *FastTransferGatewayTransactorSession) SetRemoteDomai
 	return _FastTransferGateway.Contract.SetRemoteDomain(&_FastTransferGateway.TransactOpts, domain, remoteContract)
 }
 
-// SubmitOrder is a paid mutator transaction binding the contract method 0xf13a89b4.
+// SubmitOrder is a paid mutator transaction binding the contract method 0x6ad1b6ac.
 //
-// Solidity: function submitOrder(bytes32 sender, bytes32 recipient, uint256 amountIn, uint256 amountOut, uint32 destinationDomain, uint256 timeoutTimestamp, bytes data) returns(bytes32)
-func (_FastTransferGateway *FastTransferGatewayTransactor) SubmitOrder(opts *bind.TransactOpts, sender [32]byte, recipient [32]byte, amountIn *big.Int, amountOut *big.Int, destinationDomain uint32, timeoutTimestamp *big.Int, data []byte) (*types.Transaction, error) {
+// Solidity: function submitOrder(bytes32 sender, bytes32 recipient, uint256 amountIn, uint256 amountOut, uint32 destinationDomain, uint64 timeoutTimestamp, bytes data) returns(bytes32)
+func (_FastTransferGateway *FastTransferGatewayTransactor) SubmitOrder(opts *bind.TransactOpts, sender [32]byte, recipient [32]byte, amountIn *big.Int, amountOut *big.Int, destinationDomain uint32, timeoutTimestamp uint64, data []byte) (*types.Transaction, error) {
 	return _FastTransferGateway.contract.Transact(opts, "submitOrder", sender, recipient, amountIn, amountOut, destinationDomain, timeoutTimestamp, data)
 }
 
-// SubmitOrder is a paid mutator transaction binding the contract method 0xf13a89b4.
+// SubmitOrder is a paid mutator transaction binding the contract method 0x6ad1b6ac.
 //
-// Solidity: function submitOrder(bytes32 sender, bytes32 recipient, uint256 amountIn, uint256 amountOut, uint32 destinationDomain, uint256 timeoutTimestamp, bytes data) returns(bytes32)
-func (_FastTransferGateway *FastTransferGatewaySession) SubmitOrder(sender [32]byte, recipient [32]byte, amountIn *big.Int, amountOut *big.Int, destinationDomain uint32, timeoutTimestamp *big.Int, data []byte) (*types.Transaction, error) {
+// Solidity: function submitOrder(bytes32 sender, bytes32 recipient, uint256 amountIn, uint256 amountOut, uint32 destinationDomain, uint64 timeoutTimestamp, bytes data) returns(bytes32)
+func (_FastTransferGateway *FastTransferGatewaySession) SubmitOrder(sender [32]byte, recipient [32]byte, amountIn *big.Int, amountOut *big.Int, destinationDomain uint32, timeoutTimestamp uint64, data []byte) (*types.Transaction, error) {
 	return _FastTransferGateway.Contract.SubmitOrder(&_FastTransferGateway.TransactOpts, sender, recipient, amountIn, amountOut, destinationDomain, timeoutTimestamp, data)
 }
 
-// SubmitOrder is a paid mutator transaction binding the contract method 0xf13a89b4.
+// SubmitOrder is a paid mutator transaction binding the contract method 0x6ad1b6ac.
 //
-// Solidity: function submitOrder(bytes32 sender, bytes32 recipient, uint256 amountIn, uint256 amountOut, uint32 destinationDomain, uint256 timeoutTimestamp, bytes data) returns(bytes32)
-func (_FastTransferGateway *FastTransferGatewayTransactorSession) SubmitOrder(sender [32]byte, recipient [32]byte, amountIn *big.Int, amountOut *big.Int, destinationDomain uint32, timeoutTimestamp *big.Int, data []byte) (*types.Transaction, error) {
+// Solidity: function submitOrder(bytes32 sender, bytes32 recipient, uint256 amountIn, uint256 amountOut, uint32 destinationDomain, uint64 timeoutTimestamp, bytes data) returns(bytes32)
+func (_FastTransferGateway *FastTransferGatewayTransactorSession) SubmitOrder(sender [32]byte, recipient [32]byte, amountIn *big.Int, amountOut *big.Int, destinationDomain uint32, timeoutTimestamp uint64, data []byte) (*types.Transaction, error) {
 	return _FastTransferGateway.Contract.SubmitOrder(&_FastTransferGateway.TransactOpts, sender, recipient, amountIn, amountOut, destinationDomain, timeoutTimestamp, data)
 }
 
-// SubmitOrderWithPermit is a paid mutator transaction binding the contract method 0xf23517ee.
+// SubmitOrderWithPermit is a paid mutator transaction binding the contract method 0x061b32c9.
 //
-// Solidity: function submitOrderWithPermit(bytes32 sender, bytes32 recipient, uint256 amountIn, uint256 amountOut, uint32 destinationDomain, uint256 timeoutTimestamp, uint256 permitDeadline, bytes data, bytes signature) returns(bytes32)
-func (_FastTransferGateway *FastTransferGatewayTransactor) SubmitOrderWithPermit(opts *bind.TransactOpts, sender [32]byte, recipient [32]byte, amountIn *big.Int, amountOut *big.Int, destinationDomain uint32, timeoutTimestamp *big.Int, permitDeadline *big.Int, data []byte, signature []byte) (*types.Transaction, error) {
+// Solidity: function submitOrderWithPermit(bytes32 sender, bytes32 recipient, uint256 amountIn, uint256 amountOut, uint32 destinationDomain, uint64 timeoutTimestamp, uint256 permitDeadline, bytes data, bytes signature) returns(bytes32)
+func (_FastTransferGateway *FastTransferGatewayTransactor) SubmitOrderWithPermit(opts *bind.TransactOpts, sender [32]byte, recipient [32]byte, amountIn *big.Int, amountOut *big.Int, destinationDomain uint32, timeoutTimestamp uint64, permitDeadline *big.Int, data []byte, signature []byte) (*types.Transaction, error) {
 	return _FastTransferGateway.contract.Transact(opts, "submitOrderWithPermit", sender, recipient, amountIn, amountOut, destinationDomain, timeoutTimestamp, permitDeadline, data, signature)
 }
 
-// SubmitOrderWithPermit is a paid mutator transaction binding the contract method 0xf23517ee.
+// SubmitOrderWithPermit is a paid mutator transaction binding the contract method 0x061b32c9.
 //
-// Solidity: function submitOrderWithPermit(bytes32 sender, bytes32 recipient, uint256 amountIn, uint256 amountOut, uint32 destinationDomain, uint256 timeoutTimestamp, uint256 permitDeadline, bytes data, bytes signature) returns(bytes32)
-func (_FastTransferGateway *FastTransferGatewaySession) SubmitOrderWithPermit(sender [32]byte, recipient [32]byte, amountIn *big.Int, amountOut *big.Int, destinationDomain uint32, timeoutTimestamp *big.Int, permitDeadline *big.Int, data []byte, signature []byte) (*types.Transaction, error) {
+// Solidity: function submitOrderWithPermit(bytes32 sender, bytes32 recipient, uint256 amountIn, uint256 amountOut, uint32 destinationDomain, uint64 timeoutTimestamp, uint256 permitDeadline, bytes data, bytes signature) returns(bytes32)
+func (_FastTransferGateway *FastTransferGatewaySession) SubmitOrderWithPermit(sender [32]byte, recipient [32]byte, amountIn *big.Int, amountOut *big.Int, destinationDomain uint32, timeoutTimestamp uint64, permitDeadline *big.Int, data []byte, signature []byte) (*types.Transaction, error) {
 	return _FastTransferGateway.Contract.SubmitOrderWithPermit(&_FastTransferGateway.TransactOpts, sender, recipient, amountIn, amountOut, destinationDomain, timeoutTimestamp, permitDeadline, data, signature)
 }
 
-// SubmitOrderWithPermit is a paid mutator transaction binding the contract method 0xf23517ee.
+// SubmitOrderWithPermit is a paid mutator transaction binding the contract method 0x061b32c9.
 //
-// Solidity: function submitOrderWithPermit(bytes32 sender, bytes32 recipient, uint256 amountIn, uint256 amountOut, uint32 destinationDomain, uint256 timeoutTimestamp, uint256 permitDeadline, bytes data, bytes signature) returns(bytes32)
-func (_FastTransferGateway *FastTransferGatewayTransactorSession) SubmitOrderWithPermit(sender [32]byte, recipient [32]byte, amountIn *big.Int, amountOut *big.Int, destinationDomain uint32, timeoutTimestamp *big.Int, permitDeadline *big.Int, data []byte, signature []byte) (*types.Transaction, error) {
+// Solidity: function submitOrderWithPermit(bytes32 sender, bytes32 recipient, uint256 amountIn, uint256 amountOut, uint32 destinationDomain, uint64 timeoutTimestamp, uint256 permitDeadline, bytes data, bytes signature) returns(bytes32)
+func (_FastTransferGateway *FastTransferGatewayTransactorSession) SubmitOrderWithPermit(sender [32]byte, recipient [32]byte, amountIn *big.Int, amountOut *big.Int, destinationDomain uint32, timeoutTimestamp uint64, permitDeadline *big.Int, data []byte, signature []byte) (*types.Transaction, error) {
 	return _FastTransferGateway.Contract.SubmitOrderWithPermit(&_FastTransferGateway.TransactOpts, sender, recipient, amountIn, amountOut, destinationDomain, timeoutTimestamp, permitDeadline, data, signature)
 }
 

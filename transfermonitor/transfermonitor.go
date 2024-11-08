@@ -3,7 +3,6 @@ package transfermonitor
 import (
 	"context"
 	"database/sql"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -125,7 +124,7 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 							Recipient:                         order.OrderEvent.Recipient[:],
 							AmountIn:                          order.OrderEvent.AmountIn.String(),
 							AmountOut:                         order.OrderEvent.AmountOut.String(),
-							Nonce:                             order.OrderEvent.Nonce.Int64(),
+							Nonce:                             int64(order.OrderEvent.Nonce),
 							OrderCreationTx:                   order.TxHash,
 							OrderCreationTxBlockHeight:        int64(order.TxBlockHeight),
 							OrderID:                           order.OrderID,
@@ -297,7 +296,7 @@ OuterLoop:
 						OrderEvent:         orderData,
 						ChainEnvironment:   chainEnvironment,
 						OrderID:            hex.EncodeToString(iter.Event.OrderID[:]),
-						TimeoutTimestamp:   orderData.TimeoutTimestamp.Int64(),
+						TimeoutTimestamp:   int64(orderData.TimeoutTimestamp),
 					})
 					m.Unlock()
 				}
@@ -325,11 +324,11 @@ func decodeOrder(bytes []byte) fast_transfer_gateway.FastTransferOrder {
 	order.Recipient = [32]byte(bytes[32:64])
 	order.AmountIn = new(big.Int).SetBytes(bytes[64:96])
 	order.AmountOut = new(big.Int).SetBytes(bytes[96:128])
-	order.Nonce = new(big.Int).SetBytes(bytes[128:160])
-	order.SourceDomain = binary.LittleEndian.Uint32(bytes[160:164])
-	order.DestinationDomain = binary.LittleEndian.Uint32(bytes[164:168])
-	order.TimeoutTimestamp = new(big.Int).SetBytes(bytes[168:200])
-	order.Data = bytes[200:]
+	order.Nonce = uint32(new(big.Int).SetBytes(bytes[128:132]).Uint64())
+	order.SourceDomain = uint32(new(big.Int).SetBytes(bytes[132:136]).Uint64())
+	order.DestinationDomain = uint32(new(big.Int).SetBytes(bytes[136:140]).Uint64())
+	order.TimeoutTimestamp = new(big.Int).SetBytes(bytes[140:148]).Uint64()
+	order.Data = bytes[148:]
 	return order
 }
 
