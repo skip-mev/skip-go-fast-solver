@@ -540,6 +540,10 @@ func (c *CosmosBridgeClient) OrderExists(ctx context.Context, gatewayContractAdd
 	return false, nil, errors.New("not implemented")
 }
 
+func (c *CosmosBridgeClient) OrderStatus(ctx context.Context, gatewayContractAddress, orderID string) (uint8, error) {
+	return 0, errors.New("not implemented")
+}
+
 func (c *CosmosBridgeClient) Close() {}
 
 func (c *CosmosBridgeClient) sign(ctx context.Context, tx sdk.Tx, accountNumber uint64, sequence uint64) (sdk.Tx, error) {

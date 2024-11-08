@@ -61,4 +61,5 @@ type BridgeClient interface {
 	OrderExists(ctx context.Context, gatewayContractAddress, orderID string, blockNumber *big.Int) (exists bool, amount *big.Int, err error)
 	IsOrderRefunded(ctx context.Context, gatewayContractAddress, orderID string) (bool, string, error)
 	InitiateTimeout(ctx context.Context, order db.Order, gatewayContractAddress string) (string, string, *uint64, error)
+	OrderStatus(ctx context.Context, gatewayContractAddress, orderID string) (uint8, error)
 }

@@ -243,3 +243,25 @@ func (c *EVMBridgeClient) OrderFillsByFiller(ctx context.Context, gatewayContrac
 func (c *EVMBridgeClient) Balance(ctx context.Context, address, denom string) (*big.Int, error) {
 	return nil, errors.New("not implemented")
 }
+
+func (c *EVMBridgeClient) OrderStatus(ctx context.Context, gatewayContractAddress string, orderID string) (uint8, error) {
+	fastTransferGateway, err := fast_transfer_gateway.NewFastTransferGateway(
+		common.HexToAddress(gatewayContractAddress),
+		c.client,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	orderIDBytes, err := hex.DecodeString(orderID)
+	if err != nil {
+		return 0, err
+	}
+
+	status, err := fastTransferGateway.OrderStatuses(&bind.CallOpts{Context: ctx}, [32]byte(orderIDBytes))
+	if err != nil {
+		return 0, fmt.Errorf("querying orderID %s status: %w", orderID, err)
+	}
+
+	return status, nil
+}
