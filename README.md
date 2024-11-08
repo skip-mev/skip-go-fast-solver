@@ -34,6 +34,7 @@ risk/reward profile and if they have the required resources on the destination c
 ### Latest Fast Transfer contract addresses
 
 Use these addresses in the solver config and when using the CLI tool to submit transfers
+
 - Arbitrum: https://arbiscan.io/address/0x23cb6147e5600c23d1fb5543916d3d5457c9b54c
 - Optimism: https://optimistic.etherscan.io/address/0x0f479de4fd3144642f1af88e3797b1821724f703
 - Polygon: https://polygonscan.com/address/0x3ffaf8d0d33226302e3a0ae48367cf1dd2023b1f
