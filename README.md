@@ -31,6 +31,17 @@ risk/reward profile and if they have the required resources on the destination c
    address on the source chain.
 4. **Completion**: The solver has now received the assets they fronted for the user, along with the service fee they earned, completing the settlement process.
 
+### Latest Fast Transfer contract addresses
+
+Use these addresses in the solver config and when using the CLI tool to submit transfers
+- Arbitrum: https://arbiscan.io/address/0x23cb6147e5600c23d1fb5543916d3d5457c9b54c
+- Optimism: https://optimistic.etherscan.io/address/0x0f479de4fd3144642f1af88e3797b1821724f703
+- Polygon: https://polygonscan.com/address/0x3ffaf8d0d33226302e3a0ae48367cf1dd2023b1f
+- Base: https://basescan.org/address/0x43d090025aaa6c8693b71952b910ac55ccb56bbb
+- Avalanche: https://snowtrace.io/address/0xD415B02A7E91dBAf92EAa4721F9289CFB7f4E1cF
+- Ethereum: https://etherscan.io/address/0xe7935104c9670015b21c6300e5b95d2f75474cda
+- Osmosis: https://celatone.osmosis.zone/osmosis-1/contracts/osmo1vy34lpt5zlj797w7zqdta3qfq834kapx88qtgudy7jgljztj567s73ny82
+
 ### How to start server
 
 1. Update [config/local/keys.json](config/local/keys.json) with the corresponding solver private keys and addresses.
