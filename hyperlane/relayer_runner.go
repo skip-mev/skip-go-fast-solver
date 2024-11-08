@@ -96,10 +96,11 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 						)
 
 						if _, err := r.db.SetMessageStatus(ctx, db.SetMessageStatusParams{
-							TransferStatus:     dbtypes.TransferStatusAbandoned,
-							SourceChainID:      transfer.SourceChainID,
-							DestinationChainID: transfer.DestinationChainID,
-							MessageID:          transfer.MessageID,
+							TransferStatus:        dbtypes.TransferStatusAbandoned,
+							SourceChainID:         transfer.SourceChainID,
+							DestinationChainID:    transfer.DestinationChainID,
+							MessageID:             transfer.MessageID,
+							TransferStatusMessage: sql.NullString{String: err.Error(), Valid: true},
 						}); err != nil {
 							lmt.Logger(ctx).Error(
 								"error updating invalid transfer status",
