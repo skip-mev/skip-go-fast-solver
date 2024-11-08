@@ -275,7 +275,8 @@
         "type": "uint32",
         "internalType": "uint32"
       }
-    ], "stateMutability": "view"
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
