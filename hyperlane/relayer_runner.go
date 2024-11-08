@@ -85,8 +85,8 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 
 				isTransferValid, err := r.validateHyperlaneTransfer(ctx, transfer)
 				if err != nil {
-					lmt.Logger(ctx).Error(
-						"error validating hyperlane transfer",
+					lmt.Logger(ctx).Warn(
+						"failed to validate Hyperlane transfer- will retry validation on next interval",
 						zap.Error(err),
 						zap.Int64("transferId", transfer.ID),
 						zap.String("txHash", transfer.MessageSentTx),

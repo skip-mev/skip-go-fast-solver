@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"strconv"
+	"strings"
 	"time"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
@@ -215,7 +216,7 @@ func (r *OrderSettler) verifyOrderSettlements(ctx context.Context) error {
 
 		if err = r.verifyOrderSettlement(ctx, settlement); err != nil {
 			lmt.Logger(ctx).Warn(
-				"error verifying order settlement",
+				"failed to verify order settlement",
 				zap.Error(err),
 				zap.String("orderID", settlement.OrderID),
 				zap.String("sourceChainID", settlement.SourceChainID),
@@ -395,6 +396,11 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 	if settlement.SettlementStatus == dbtypes.SettlementStatusPending {
 		gasCost, failure, err := destinationBridgeClient.GetTxResult(ctx, settlement.InitiateSettlementTx.String)
 		if err != nil {
+			// Check if the error is due to tx not found
+			if strings.Contains(err.Error(), "tx") && strings.Contains(err.Error(), "not found") && strings.Contains(err.Error(), settlement.InitiateSettlementTx.String) {
+				// Transaction not yet indexed, we'll check again later
+				return fmt.Errorf("transaction not yet indexed. will retry fetching next interval")
+			}
 			return fmt.Errorf("failed to fetch message received event: %w", err)
 		} else if failure != nil {
 			lmt.Logger(ctx).Error("tx failed", zap.String("failure", failure.String()))
