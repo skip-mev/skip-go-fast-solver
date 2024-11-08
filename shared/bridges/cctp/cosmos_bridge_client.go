@@ -315,6 +315,10 @@ func (c *CosmosBridgeClient) InitiateTimeout(ctx context.Context, order db.Order
 			},
 		},
 	}
+	if order.Data.Valid {
+		initiateTimeoutMsg.InitiateTimeout.Orders[0].Data = order.Data.String
+	}
+
 	initiateTimeoutMsgBytes, err := json.Marshal(initiateTimeoutMsg)
 	if err != nil {
 		return "", "", nil, err
