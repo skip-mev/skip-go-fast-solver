@@ -46,9 +46,9 @@ func (o *Oracle) TxFeeUUSDC(ctx context.Context, tx *types.Transaction) (*big.In
 
 // gasCostUUSDC converts an amount of gas and the price per gas in gwei to
 // uusdc based on the current CoinGecko price of ethereum in usd.
-func (o *Oracle) gasCostUUSDC(ctx context.Context, pricePerGasGwei *big.Int, gasUsed *big.Int) (*big.Int, error) {
-	// Calculate transaction fee in Gwei
-	txFeeGwei := new(big.Int).Mul(gasUsed, pricePerGasGwei)
+func (o *Oracle) gasCostUUSDC(ctx context.Context, pricePerGasWei *big.Int, gasUsed *big.Int) (*big.Int, error) {
+	// Calculate transaction fee in Wei
+	txFeeWei := new(big.Int).Mul(gasUsed, pricePerGasWei)
 
 	// Get the ETH price in USD cents from CoinGecko
 	ethPriceUSD, err := o.coingecko.GetSimplePrice(ctx, coingeckoEthID, coingeckoUSDCurrency)
@@ -56,10 +56,10 @@ func (o *Oracle) gasCostUUSDC(ctx context.Context, pricePerGasGwei *big.Int, gas
 		return nil, fmt.Errorf("getting CoinGecko price of Ethereum in USD: %w", err)
 	}
 
-	// Convert ETH price to microunits of USDC (uusdc) per Gwei
-	// GWEI_PER_ETH = 1_000_000_000 (1 ETH = 10^9 Gwei)
+	// Convert ETH price to microunits of USDC (uusdc) per Wei
+	// WEI_PER_ETH = 1_000_000_000_000_000_000 (1 ETH = 10^18 Wei)
 	// UUSDC_PER_USD = 1_000_000 (1 USD = 10^6 UUSDC)
-	const GWEI_PER_ETH = 1_000_000_000
+	const WEI_PER_ETH = 1_000_000_000_000_000_000
 	const UUSDC_PER_USD = 1_000_000
 
 	// convert eth price in usd to eth price in uusdc
@@ -74,16 +74,16 @@ func (o *Oracle) gasCostUUSDC(ctx context.Context, pricePerGasGwei *big.Int, gas
 	}
 
 	// What we are really trying to do is:
-	//   eth price uusdc / gwei per eth = gwei price in uusdc
-	//   gwei price in uusdc * tx fee gwei = tx fee uusdc
-	// However we are choosing to first multiply eth price uusdc by tx fee gwei
-	// so that we can do integer division when converting to gwei, since if we
+	//   eth price uusdc / wei per eth = wei price in uusdc
+	//   wei price in uusdc * tx fee wei = tx fee uusdc
+	// However we are choosing to first multiply eth price uusdc by tx fee wei
+	// so that we can do integer division when converting to wei, since if we
 	// first do integer division (before multiplying), we are going to cut off
 	// necessary decimals. there are limits of this, if eth price uusdc * tx
-	// fee gwei has less than 9 digits, then we will just return 0. However,
+	// fee wei has less than 9 digits, then we will just return 0. However,
 	// this is unlikely in practice and the tx fee would be very small if this
 	// is the case.
-	tmp := new(big.Int).Mul(ethPriceUUSDCInt, txFeeGwei)
-	txFeeUUSDC := new(big.Int).Div(tmp, big.NewInt(GWEI_PER_ETH))
+	tmp := new(big.Int).Mul(ethPriceUUSDCInt, txFeeWei)
+	txFeeUUSDC := new(big.Int).Div(tmp, big.NewInt(WEI_PER_ETH))
 	return txFeeUUSDC, nil
 }

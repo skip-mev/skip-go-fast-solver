@@ -89,6 +89,17 @@ func Test_Oracle_TxFeeUUSDC(t *testing.T) {
 			// 0.00012368 * 1000000 = 2473 uusdc
 			ExpectedUUSDCPrice: 0,
 		},
+		{
+			Name: "100 gas used, 5gwei per gas, 10.21usd per eth",
+			// 20000000 * 1014806 = 20,296,120,000,000 gwei fee
+			MaxPricePerGas: 20000000,
+			GasUsed:        1014806,
+			// price per gwei in usd = 0.0000028295
+			ETHPriceUSD: 2829.46,
+			// price per gwei in usd * gwei fee = 57,427,871.54 usd
+			// 0.00012368 * 1000000 = 2473 uusdc
+			ExpectedUUSDCPrice: 1,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
