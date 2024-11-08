@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
@@ -83,47 +84,38 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 					continue
 				}
 
-				isTransferValid, err := r.validateHyperlaneTransfer(ctx, transfer)
+				destinationTxHash, destinationChainID, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx)
 				if err != nil {
-					lmt.Logger(ctx).Warn(
-						"failed to validate hyperlane transfer",
-						zap.Int64("transferId", transfer.ID),
-						zap.String("txHash", transfer.MessageSentTx),
-						zap.Error(err),
-					)
-					continue
-				}
-
-				if !isTransferValid {
-					lmt.Logger(ctx).Warn(
-						"abandoning invalid hyperlane transfer",
-						zap.Int64("transferId", transfer.ID),
-						zap.String("txHash", transfer.MessageSentTx),
-						zap.Error(err),
-					)
-
-					if _, err := r.db.SetMessageStatus(ctx, db.SetMessageStatusParams{
-						TransferStatus:     dbtypes.TransferStatusAbandoned,
-						SourceChainID:      transfer.SourceChainID,
-						DestinationChainID: transfer.DestinationChainID,
-						MessageID:          transfer.MessageID,
-					}); err != nil {
-						lmt.Logger(ctx).Error(
-							"error updating invalid transfer status",
+					// Unrecoverable error
+					if strings.Contains("execution reverted", err.Error()) {
+						lmt.Logger(ctx).Warn(
+							"abandoning hyperlane transfer",
 							zap.Int64("transferId", transfer.ID),
 							zap.String("txHash", transfer.MessageSentTx),
 							zap.Error(err),
 						)
-					}
-					continue
-				}
 
-				destinationTxHash, destinationChainID, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx)
-				if err != nil {
-					if errors.Is(err, ErrNotEnoughSignaturesFound) {
-						// warning already logged in relayer
+						if _, err := r.db.SetMessageStatus(ctx, db.SetMessageStatusParams{
+							TransferStatus:     dbtypes.TransferStatusAbandoned,
+							SourceChainID:      transfer.SourceChainID,
+							DestinationChainID: transfer.DestinationChainID,
+							MessageID:          transfer.MessageID,
+						}); err != nil {
+							lmt.Logger(ctx).Error(
+								"error updating invalid transfer status",
+								zap.Int64("transferId", transfer.ID),
+								zap.String("txHash", transfer.MessageSentTx),
+								zap.Error(err),
+							)
+						}
 						continue
 					}
+
+					// warning already logged in relayer
+					if errors.Is(err, ErrNotEnoughSignaturesFound) {
+						continue
+					}
+
 					lmt.Logger(ctx).Error(
 						"error relaying pending hyperlane transfer",
 						zap.Error(err),
@@ -288,38 +280,4 @@ func (r *RelayerRunner) findTimeoutsToRelay(ctx context.Context) error {
 		}
 	}
 	return nil
-}
-
-func (r *RelayerRunner) validateHyperlaneTransfer(ctx context.Context, transfer db.HyperlaneTransfer) (bool, error) {
-	sourceChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(transfer.SourceChainID)
-	if err != nil {
-		return false, fmt.Errorf("getting source chain config: %w", err)
-	}
-
-	dispatch, _, err := r.hyperlane.GetHyperlaneDispatch(ctx, sourceChainConfig.HyperlaneDomain, transfer.SourceChainID, transfer.MessageSentTx)
-	if err != nil {
-		return false, fmt.Errorf("getting hyperlane dispatch: %w", err)
-	}
-
-	if len(dispatch.Recipient) == 0 {
-		return false, fmt.Errorf("invalid hyperlane transfer: empty recipient")
-	}
-
-	if len(dispatch.Message) == 0 {
-		return false, fmt.Errorf("invalid hyperlane transfer: empty message")
-	}
-
-	if len(dispatch.Sender) == 0 {
-		return false, fmt.Errorf("invalid hyperlane transfer: empty sender")
-	}
-
-	if len(dispatch.MessageID) == 0 {
-		return false, fmt.Errorf("invalid hyperlane transfer: empty messageID")
-	}
-
-	if len(dispatch.DestinationDomain) == 0 {
-		return false, fmt.Errorf("invalid hyperlane transfer: empty destination domain")
-	}
-
-	return true, nil
 }
