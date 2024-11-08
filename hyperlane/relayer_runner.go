@@ -86,7 +86,7 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 				isTransferValid, err := r.validateHyperlaneTransfer(ctx, transfer)
 				if err != nil {
 					lmt.Logger(ctx).Warn(
-						"failed to validate Hyperlane transfer- will retry validation on next interval",
+						"failed to validate Hyperlane transfer",
 						zap.Error(err),
 						zap.Int64("transferId", transfer.ID),
 						zap.String("txHash", transfer.MessageSentTx),
@@ -119,6 +119,10 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 
 				destinationTxHash, destinationChainID, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx)
 				if err != nil {
+					if errors.Is(err, ErrNotEnoughSignaturesFound) {
+						// warning already logged in relayer
+						continue
+					}
 					lmt.Logger(ctx).Error(
 						"error relaying pending hyperlane transfer",
 						zap.Error(err),

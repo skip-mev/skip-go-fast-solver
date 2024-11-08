@@ -216,7 +216,7 @@ func (r *OrderSettler) verifyOrderSettlements(ctx context.Context) error {
 
 		if err = r.verifyOrderSettlement(ctx, settlement); err != nil {
 			lmt.Logger(ctx).Warn(
-				"failed to verify order settlement",
+				"failed to verify order settlement, will retry verification on next interval",
 				zap.Error(err),
 				zap.String("orderID", settlement.OrderID),
 				zap.String("sourceChainID", settlement.SourceChainID),
