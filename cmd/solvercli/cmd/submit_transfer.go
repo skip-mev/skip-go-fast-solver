@@ -26,11 +26,11 @@ import (
 )
 
 var submitCmd = &cobra.Command{
-	Use:   "submit",
+	Use:   "submit-transfer",
 	Short: "Submit a new fast transfer order",
-	Long: `Submit a new fast transfer order through the FastTransferGateway contract.
+	Long: `Submit a new fast transfer order through the FastTransfer gateway contract.
 Example:
-  ./build/solvercli submit \
+  ./build/solvercli submit-transfer \
   --config ./config/local/config.yml \
   --token 0xaf88d065e77c8cC2239327C5EDb3A432268e5831 \
   --recipient osmo13c9seh3vgvtfvdufz4eh2zhp0cepq4wj0egc02 \
@@ -40,10 +40,10 @@ Example:
   --gateway 0x9c75534d7d6670a3ddd69a55b4067460f3e8744b \
   --private-key 0xf6079d30f832f998c86e5841385a4be06b6ca2b0875b90dcab8e167eba4dcab1 \
   --deadline-hours 24`,
-	Run: submitOrder,
+	Run: submitTransfer,
 }
 
-func submitOrder(cmd *cobra.Command, args []string) {
+func submitTransfer(cmd *cobra.Command, args []string) {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
