@@ -5,8 +5,8 @@ metrics:
 coingecko:
   base_url: "https://pro-api.coingecko.com/api/v3/"
   api_key: <api_key>
-  requests_per_minute: 500
-  cache_refresh_interval: "5m"
+  requests_per_minute: 2
+  cache_refresh_interval: "15m"
 order_filler:
   worker_count: 10
 fund_rebalancer:
