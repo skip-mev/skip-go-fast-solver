@@ -87,7 +87,7 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 				destinationTxHash, destinationChainID, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx)
 				if err != nil {
 					// Unrecoverable error
-					if strings.Contains("execution reverted", err.Error()) {
+					if strings.Contains(err.Error(), "execution reverted") {
 						lmt.Logger(ctx).Warn(
 							"abandoning hyperlane transfer",
 							zap.Int64("transferId", transfer.ID),
