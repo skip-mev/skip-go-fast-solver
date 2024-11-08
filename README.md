@@ -71,7 +71,7 @@ This only supports transferring USDC from EVM -> Osmosis, as any pre/post transf
 
 ```shell
 make build-cli
-./solver ./build/solvercli submit-transfer \
+./build/solvercli submit-transfer \
   --config <configFilePath> \ # e.g ./config/local/config.yml
   --token  <usdc address for source chain> \ # e.g. 0xaf88d065e77c8cC2239327C5EDb3A432268e5831
   --recipient <recipient address on destination chain>  \ # e.g. osmo13c9seh3vgvtfvdufz4eh2zhp0cepq4wj0egc02
@@ -88,7 +88,7 @@ relay: manually relay a hyperlane transaction
 ```shell
 make build-cli # build cli tool
 # manually relay a transaction
-./solvercli relay \
+./build/solvercli relay \
 --config <configFilePath> \ # e.g ./config/local/config.yml
 --keys <keysFilePath> \ # e.g ./config/local/keys.json
 --key-store-type <plaintext-file|encrypted-file|env> \
