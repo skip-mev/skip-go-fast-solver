@@ -34,7 +34,7 @@ func NewRelayer(hyperlaneClient Client, storageLocationOverrides map[string]stri
 
 var (
 	ErrMessageAlreadyDelivered  = fmt.Errorf("message has already been delivered")
-	ErrNotEnoughSignaturesFound = errors.New("signatures found below expected threshold in in multisig signed checkpoint")
+	ErrNotEnoughSignaturesFound = errors.New("number of signatures found in multisig signed checkpoint is below expected threshold")
 )
 
 func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHash string) (destinationTxHash string, destinationChainID string, err error) {

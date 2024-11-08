@@ -290,12 +290,12 @@ func (r *RelayerRunner) findTimeoutsToRelay(ctx context.Context) error {
 }
 
 func (r *RelayerRunner) validateHyperlaneTransfer(ctx context.Context, transfer db.HyperlaneTransfer) (bool, error) {
-	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(transfer.DestinationChainID)
+	sourceChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(transfer.SourceChainID)
 	if err != nil {
-		return false, fmt.Errorf("getting destination chain config: %w", err)
+		return false, fmt.Errorf("getting source chain config: %w", err)
 	}
 
-	dispatch, _, err := r.hyperlane.GetHyperlaneDispatch(ctx, destinationChainConfig.HyperlaneDomain, transfer.DestinationChainID, transfer.MessageSentTx)
+	dispatch, _, err := r.hyperlane.GetHyperlaneDispatch(ctx, sourceChainConfig.HyperlaneDomain, transfer.SourceChainID, transfer.MessageSentTx)
 	if err != nil {
 		return false, fmt.Errorf("getting hyperlane dispatch: %w", err)
 	}
