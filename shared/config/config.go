@@ -268,7 +268,7 @@ func (r *configReader) createIndexes() {
 	r.cctpDomainIndex = make(map[ChainEnvironment]map[uint32]ChainConfig)
 	r.chainIDIndex = make(map[string]ChainConfig)
 
-	for chainID, chain := range r.config.Chains {
+	for _, chain := range r.config.Chains {
 		if _, ok := r.cctpDomainIndex[chain.Environment]; !ok {
 			r.cctpDomainIndex[chain.Environment] = make(map[uint32]ChainConfig)
 		}
@@ -277,7 +277,7 @@ func (r *configReader) createIndexes() {
 		if chain.Type == ChainType_COSMOS && chain.Cosmos == nil {
 			lmt.Logger(context.Background()).Error(
 				"invalid chain configuration",
-				zap.String("chainID", chainID),
+				zap.String("chainID", chain.ChainID),
 				zap.String("type", string(chain.Type)),
 				zap.Bool("hasCosmosConfig", chain.Cosmos != nil),
 			)
@@ -286,17 +286,17 @@ func (r *configReader) createIndexes() {
 		if chain.Type == ChainType_EVM && chain.EVM == nil {
 			lmt.Logger(context.Background()).Error(
 				"invalid chain configuration",
-				zap.String("chainID", chainID),
+				zap.String("chainID", chain.ChainID),
 				zap.String("type", string(chain.Type)),
 				zap.Bool("hasEVMConfig", chain.EVM != nil),
 			)
 		}
 
-		r.chainIDIndex[chainID] = chain
+		r.chainIDIndex[chain.ChainID] = chain
 
 		lmt.Logger(context.Background()).Debug(
 			"indexed chain configuration",
-			zap.String("chainID", chainID),
+			zap.String("chainID", chain.ChainID),
 			zap.Any("chainConfig", chain))
 	}
 }
