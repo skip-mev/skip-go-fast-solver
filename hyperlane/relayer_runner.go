@@ -83,6 +83,40 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 					continue
 				}
 
+				isTransferValid, err := r.validateHyperlaneTransfer(ctx, transfer)
+				if err != nil {
+					lmt.Logger(ctx).Error(
+						"error validating hyperlane transfer",
+						zap.Error(err),
+						zap.Int64("transferId", transfer.ID),
+						zap.String("txHash", transfer.MessageSentTx),
+					)
+					continue
+				}
+
+				if !isTransferValid {
+					lmt.Logger(ctx).Warn(
+						"skipping invalid hyperlane transfer",
+						zap.Any("transfer", transfer),
+						zap.Error(err),
+					)
+
+					if _, err := r.db.SetMessageStatus(ctx, db.SetMessageStatusParams{
+						TransferStatus:     dbtypes.TransferStatusAbandoned,
+						SourceChainID:      transfer.SourceChainID,
+						DestinationChainID: transfer.DestinationChainID,
+						MessageID:          transfer.MessageID,
+					}); err != nil {
+						lmt.Logger(ctx).Error(
+							"error updating invalid transfer status",
+							zap.Error(err),
+							zap.Int64("transferId", transfer.ID),
+							zap.String("txHash", transfer.MessageSentTx),
+						)
+					}
+					continue
+				}
+
 				destinationTxHash, destinationChainID, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx)
 				if err != nil {
 					lmt.Logger(ctx).Error(
@@ -249,4 +283,38 @@ func (r *RelayerRunner) findTimeoutsToRelay(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (r *RelayerRunner) validateHyperlaneTransfer(ctx context.Context, transfer db.HyperlaneTransfer) (bool, error) {
+	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(transfer.DestinationChainID)
+	if err != nil {
+		return false, fmt.Errorf("getting destination chain config: %w", err)
+	}
+
+	dispatch, _, err := r.hyperlane.GetHyperlaneDispatch(ctx, destinationChainConfig.HyperlaneDomain, transfer.DestinationChainID, transfer.MessageSentTx)
+	if err != nil {
+		return false, fmt.Errorf("getting hyperlane dispatch: %w", err)
+	}
+
+	if len(dispatch.Recipient) == 0 {
+		return false, fmt.Errorf("invalid hyperlane transfer: empty recipient")
+	}
+
+	if len(dispatch.Message) == 0 {
+		return false, fmt.Errorf("invalid hyperlane transfer: empty message")
+	}
+
+	if len(dispatch.Sender) == 0 {
+		return false, fmt.Errorf("invalid hyperlane transfer: empty sender")
+	}
+
+	if len(dispatch.MessageID) == 0 {
+		return false, fmt.Errorf("invalid hyperlane transfer: empty messageID")
+	}
+
+	if len(dispatch.DestinationDomain) == 0 {
+		return false, fmt.Errorf("invalid hyperlane transfer: empty destination domain")
+	}
+
+	return true, nil
 }
