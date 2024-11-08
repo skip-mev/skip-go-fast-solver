@@ -9,7 +9,6 @@ COPY go.mod go.sum Makefile ./
 RUN --mount=type=cache,target=/root/.cache/go-build make deps
 
 COPY . .
-RUN make db-clean
 
 RUN --mount=type=cache,target=/root/.cache/go-build go build -tags "sqlite_omit_load_extension,linux,musl" -o build/skip_go_fast_solver ./cmd/solver
 
