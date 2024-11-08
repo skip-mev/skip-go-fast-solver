@@ -47,8 +47,8 @@ make run-solver quickstart=true
 
 ```shell
 # Choose right platform to build Docker image
-docker build --platform <linux/amd64|linux/arm64> -t skip-mev/skip-go-fast-solver .
-docker run skip-mev/skip-go-fast-solver
+docker build --platform <linux/amd64|linux/arm64> -t skip-go-fast-solver .
+docker run skip-go-fast-solver
 ```
 
 ### How to run tests
