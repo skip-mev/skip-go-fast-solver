@@ -11,9 +11,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
 
-type ValidatorStorageLocations struct {
-	// StorageLocations is a map of validator addresses to storage locations
-	StorageLocations map[string]string
+type ValidatorStorageLocation struct {
+	Validator       string
+	StorageLocation string
 }
 
 type SignedCheckpoint struct {

@@ -88,16 +88,19 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 
 	lmt.Logger(ctx).Debug(
 		"got validator storage locations",
-		zap.Any("validatorStorageLocations", validatorStorageLocations.StorageLocations),
+		zap.Any("validatorStorageLocations", validatorStorageLocations),
 	)
 
 	// create fetchers for the validators storage locations (either S3 or local
 	// files)
 	var checkpointFetchers []CheckpointFetcher
-	for validator, storageLocation := range validatorStorageLocations.StorageLocations {
+	for _, validatorStorageLocation := range validatorStorageLocations {
+		validator := validatorStorageLocation.Validator
+		storageLocation := validatorStorageLocation.StorageLocation
 		if override, ok := r.storageLocationOverrides[validator]; ok {
 			storageLocation = override
 		}
+
 		fetcher, err := NewCheckpointFetcherFromStorageLocation(storageLocation, validator)
 		if err != nil {
 			return "", "", fmt.Errorf("creating checkpoint fetcher from storage location %s for validator %s: %w", storageLocation, validator, err)

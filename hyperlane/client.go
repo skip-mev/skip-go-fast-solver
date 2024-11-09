@@ -17,7 +17,7 @@ type Client interface {
 	HasBeenDelivered(ctx context.Context, destinationDomain string, messageID string) (bool, error)
 	ISMType(ctx context.Context, domain string, recipient string) (uint8, error)
 	ValidatorsAndThreshold(ctx context.Context, domain string, recipient string, message string) ([]common.Address, uint8, error)
-	ValidatorStorageLocations(ctx context.Context, domain string, validators []common.Address) (*types.ValidatorStorageLocations, error)
+	ValidatorStorageLocations(ctx context.Context, domain string, validators []common.Address) ([]*types.ValidatorStorageLocation, error)
 	MerkleTreeLeafCount(ctx context.Context, domain string) (uint64, error)
 	Process(ctx context.Context, domain string, message []byte, metadata []byte) ([]byte, error)
 	IsContract(ctx context.Context, domain, address string) (bool, error)
@@ -97,7 +97,7 @@ func (c *MultiClient) ValidatorStorageLocations(
 	ctx context.Context,
 	domain string,
 	validators []common.Address,
-) (*types.ValidatorStorageLocations, error) {
+) ([]*types.ValidatorStorageLocation, error) {
 	client, ok := c.clients[domain]
 	if !ok {
 		return nil, fmt.Errorf("no configured client for domain %s", domain)
