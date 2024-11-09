@@ -202,7 +202,7 @@ func (c *HyperlaneClient) ValidatorStorageLocations(
 	ctx context.Context,
 	domain string,
 	validators []common.Address,
-) (*types.ValidatorStorageLocations, error) {
+) ([]types.ValidatorStorageLocation, error) {
 	if domain != c.hyperlaneDomain {
 		return nil, fmt.Errorf("expected domain %s but got %s", c.hyperlaneDomain, domain)
 	}

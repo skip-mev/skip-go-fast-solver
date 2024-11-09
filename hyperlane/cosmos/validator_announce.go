@@ -27,7 +27,7 @@ type GetAnnounceStorageLoctions struct {
 	Validators []string `json:"validators"`
 }
 
-func (va *ValidatorAnnounceQuerier) GetAnnouncedValidatorStorageLocations(ctx context.Context, validators []string) (*types.ValidatorStorageLocations, error) {
+func (va *ValidatorAnnounceQuerier) GetAnnouncedValidatorStorageLocations(ctx context.Context, validators []string) ([]types.ValidatorStorageLocation, error) {
 	var stripped []string
 	for _, v := range validators {
 		stripped = append(stripped, strings.TrimPrefix(v, "0x"))
@@ -60,7 +60,7 @@ func (va *ValidatorAnnounceQuerier) GetAnnouncedValidatorStorageLocations(ctx co
 		return nil, fmt.Errorf("unmarshaling repsonse bytes into storage locations json: %w", err)
 	}
 
-	validatorStorageLocations := types.ValidatorStorageLocations{StorageLocations: make(map[string]string)}
+	var validatorStorageLocations []types.ValidatorStorageLocation
 	for _, validatorLocation := range validatorLocations.StorageLocations {
 		// each entry in the array is a two item slice, the first is the
 		// validator address as a string, the second is an array of storage
@@ -86,8 +86,8 @@ func (va *ValidatorAnnounceQuerier) GetAnnouncedValidatorStorageLocations(ctx co
 			return nil, fmt.Errorf("got unexpected type for second element of validator storge location, exepcted string")
 		}
 
-		validatorStorageLocations.StorageLocations[validator] = location
+		validatorStorageLocations = append(validatorStorageLocations, types.ValidatorStorageLocation{Validator: validator, StorageLocation: location})
 	}
 
-	return &validatorStorageLocations, nil
+	return validatorStorageLocations, nil
 }
