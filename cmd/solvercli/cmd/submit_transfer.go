@@ -64,14 +64,21 @@ func submitTransfer(cmd *cobra.Command, args []string) {
 
 	ctx = config.ConfigReaderContext(ctx, config.NewConfigReader(cfg))
 
-	chainCfg, ok := cfg.Chains[flags.sourceChainID]
-
-	if !ok {
-		lmt.Logger(ctx).Error("Source chain not found in config", zap.String("source_chain_id", flags.sourceChainID))
+	sourceChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(flags.sourceChainID)
+	if err != nil {
+		lmt.Logger(ctx).Error("source chain not found in config", zap.String("sourceChainID", flags.sourceChainID))
+		return
+	}
+	if sourceChainConfig.Type != config.ChainType_EVM {
+		lmt.Logger(ctx).Error(
+			"source chain must be of type evm",
+			zap.String("sourceChainID", flags.sourceChainID),
+			zap.String("sourceChainType", string(sourceChainConfig.Type)),
+		)
 		return
 	}
 
-	client, err := ethclient.Dial(chainCfg.EVM.RPC)
+	client, err := ethclient.Dial(sourceChainConfig.EVM.RPC)
 	if err != nil {
 		lmt.Logger(ctx).Error("Failed to connect to the network", zap.Error(err))
 		return
