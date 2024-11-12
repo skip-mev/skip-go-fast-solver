@@ -220,6 +220,7 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 // RelayOpts provides users options for how the relayer should behave when
 // relaying a tx.
 type RelayOpts struct {
+	MaxTxFeeUUSDC *big.Int
 	// Profitability provides relaying options regarding how profitable it is to
 	// relay a tx. Typically this would be used when the relayer is relaying a tx
 	// bound for itself, and it should only relay that tx under profitable

@@ -14,6 +14,7 @@ type Querier interface {
 	GetAllOrderSettlementsWithSettlementStatus(ctx context.Context, settlementStatus string) ([]OrderSettlement, error)
 	GetAllOrdersWithOrderStatus(ctx context.Context, orderStatus string) ([]Order, error)
 	GetAllPendingRebalanceTransfers(ctx context.Context) ([]GetAllPendingRebalanceTransfersRow, error)
+	GetOrderByOrderID(ctx context.Context, orderID string) (Order, error)
 	GetPendingRebalanceTransfersToChain(ctx context.Context, destinationChainID string) ([]GetPendingRebalanceTransfersToChainRow, error)
 	GetSubmittedTxsByHyperlaneTransferId(ctx context.Context, hyperlaneTransferID sql.NullInt64) ([]SubmittedTx, error)
 	GetSubmittedTxsByOrderIdAndType(ctx context.Context, arg GetSubmittedTxsByOrderIdAndTypeParams) ([]SubmittedTx, error)

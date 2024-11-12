@@ -37,6 +37,8 @@ var params = Config{
 type Database interface {
 	GetAllOrderSettlementsWithSettlementStatus(ctx context.Context, settlementStatus string) ([]db.OrderSettlement, error)
 
+	GetOrderByOrderID(ctx context.Context, orderID string) (db.Order, error)
+
 	SetSettlementStatus(ctx context.Context, arg db.SetSettlementStatusParams) (db.OrderSettlement, error)
 
 	SetInitiateSettlementTx(ctx context.Context, arg db.SetInitiateSettlementTxParams) (db.OrderSettlement, error)
@@ -55,16 +57,24 @@ type Relayer interface {
 }
 
 type OrderSettler struct {
-	db            Database
-	clientManager *clientmanager.ClientManager
-	relayer       Relayer
+	db                 Database
+	clientManager      *clientmanager.ClientManager
+	relayer            Relayer
+	minProfitMarginBPS int
 }
 
-func NewOrderSettler(ctx context.Context, db Database, clientManager *clientmanager.ClientManager, relayer Relayer) (*OrderSettler, error) {
+func NewOrderSettler(
+	ctx context.Context,
+	db Database,
+	clientManager *clientmanager.ClientManager,
+	relayer Relayer,
+	minProfitMarginBPS int,
+) (*OrderSettler, error) {
 	return &OrderSettler{
-		db:            db,
-		clientManager: clientManager,
-		relayer:       relayer,
+		db:                 db,
+		clientManager:      clientManager,
+		relayer:            relayer,
+		minProfitMarginBPS: minProfitMarginBPS,
 	}, nil
 }
 
@@ -234,25 +244,22 @@ func (r *OrderSettler) relaySettlements(
 		// the orders source chain is where the settlement is paid out to the solver
 		settlementPayoutChainID := batches[i].SourceChainID()
 
-		totalValue, err := batches[i].TotalValue()
-		if err != nil {
-			return fmt.Errorf("getting total value for batch %s: %w", batches[i].String(), err)
-		}
-
 		settlementPayoutChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(settlementPayoutChainID)
 		if err != nil {
 			return fmt.Errorf("getting chain config for settlement payout chain %s: %w", settlementPayoutChainID, err)
 		}
 
+		maxTxFeeUUSDC, err := r.maxBatchTxFeeUUSDC(ctx, batches[i])
+		if err != nil {
+			return fmt.Errorf("calculating max batch (hash: %s) tx fee in uusdc: %w", txHash, err)
+		}
+
 		var opts hyperlane.RelayOpts
 		if settlementPayoutChainConfig.Relayer.MaxGasPricePct != nil {
 			opts = hyperlane.RelayOpts{
-				Profitability: &hyperlane.Profitability{
-					MaxGasPricePct:  *settlementPayoutChainConfig.Relayer.MaxGasPricePct,
-					TotalRelayValue: totalValue,
-				},
-				Submitter: submitter,
-				Delay:     time.Duration(5 * time.Second),
+				MaxTxFeeUUSDC: maxTxFeeUUSDC,
+				Submitter:     submitter,
+				Delay:         time.Duration(5 * time.Second),
 			}
 		}
 		if err = r.relayer.SubmitTxToRelay(ctx, txHash, settlementInitiationChainID, opts); err != nil {
@@ -264,6 +271,51 @@ func (r *OrderSettler) relaySettlements(
 	}
 
 	return nil
+}
+
+func (r *OrderSettler) maxBatchTxFeeUUSDC(ctx context.Context, batch types.SettlementBatch) (*big.Int, error) {
+	profit, err := r.totalBatchProfit(ctx, batch)
+	if err != nil {
+		return nil, fmt.Errorf("calculating profit for batch: %w", err)
+	}
+
+	minProfitMarginBPS := big.NewFloat(float64(r.minProfitMarginBPS))
+	minProfitMarginDec := minProfitMarginBPS.Quo(minProfitMarginBPS, big.NewFloat(10000))
+
+	// for example if max profit margin dec is 0.98, they want to make 98%
+	// margin on this settlement, leaving 2% of the profit to pay for tx fees
+	maxTxFeePctDec := minProfitMarginDec.Sub(big.NewFloat(1), minProfitMarginDec)
+
+	maxGasFeeUUSDC := maxTxFeePctDec.Mul(maxTxFeePctDec, new(big.Float).SetInt(profit))
+	maxGasFeeUUSDCInt, _ := maxGasFeeUUSDC.Int(nil)
+
+	return maxGasFeeUUSDCInt, nil
+}
+
+func (r *OrderSettler) totalBatchProfit(ctx context.Context, batch types.SettlementBatch) (*big.Int, error) {
+	totalAmountIn, err := batch.TotalValue()
+	if err != nil {
+		return nil, fmt.Errorf("getting batches total value: %w", err)
+	}
+
+	totalAmountOut := big.NewInt(0)
+	for _, settlement := range batch {
+		// settlements dont store the amount out of the order, in order to
+		// calculate the profit, we have to look that up from the db
+		order, err := r.db.GetOrderByOrderID(ctx, settlement.OrderID)
+		if err != nil {
+			return nil, fmt.Errorf("getting order %s for settlement: %w", settlement.OrderID, err)
+		}
+
+		amountOut, ok := new(big.Int).SetString(order.AmountOut, 10)
+		if !ok {
+			return nil, fmt.Errorf("converting order %s's amount out %s to *big.Int", order.OrderID, order.AmountOut)
+		}
+
+		totalAmountOut.Add(totalAmountOut, amountOut)
+	}
+
+	return totalAmountIn.Sub(totalAmountIn, totalAmountOut), nil
 }
 
 // verifyOrderSettlements checks on all instated settlements and updates their
