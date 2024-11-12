@@ -12,8 +12,7 @@ CREATE TABLE IF NOT EXISTS hyperlane_transfers (
     transfer_status         TEXT NOT NULL,
     transfer_status_message TEXT,
 
-    transfer_value TEXT,
-    max_gas_price_pct INTEGER,
+    max_tx_fee_uusdc TEXT,
 
     UNIQUE(source_chain_id, destination_chain_id, message_id)
 );
