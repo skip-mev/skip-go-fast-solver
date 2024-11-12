@@ -277,7 +277,7 @@ func (c *HyperlaneClient) ValidatorStorageLocations(
 	ctx context.Context,
 	domain string,
 	validators []common.Address,
-) (*types.ValidatorStorageLocations, error) {
+) ([]*types.ValidatorStorageLocation, error) {
 	panic("not implemented")
 }
 

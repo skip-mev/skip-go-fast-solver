@@ -194,7 +194,17 @@ func (t *TransferMonitor) findNewTransferIntentsOnEVMChain(ctx context.Context, 
 	}
 
 	if orders != nil {
-		lmt.Logger(ctx).Debug("EVM transfer intents found", zap.Any("Orders", orders))
+		orderCounts := make(map[string]int)
+		for _, order := range orders {
+			key := fmt.Sprintf("%s->%s", order.ChainID, order.DestinationChainID)
+			orderCounts[key]++
+		}
+
+		for chainPair, numOfOrders := range orderCounts {
+			lmt.Logger(ctx).Info("Fast transfer orders found",
+				zap.String("source->destination", chainPair),
+				zap.Int("numOfOrders", numOfOrders))
+		}
 	}
 	return orders, endBlockHeight, nil
 }

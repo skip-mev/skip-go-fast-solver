@@ -32,11 +32,15 @@ const (
 
 // Config Schema
 type Config struct {
-	Chains            map[string]ChainConfig          `yaml:"chains"`
-	Metrics           MetricsConfig                   `yaml:"metrics"`
-	Coingecko         CoingeckoConfig                 `yaml:"coingecko,omitempty"`
-	OrderFillerConfig OrderFillerConfig               `yaml:"order_filler_config"`
-	FundRebalancer    map[string]FundRebalancerConfig `yaml:"fund_rebalancer"`
+	Chains            map[string]ChainConfig `yaml:"chains"`
+	Metrics           MetricsConfig          `yaml:"metrics"`
+	OrderFillerConfig OrderFillerConfig      `yaml:"order_filler_config"`
+	Coingecko         CoingeckoConfig
+	// FundRebalancer is an optional configuration to aid in inventory
+	// management. You can set per chain target amounts and min allowed
+	// amounts, and the FundRebalancer will use skip go to move funds between
+	// chains to maintain these values.
+	FundRebalancer map[string]FundRebalancerConfig `yaml:"fund_rebalancer"`
 }
 
 type OrderFillerConfig struct {

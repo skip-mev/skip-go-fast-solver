@@ -26,24 +26,24 @@ import (
 )
 
 var submitCmd = &cobra.Command{
-	Use:   "submit",
+	Use:   "submit-transfer",
 	Short: "Submit a new fast transfer order",
-	Long: `Submit a new fast transfer order through the FastTransferGateway contract.
+	Long: `Submit a new fast transfer order through the FastTransfer gateway contract.
 Example:
-  ./build/solvercli submit \
+  ./build/solvercli submit-transfer \
   --config ./config/local/config.yml \
   --token 0xaf88d065e77c8cC2239327C5EDb3A432268e5831 \
   --recipient osmo13c9seh3vgvtfvdufz4eh2zhp0cepq4wj0egc02 \
   --amount 1000000 \
   --source-chain-id 42161 \
   --destination-chain-id osmosis-1 \
-  --gateway 0x9c75534d7d6670a3ddd69a55b4067460f3e8744b \
+  --gateway 0x23cb6147e5600c23d1fb5543916d3d5457c9b54c \
   --private-key 0xf6079d30f832f998c86e5841385a4be06b6ca2b0875b90dcab8e167eba4dcab1 \
   --deadline-hours 24`,
-	Run: submitOrder,
+	Run: submitTransfer,
 }
 
-func submitOrder(cmd *cobra.Command, args []string) {
+func submitTransfer(cmd *cobra.Command, args []string) {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
@@ -64,7 +64,21 @@ func submitOrder(cmd *cobra.Command, args []string) {
 
 	ctx = config.ConfigReaderContext(ctx, config.NewConfigReader(cfg))
 
-	client, err := ethclient.Dial(cfg.Chains[flags.sourceChainID].EVM.RPC)
+	sourceChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(flags.sourceChainID)
+	if err != nil {
+		lmt.Logger(ctx).Error("source chain not found in config", zap.String("sourceChainID", flags.sourceChainID))
+		return
+	}
+	if sourceChainConfig.Type != config.ChainType_EVM {
+		lmt.Logger(ctx).Error(
+			"source chain must be of type evm",
+			zap.String("sourceChainID", flags.sourceChainID),
+			zap.String("sourceChainType", string(sourceChainConfig.Type)),
+		)
+		return
+	}
+
+	client, err := ethclient.Dial(sourceChainConfig.EVM.RPC)
 	if err != nil {
 		lmt.Logger(ctx).Error("Failed to connect to the network", zap.Error(err))
 		return

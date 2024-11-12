@@ -9,6 +9,10 @@ coingecko:
   cache_refresh_interval: "15m"
 order_filler:
   worker_count: 10
+# The fund_rebalancer config is optional. If you do not want the solver to
+# rebalance your funds across chains via Skip GO (via the CCTP slow path CCTP, they
+# will not be fast transferred via Skip Go Fast), you can omit the
+# fund_rebalancer config all together.
 fund_rebalancer:
   ethereum:
     target_amount: <target_amount> # e.g. "1000000000"
@@ -27,6 +31,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
@@ -52,6 +57,7 @@ chains:
     environment: "testnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
@@ -77,6 +83,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "AVAX"
     gas_token_decimals: 18
+    fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
@@ -102,6 +109,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
@@ -128,7 +136,7 @@ chains:
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
     quick_start_num_blocks_back: 300000
-    fast_transfer_contract_address: "0x9c75534d7d6670a3ddd69a55b4067460f3e8744b"
+    fast_transfer_contract_address: <use_address_from_readme>
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     hyperlane_domain: "42161"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
@@ -173,7 +181,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "OSMO"
     gas_token_decimals: 6
-    fast_transfer_contract_address: "osmo1cnze5c4y7jw69ghzczsnu9v9qz3xuvevw5ayr2g0pa3ayafumlusej3pf5"
+    fast_transfer_contract_address: <use_address_from_readme>
     solver_address: <solver_address>
     hyperlane_domain: "875"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
@@ -207,6 +215,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
@@ -232,6 +241,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "MATIC"
     gas_token_decimals: 18
+    fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000

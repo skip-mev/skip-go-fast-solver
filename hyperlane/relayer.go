@@ -35,8 +35,9 @@ func NewRelayer(hyperlaneClient Client, storageLocationOverrides map[string]stri
 }
 
 var (
-	ErrMessageAlreadyDelivered = fmt.Errorf("message has already been delivered")
-	ErrRelayNotProfitable      = fmt.Errorf("relay not currently profitable")
+	ErrRelayNotProfitable       = fmt.Errorf("relay not currently profitable")
+	ErrMessageAlreadyDelivered  = fmt.Errorf("message has already been delivered")
+	ErrNotEnoughSignaturesFound = errors.New("number of signatures found in multisig signed checkpoint is below expected threshold")
 )
 
 func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHash string, opts RelayOpts) (destinationTxHash string, destinationChainID string, err error) {
@@ -90,16 +91,19 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 
 	lmt.Logger(ctx).Debug(
 		"got validator storage locations",
-		zap.Any("validatorStorageLocations", validatorStorageLocations.StorageLocations),
+		zap.Any("validatorStorageLocations", validatorStorageLocations),
 	)
 
 	// create fetchers for the validators storage locations (either S3 or local
 	// files)
 	var checkpointFetchers []CheckpointFetcher
-	for validator, storageLocation := range validatorStorageLocations.StorageLocations {
+	for _, validatorStorageLocation := range validatorStorageLocations {
+		validator := validatorStorageLocation.Validator
+		storageLocation := validatorStorageLocation.StorageLocation
 		if override, ok := r.storageLocationOverrides[validator]; ok {
 			storageLocation = override
 		}
+
 		fetcher, err := NewCheckpointFetcherFromStorageLocation(storageLocation, validator)
 		if err != nil {
 			return "", "", fmt.Errorf("creating checkpoint fetcher from storage location %s for validator %s: %w", storageLocation, validator, err)
@@ -231,7 +235,10 @@ func (r *relayer) checkpointAtIndex(
 		}
 	}
 	if len(multiSigCheckpoint.Signatures) < int(threshold) {
-		return types.MultiSigSignedCheckpoint{}, fmt.Errorf("expected atleast %d signatures in multisig signed checkpoint, but got %d", threshold, len(multiSigCheckpoint.Signatures))
+		lmt.Logger(ctx).Warn("failed to find expected number of signatures in multisig signed checkpoint",
+			zap.Uint8("threshold", threshold), zap.Int("num_signatures_found", len(multiSigCheckpoint.Signatures)))
+
+		return types.MultiSigSignedCheckpoint{}, ErrNotEnoughSignaturesFound
 	}
 	if strings.TrimPrefix(multiSigCheckpoint.Checkpoint.MessageID, "0x") != strings.TrimPrefix(messageID, "0x") {
 		return types.MultiSigSignedCheckpoint{}, fmt.Errorf("mismatch message id in checkpoint and dipsatch message. dispatch has %s and checkpoint has %s", messageID, multiSigCheckpoint.Checkpoint.MessageID)
