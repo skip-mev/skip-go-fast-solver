@@ -57,10 +57,9 @@ type Relayer interface {
 }
 
 type OrderSettler struct {
-	db                 Database
-	clientManager      *clientmanager.ClientManager
-	relayer            Relayer
-	minProfitMarginBPS int
+	db            Database
+	clientManager *clientmanager.ClientManager
+	relayer       Relayer
 }
 
 func NewOrderSettler(
@@ -68,13 +67,11 @@ func NewOrderSettler(
 	db Database,
 	clientManager *clientmanager.ClientManager,
 	relayer Relayer,
-	minProfitMarginBPS int,
 ) (*OrderSettler, error) {
 	return &OrderSettler{
-		db:                 db,
-		clientManager:      clientManager,
-		relayer:            relayer,
-		minProfitMarginBPS: minProfitMarginBPS,
+		db:            db,
+		clientManager: clientManager,
+		relayer:       relayer,
 	}, nil
 }
 
@@ -244,23 +241,15 @@ func (r *OrderSettler) relaySettlements(
 		// the orders source chain is where the settlement is paid out to the solver
 		settlementPayoutChainID := batches[i].SourceChainID()
 
-		settlementPayoutChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(settlementPayoutChainID)
-		if err != nil {
-			return fmt.Errorf("getting chain config for settlement payout chain %s: %w", settlementPayoutChainID, err)
-		}
-
 		maxTxFeeUUSDC, err := r.maxBatchTxFeeUUSDC(ctx, batches[i])
 		if err != nil {
 			return fmt.Errorf("calculating max batch (hash: %s) tx fee in uusdc: %w", txHash, err)
 		}
 
-		var opts hyperlane.RelayOpts
-		if settlementPayoutChainConfig.Relayer.MaxGasPricePct != nil {
-			opts = hyperlane.RelayOpts{
-				MaxTxFeeUUSDC: maxTxFeeUUSDC,
-				Submitter:     submitter,
-				Delay:         time.Duration(5 * time.Second),
-			}
+		opts := hyperlane.RelayOpts{
+			MaxTxFeeUUSDC: maxTxFeeUUSDC,
+			Submitter:     submitter,
+			Delay:         time.Duration(5 * time.Second),
 		}
 		if err = r.relayer.SubmitTxToRelay(ctx, txHash, settlementInitiationChainID, opts); err != nil {
 			return fmt.Errorf(
@@ -279,7 +268,12 @@ func (r *OrderSettler) maxBatchTxFeeUUSDC(ctx context.Context, batch types.Settl
 		return nil, fmt.Errorf("calculating profit for batch: %w", err)
 	}
 
-	minProfitMarginBPS := big.NewFloat(float64(r.minProfitMarginBPS))
+	settlementPayoutChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(batch.SourceChainID())
+	if err != nil {
+		return nil, fmt.Errorf("getting chain config for settlement payout chain %s: %w", batch.SourceChainID(), err)
+	}
+
+	minProfitMarginBPS := big.NewFloat(float64(settlementPayoutChainConfig.MinProfitMarginBPS))
 	minProfitMarginDec := minProfitMarginBPS.Quo(minProfitMarginBPS, big.NewFloat(10000))
 
 	// for example if max profit margin dec is 0.98, they want to make 98%

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strconv"
 
 	"strings"
 
@@ -35,7 +34,7 @@ func NewRelayer(hyperlaneClient Client, storageLocationOverrides map[string]stri
 }
 
 var (
-	ErrRelayNotProfitable       = fmt.Errorf("relay not currently profitable")
+	ErrRelayTooExpensive        = fmt.Errorf("relay is too expensive")
 	ErrMessageAlreadyDelivered  = fmt.Errorf("message has already been delivered")
 	ErrNotEnoughSignaturesFound = errors.New("number of signatures found in multisig signed checkpoint is below expected threshold")
 )
@@ -134,15 +133,15 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 		return "", "", fmt.Errorf("hex decoding dispatch message to bytes: %w", err)
 	}
 
-	// if the user has specified a profitability threshold, make sure the relay
-	// matches this
-	if opts.Profitability != nil {
-		isProfitable, err := r.isRelayProfitable(ctx, dispatch.DestinationDomain, message, metadata, opts.Profitability)
+	// if the user specified a max tx fee, ensure that the tx fee to relay will
+	// be less than this amount
+	if opts.MaxTxFeeUUSDC != nil {
+		isFeeLessThanMax, err := r.isRelayFeeLessThanMax(ctx, dispatch.DestinationDomain, message, metadata, opts.MaxTxFeeUUSDC)
 		if err != nil {
 			return "", "", fmt.Errorf("checking if relay to domain %s is profitable: %w", dispatch.DestinationDomain, err)
 		}
-		if !isProfitable {
-			return "", "", ErrRelayNotProfitable
+		if !isFeeLessThanMax {
+			return "", "", ErrRelayTooExpensive
 		}
 	}
 
@@ -250,67 +249,41 @@ func (r *relayer) checkpointAtIndex(
 	return multiSigCheckpoint, nil
 }
 
-// isRelayProfitable checks that processing a relay meets a users
-// profitability specification. Returns true if the relay meets their criteria,
-// false if not.
-func (r *relayer) isRelayProfitable(
+// isRelayFeeLessThanMax simulates a relay of a message and checks that the fee
+// to relay the message is less than the users specified max relay fee in uusdc
+func (r *relayer) isRelayFeeLessThanMax(
 	ctx context.Context,
 	domain string,
 	message []byte,
 	metadata []byte,
-	profitability *Profitability,
+	maxRelayFeeUUSDC *big.Int,
 ) (bool, error) {
-	// if the user didnt specify that they care about the profitability, return
-	// true
-	if profitability == nil {
-		return true, nil
-	}
-
 	txFeeUUSDC, err := r.hyperlane.QuoteProcessUUSDC(ctx, domain, message, metadata)
 	if err != nil {
 		return false, fmt.Errorf("quoting process call in uusdc: %w", err)
 	}
 
-	// sanity checks
-
 	// dont ever expect for a tx fee to be negative or 0, log a warning here
 	if txFeeUUSDC.Cmp(big.NewInt(0)) <= 0 {
 		lmt.Logger(ctx).Warn("tx fee uusdc was <= 0", zap.String("txFeeUUSDC", txFeeUUSDC.String()))
-		return true, nil
-	}
-	// unless the user is relaying no value (which we dont allow), we dont
-	// expect this to happen, log a warning
-	if txFeeUUSDC.Cmp(profitability.TotalRelayValue) >= 0 {
-		lmt.Logger(ctx).Warn(
-			"tx fee uusdc was >= total relay value",
-			zap.String("txFeeUUSDC", txFeeUUSDC.String()),
-			zap.String("totalRelayValue", profitability.TotalRelayValue.String()),
-		)
 		return false, nil
 	}
 
-	// tx fee in uusdc / total relay value in uusdc
-	totalValueFeePctDec := new(big.Float).Quo(new(big.Float).SetInt(txFeeUUSDC), new(big.Float).SetInt(profitability.TotalRelayValue))
-	totalValueFeePct := new(big.Float).Mul(totalValueFeePctDec, big.NewFloat(100))
-	isProfitable := totalValueFeePct.Cmp(big.NewFloat(float64(profitability.MaxGasPricePct))) <= 0
+	isFeeLessThanMax := txFeeUUSDC.Cmp(maxRelayFeeUUSDC) <= 0
 
-	if isProfitable {
-		lmt.Logger(ctx).Debug(
-			"relay is profitable",
+	if isFeeLessThanMax {
+		lmt.Logger(ctx).Info(
+			"tx fee to relay message is less than max allowed fee",
 			zap.String("estimatedTxFeeUUSDC", txFeeUUSDC.String()),
-			zap.String("totalRelayValueUUSDC", profitability.TotalRelayValue.String()),
-			zap.String("feePercentage", fmt.Sprintf("%s%%", totalValueFeePct.Text('f', 4))),
-			zap.String("maxAllowedFeePercentage", strconv.FormatUint(uint64(profitability.MaxGasPricePct), 10)),
+			zap.String("maxTxFeeUUSDC", maxRelayFeeUUSDC.String()),
 		)
 	} else {
 		lmt.Logger(ctx).Info(
-			"relay is not currently profitable",
+			"tx fee to relay message is more than max allowed fee",
 			zap.String("estimatedTxFeeUUSDC", txFeeUUSDC.String()),
-			zap.String("totalRelayValueUUSDC", profitability.TotalRelayValue.String()),
-			zap.String("feePercentage", fmt.Sprintf("%s%%", totalValueFeePct.Text('f', 4))),
-			zap.String("maxAllowedFeePercentage", strconv.FormatUint(uint64(profitability.MaxGasPricePct), 10)),
+			zap.String("maxTxFeeUUSDC", maxRelayFeeUUSDC.String()),
 		)
 	}
 
-	return isProfitable, nil
+	return isFeeLessThanMax, nil
 }

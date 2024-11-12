@@ -116,19 +116,6 @@ func (b SettlementBatch) TotalValue() (*big.Int, error) {
 	return sum, nil
 }
 
-func (b SettlementBatch) TotalProfit() (*big.Int, error) {
-	sumIn := big.NewInt(0)
-	sumOut := big.NewInt(0)
-	for _, settlement := range b {
-		value, ok := new(big.Int).SetString(settlement.Amount, 10)
-		if !ok {
-			return nil, fmt.Errorf("converting settlement amount %s to *big.Int", settlement.Amount)
-		}
-		sum = sum.Add(sum, value)
-	}
-	return sumIn.Sub(sumIn, sumOut), nil
-}
-
 func (b SettlementBatch) String() string {
 	return fmt.Sprintf(
 		"SourceChainID: %s, DestinationChainID: %s, NumOrdersInBatch: %d",

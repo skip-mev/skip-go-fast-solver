@@ -80,9 +80,9 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 				destinationTxHash, destinationChainID, err := r.relayTransfer(ctx, transfer)
 				if err != nil {
 					switch {
-					case errors.Is(err, ErrRelayNotProfitable):
+					case errors.Is(err, ErrRelayTooExpensive):
 						lmt.Logger(ctx).Warn(
-							"not currently profitable to relay transfer, waiting to relay until better conditions",
+							"relaying transfer is too expensive, waiting for better conditions",
 							zap.String("sourceChainID", transfer.SourceChainID),
 							zap.String("txHash", transfer.MessageSentTx),
 						)
@@ -148,15 +148,12 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 // chain tx hash and the destination chain id.
 func (r *RelayerRunner) relayTransfer(ctx context.Context, transfer db.HyperlaneTransfer) (string, string, error) {
 	var opts RelayOpts
-	if transfer.MaxGasPricePct.Valid && transfer.TransferValue.Valid {
-		totalRelayValue, ok := new(big.Int).SetString(transfer.TransferValue.String, 10)
+	if transfer.MaxTxFeeUusdc.Valid {
+		maxTxFeeUUSDC, ok := new(big.Int).SetString(transfer.MaxTxFeeUusdc.String, 10)
 		if !ok {
-			return "", "", fmt.Errorf("could not convert relay transfer value %s to *big.Int", transfer.TransferValue.String)
+			return "", "", fmt.Errorf("could not convert relay max tx fee uusdc value %s to *big.Int", transfer.MaxTxFeeUusdc.String)
 		}
-		opts.Profitability = &Profitability{
-			MaxGasPricePct:  uint8(transfer.MaxGasPricePct.Int64),
-			TotalRelayValue: totalRelayValue,
-		}
+		opts.MaxTxFeeUUSDC = maxTxFeeUUSDC
 	}
 
 	destinationTxHash, destinationChainID, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx, opts)
@@ -221,12 +218,6 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 // relaying a tx.
 type RelayOpts struct {
 	MaxTxFeeUUSDC *big.Int
-	// Profitability provides relaying options regarding how profitable it is to
-	// relay a tx. Typically this would be used when the relayer is relaying a tx
-	// bound for itself, and it should only relay that tx under profitable
-	// conditions (i.e. not pay too much for gas, relative to the value that it is
-	// relaying).
-	Profitability *Profitability
 
 	// Submitter allows for users to customize the back end for how this relay
 	// submission is recorded. Typically this is used to allow users to have
@@ -239,28 +230,7 @@ type RelayOpts struct {
 	Delay time.Duration
 }
 
-type Profitability struct {
-	// MaxGasPricePct is the max percentage of the total value of the relayed
-	// tx that the relayer is willing to pay in gas fees.
-	MaxGasPricePct uint8
-
-	// TotalRelayValue is the total value of the relayed tx, denominated in uusdc.
-	TotalRelayValue *big.Int
-}
-
 func (opts RelayOpts) validate() error {
-	if opts.Profitability == nil {
-		return nil
-	}
-	if opts.Profitability.TotalRelayValue == nil {
-		return fmt.Errorf("invalid relay options: total relay value undefined")
-	}
-	if opts.Profitability.MaxGasPricePct <= 0 {
-		return fmt.Errorf("invalid relay options: max gas price pct must be > 0")
-	}
-	if opts.Profitability.MaxGasPricePct > 100 {
-		return fmt.Errorf("invalid relay options: max gas price pct must be <= 100")
-	}
 	return nil
 }
 
@@ -302,9 +272,8 @@ func (r *RelayerRunner) SubmitTxToRelay(ctx context.Context, txHash string, sour
 		MessageSentTx:      txHash,
 		TransferStatus:     dbtypes.TransferStatusPending,
 	}
-	if opts.Profitability != nil {
-		insert.MaxGasPricePct = sql.NullInt64{Int64: int64(opts.Profitability.MaxGasPricePct), Valid: true}
-		insert.TransferValue = sql.NullString{String: opts.Profitability.TotalRelayValue.String(), Valid: true}
+	if opts.MaxTxFeeUUSDC != nil {
+		insert.MaxTxFeeUusdc = sql.NullString{String: opts.MaxTxFeeUUSDC.String(), Valid: true}
 	}
 	if _, err := submitter.InsertHyperlaneTransfer(ctx, insert); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("inserting hyperlane transfer: %w", err)
