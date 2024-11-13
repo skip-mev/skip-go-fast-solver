@@ -196,6 +196,9 @@ func (r *FundRebalancer) USDCNeeded(
 		return nil, fmt.Errorf("could not convert target amount %s to *big.Int for chain %s", r.config[chainID].TargetAmount, chainID)
 	}
 
+	// add 0.2usdc to the targetAmount in order to cover the CCTP bridge fee
+	targetAmount = targetAmount.Add(targetAmount, big.NewInt(200000))
+
 	return new(big.Int).Sub(targetAmount, currentBalance), nil
 }
 
