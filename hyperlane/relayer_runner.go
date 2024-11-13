@@ -146,16 +146,16 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 // preform a hyperlane relay on a dispatch message. Returning the destination
 // chain tx hash and the destination chain id.
 func (r *RelayerRunner) relayTransfer(ctx context.Context, transfer db.HyperlaneTransfer) (string, string, error) {
-	var opts RelayOpts
+	var maxRelayTxFeeUUSDC *big.Int
 	if transfer.MaxTxFeeUusdc.Valid {
 		maxTxFeeUUSDC, ok := new(big.Int).SetString(transfer.MaxTxFeeUusdc.String, 10)
 		if !ok {
 			return "", "", fmt.Errorf("could not convert relay max tx fee uusdc value %s to *big.Int", transfer.MaxTxFeeUusdc.String)
 		}
-		opts.MaxTxFeeUUSDC = maxTxFeeUUSDC
+		maxRelayTxFeeUUSDC = maxTxFeeUUSDC
 	}
 
-	destinationTxHash, destinationChainID, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx, opts)
+	destinationTxHash, destinationChainID, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx, maxRelayTxFeeUUSDC)
 	if err != nil {
 		return "", "", fmt.Errorf("relaying pending hyperlane transfer with tx hash %s from chainID %s: %w", transfer.MessageSentTx, transfer.SourceChainID, err)
 	}
@@ -213,41 +213,20 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 	return true, nil
 }
 
-// RelayOpts provides users options for how the relayer should behave when
-// relaying a tx.
-type RelayOpts struct {
-	MaxTxFeeUUSDC *big.Int
-
-	// Submitter allows for users to customize the back end for how this relay
-	// submission is recorded. Typically this is used to allow users to have
-	// the relay submission run in a transaction, since submitting tx to be
-	// relayed often times must be atomic with some other actions.
-	Submitter RelaySubmitter
-
-	// Delay is how long the submitter should wait before checking on chain for
-	// the tx hash.
-	Delay time.Duration
-}
-
-func (opts RelayOpts) validate() error {
-	return nil
-}
-
 // SubmitTxToRelay submits a transaction hash on a source chain to be relayed.
 // This transaction must contain a dispatch message/event that can be relayed
 // by hyperlane. This tx will not be immediately relayed but will be placed in
 // a queue to be eventually relayed.
-func (r *RelayerRunner) SubmitTxToRelay(ctx context.Context, txHash string, sourceChainID string, opts RelayOpts) error {
-	if err := opts.validate(); err != nil {
-		return fmt.Errorf("validating relay opts: %w", err)
-	}
-
+func (r *RelayerRunner) SubmitTxToRelay(
+	ctx context.Context,
+	txHash string,
+	sourceChainID string,
+	maxTxFeeUUSDC *big.Int,
+) error {
 	sourceChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(sourceChainID)
 	if err != nil {
 		return fmt.Errorf("getting source chain config for chainID %s: %w", sourceChainID, err)
 	}
-
-	time.Sleep(opts.Delay)
 
 	dispatch, _, err := r.hyperlane.GetHyperlaneDispatch(ctx, sourceChainConfig.HyperlaneDomain, sourceChainID, txHash)
 	if err != nil {
@@ -259,11 +238,6 @@ func (r *RelayerRunner) SubmitTxToRelay(ctx context.Context, txHash string, sour
 		return fmt.Errorf("getting destination chainID by hyperlane domain %s: %w", dispatch.DestinationDomain, err)
 	}
 
-	var submitter RelaySubmitter = r.db
-	if opts.Submitter != nil {
-		submitter = opts.Submitter
-	}
-
 	insert := db.InsertHyperlaneTransferParams{
 		SourceChainID:      sourceChainID,
 		DestinationChainID: destinationChainID,
@@ -271,10 +245,10 @@ func (r *RelayerRunner) SubmitTxToRelay(ctx context.Context, txHash string, sour
 		MessageSentTx:      txHash,
 		TransferStatus:     dbtypes.TransferStatusPending,
 	}
-	if opts.MaxTxFeeUUSDC != nil {
-		insert.MaxTxFeeUusdc = sql.NullString{String: opts.MaxTxFeeUUSDC.String(), Valid: true}
+	if maxTxFeeUUSDC != nil {
+		insert.MaxTxFeeUusdc = sql.NullString{String: maxTxFeeUUSDC.String(), Valid: true}
 	}
-	if _, err := submitter.InsertHyperlaneTransfer(ctx, insert); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if _, err := r.db.InsertHyperlaneTransfer(ctx, insert); err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("inserting hyperlane transfer: %w", err)
 	}
 

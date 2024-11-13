@@ -18,7 +18,7 @@ import (
 )
 
 type Relayer interface {
-	Relay(ctx context.Context, originChainID string, initiateTxHash string, opts RelayOpts) (destinationTxHash string, destinationChainID string, err error)
+	Relay(ctx context.Context, originChainID string, initiateTxHash string, maxTxFeeUUSDC *big.Int) (destinationTxHash string, destinationChainID string, err error)
 }
 
 type relayer struct {
@@ -39,7 +39,7 @@ var (
 	ErrNotEnoughSignaturesFound = errors.New("number of signatures found in multisig signed checkpoint is below expected threshold")
 )
 
-func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHash string, opts RelayOpts) (destinationTxHash string, destinationChainID string, err error) {
+func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHash string, maxTxFeeUUSDC *big.Int) (destinationTxHash string, destinationChainID string, err error) {
 	originChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(originChainID)
 	if err != nil {
 		return "", "", fmt.Errorf("getting chain config for chainID %s: %w", originChainID, err)
@@ -135,8 +135,8 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 
 	// if the user specified a max tx fee, ensure that the tx fee to relay will
 	// be less than this amount
-	if opts.MaxTxFeeUUSDC != nil {
-		isFeeLessThanMax, err := r.isRelayFeeLessThanMax(ctx, dispatch.DestinationDomain, message, metadata, opts.MaxTxFeeUUSDC)
+	if maxTxFeeUUSDC != nil {
+		isFeeLessThanMax, err := r.isRelayFeeLessThanMax(ctx, dispatch.DestinationDomain, message, metadata, maxTxFeeUUSDC)
 		if err != nil {
 			return "", "", fmt.Errorf("checking if relay to domain %s is profitable: %w", dispatch.DestinationDomain, err)
 		}
@@ -256,7 +256,7 @@ func (r *relayer) isRelayFeeLessThanMax(
 	domain string,
 	message []byte,
 	metadata []byte,
-	maxRelayFeeUUSDC *big.Int,
+	maxTxFeeUUSDC *big.Int,
 ) (bool, error) {
 	txFeeUUSDC, err := r.hyperlane.QuoteProcessUUSDC(ctx, domain, message, metadata)
 	if err != nil {
@@ -269,19 +269,19 @@ func (r *relayer) isRelayFeeLessThanMax(
 		return false, nil
 	}
 
-	isFeeLessThanMax := txFeeUUSDC.Cmp(maxRelayFeeUUSDC) <= 0
+	isFeeLessThanMax := txFeeUUSDC.Cmp(maxTxFeeUUSDC) <= 0
 
 	if isFeeLessThanMax {
 		lmt.Logger(ctx).Info(
 			"tx fee to relay message is less than max allowed fee",
 			zap.String("estimatedTxFeeUUSDC", txFeeUUSDC.String()),
-			zap.String("maxTxFeeUUSDC", maxRelayFeeUUSDC.String()),
+			zap.String("maxTxFeeUUSDC", maxTxFeeUUSDC.String()),
 		)
 	} else {
 		lmt.Logger(ctx).Info(
 			"tx fee to relay message is more than max allowed fee",
 			zap.String("estimatedTxFeeUUSDC", txFeeUUSDC.String()),
-			zap.String("maxTxFeeUUSDC", maxRelayFeeUUSDC.String()),
+			zap.String("maxTxFeeUUSDC", maxTxFeeUUSDC.String()),
 		)
 	}
 

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
-	"github.com/skip-mev/go-fast-solver/hyperlane"
 	"github.com/skip-mev/go-fast-solver/ordersettler/types"
 	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
@@ -53,7 +52,7 @@ type Database interface {
 }
 
 type Relayer interface {
-	SubmitTxToRelay(ctx context.Context, txHash string, sourceChainID string, opts hyperlane.RelayOpts) error
+	SubmitTxToRelay(ctx context.Context, txHash string, sourceChainID string, maxRelayTxFeeUUSDC *big.Int) error
 }
 
 type OrderSettler struct {
@@ -232,7 +231,6 @@ func (r *OrderSettler) relaySettlements(
 	ctx context.Context,
 	txHashes []string,
 	batches []types.SettlementBatch,
-	submitter hyperlane.RelaySubmitter,
 ) error {
 	for i, txHash := range txHashes {
 		// the orders destination chain is where the settlement is initiated
@@ -246,12 +244,7 @@ func (r *OrderSettler) relaySettlements(
 			return fmt.Errorf("calculating max batch (hash: %s) tx fee in uusdc: %w", txHash, err)
 		}
 
-		opts := hyperlane.RelayOpts{
-			MaxTxFeeUUSDC: maxTxFeeUUSDC,
-			Submitter:     submitter,
-			Delay:         time.Duration(5 * time.Second),
-		}
-		if err = r.relayer.SubmitTxToRelay(ctx, txHash, settlementInitiationChainID, opts); err != nil {
+		if err = r.relayer.SubmitTxToRelay(ctx, txHash, settlementInitiationChainID, maxTxFeeUUSDC); err != nil {
 			return fmt.Errorf(
 				"submitting settlement tx hash %s to be relayed from chain %s to chain %s: %w",
 				txHash, settlementInitiationChainID, settlementPayoutChainID, err,
@@ -484,21 +477,22 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 		if _, err = q.InsertSubmittedTx(ctx, submittedTx); err != nil {
 			return fmt.Errorf("inserting raw tx for settlement with hash %s: %w", txHash, err)
 		}
-
-		// submitting the settlements to be relayed needs to be included in
-		// this db tx, or else we may run into the situation where txs have been
-		// submitted on chain, but they have not been submitted to be relayed
-		// yet
-		if err := r.relaySettlements(ctx, []string{txHash}, []types.SettlementBatch{batch}, q); err != nil {
-			return fmt.Errorf("relaying settlements: %w", err)
-		}
-
-		lmt.Logger(ctx).Info("submitted order settlements to be relayed")
 		return nil
 	}, nil)
 	if err != nil {
 		return "", fmt.Errorf("recording batch settlement result: %w", err)
 	}
+
+	// submit the settlement to be relayed, this is not included in the db tx
+	// since the order settler will automatically submit all pending settlement
+	// tx's to the relayer on startup, to prevent the situation where we have
+	// inserted a settlement tx to the db and then the solver is killed and the
+	// settlement is never relayed
+	if err := r.relaySettlements(ctx, []string{txHash}, []types.SettlementBatch{batch}); err != nil {
+		return "", fmt.Errorf("relaying settlements: %w", err)
+	}
+
+	lmt.Logger(ctx).Info("submitted order settlements to be relayed")
 
 	return txHash, nil
 }

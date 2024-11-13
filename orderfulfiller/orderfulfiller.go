@@ -3,12 +3,10 @@ package orderfulfiller
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"time"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
-	"github.com/skip-mev/go-fast-solver/orderfulfiller/order_fulfillment_handler"
 	"github.com/skip-mev/go-fast-solver/orderfulfiller/orderqueue"
 
 	"go.uber.org/zap"
@@ -27,8 +25,8 @@ const (
 type OrderFulfillmentHandler interface {
 	UpdateFulfillmentStatus(ctx context.Context, order db.Order) (fulfillmentStatus string, err error)
 	FillOrder(ctx context.Context, order db.Order) (string, error)
-	InitiateTimeout(ctx context.Context, order db.Order, tx order_fulfillment_handler.Database) (string, error)
-	SubmitTimeoutForRelay(ctx context.Context, order db.Order, txHash string, tx order_fulfillment_handler.Database) error
+	InitiateTimeout(ctx context.Context, order db.Order) (string, error)
+	SubmitTimeoutForRelay(ctx context.Context, order db.Order, txHash string) error
 }
 
 type Database interface {
@@ -122,37 +120,38 @@ func (r *OrderFulfiller) startOrderTimeoutWorker(ctx context.Context) {
 					continue
 				}
 
-				err = r.db.InTx(ctx, func(ctx context.Context, q db.Querier) error {
-					txHash, err := r.fillHandler.InitiateTimeout(ctx, order, q)
-					if err != nil {
-						return fmt.Errorf("initiating timeout for order %s with source chain %s and destination chain %s: %w", order.OrderID, order.SourceChainID, order.DestinationChainID, err)
-					}
-					if txHash == "" {
-						return nil
-					}
-
-					if err = r.fillHandler.SubmitTimeoutForRelay(ctx, order, txHash, q); err != nil {
-						lmt.Logger(ctx).Warn(
-							"error submitting timeout to be relayed",
-							zap.Error(err),
-							zap.String("orderID", order.OrderID),
-							zap.String("sourceChainID", order.SourceChainID),
-							zap.String("destinationChainID", order.DestinationChainID),
-						)
-						return fmt.Errorf("submitting timeout to be relayed for order %s with source chain %s and destination chain %s: %w", order.OrderID, order.SourceChainID, order.DestinationChainID, err)
-					}
-
-					lmt.Logger(ctx).Info(
-						"successfully initiated timeout",
+				txHash, err := r.fillHandler.InitiateTimeout(ctx, order)
+				if err != nil {
+					lmt.Logger(ctx).Error(
+						"error initiating timeout for order",
+						zap.Error(err),
 						zap.String("orderID", order.OrderID),
 						zap.String("sourceChainID", order.SourceChainID),
 						zap.String("destinationChainID", order.DestinationChainID),
 					)
-					return nil
-				}, nil)
-				if err != nil {
-					lmt.Logger(ctx).Warn("error initiating timeout", zap.Error(err))
+					continue
 				}
+				if txHash == "" {
+					continue
+				}
+
+				if err = r.fillHandler.SubmitTimeoutForRelay(ctx, order, txHash); err != nil {
+					lmt.Logger(ctx).Error(
+						"error submitting timeout to be relayed",
+						zap.Error(err),
+						zap.String("orderID", order.OrderID),
+						zap.String("sourceChainID", order.SourceChainID),
+						zap.String("destinationChainID", order.DestinationChainID),
+					)
+					continue
+				}
+
+				lmt.Logger(ctx).Info(
+					"successfully initiated timeout",
+					zap.String("orderID", order.OrderID),
+					zap.String("sourceChainID", order.SourceChainID),
+					zap.String("destinationChainID", order.DestinationChainID),
+				)
 			}
 		}
 	}

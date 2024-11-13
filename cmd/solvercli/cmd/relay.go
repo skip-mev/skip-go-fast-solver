@@ -102,7 +102,7 @@ var relayCmd = &cobra.Command{
 			lmt.Logger(ctx).Error("Error creating hyperlane multi client from config", zap.Error(err))
 		}
 
-		destinationTxHash, destinationChainID, err := hyperlane.NewRelayer(hype, storageOverrideMap).Relay(ctx, originChainID, originTxHash, hyperlane.RelayOpts{})
+		destinationTxHash, destinationChainID, err := hyperlane.NewRelayer(hype, storageOverrideMap).Relay(ctx, originChainID, originTxHash, nil)
 		if err != nil {
 			lmt.Logger(ctx).Error("Error relaying message", zap.Error(err))
 			return
