@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"math/big"
 	"strconv"
 	"time"
@@ -401,5 +402,23 @@ func (r *orderFulfillmentHandler) SubmitTimeoutForRelay(ctx context.Context, ord
 	// the source chain for the relay is the chain that the timeout was
 	// initiated on, which is the orders destination chain
 	initiateTimeoutChain := order.DestinationChainID
-	return r.relayer.SubmitTxToRelay(ctx, txHash, initiateTimeoutChain, nil)
+
+	var (
+		maxRetries = 5
+		baseDelay  = 2 * time.Second
+		err        error
+	)
+
+	for i := 0; i < maxRetries; i++ {
+		if err = r.relayer.SubmitTxToRelay(ctx, txHash, initiateTimeoutChain, nil); err == nil {
+			return nil
+		}
+		delay := math.Pow(2, float64(i))
+		time.Sleep(time.Duration(delay) * baseDelay)
+	}
+
+	return fmt.Errorf(
+		"submitting settlement tx hash %s to be relayed from chain %s to chain %s: %w",
+		txHash, initiateTimeoutChain, order.SourceChainID, err,
+	)
 }

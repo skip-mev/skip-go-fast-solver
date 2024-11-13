@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"strconv"
 	"strings"
@@ -244,15 +245,48 @@ func (r *OrderSettler) relaySettlements(
 			return fmt.Errorf("calculating max batch (hash: %s) tx fee in uusdc: %w", txHash, err)
 		}
 
-		if err = r.relayer.SubmitTxToRelay(ctx, txHash, settlementInitiationChainID, maxTxFeeUUSDC); err != nil {
-			return fmt.Errorf(
-				"submitting settlement tx hash %s to be relayed from chain %s to chain %s: %w",
-				txHash, settlementInitiationChainID, settlementPayoutChainID, err,
-			)
+		err = r.relaySettlement(
+			ctx,
+			txHash,
+			settlementInitiationChainID,
+			settlementPayoutChainID,
+			maxTxFeeUUSDC,
+		)
+		if err != nil {
+			return fmt.Errorf("relaying settlement: %w", err)
 		}
 	}
 
 	return nil
+}
+
+// relaySettlement submits a tx hash for a settlement to be relayed with
+// exponential backoff if an error occurs while submitting the tx to be relayed
+func (r *OrderSettler) relaySettlement(
+	ctx context.Context,
+	txHash string,
+	settlementInitiationChainID string,
+	settlementPayoutChainID string,
+	maxTxFeeUUSDC *big.Int,
+) error {
+	var (
+		maxRetries = 5
+		baseDelay  = 2 * time.Second
+		err        error
+	)
+
+	for i := 0; i < maxRetries; i++ {
+		if err = r.relayer.SubmitTxToRelay(ctx, txHash, settlementInitiationChainID, maxTxFeeUUSDC); err == nil {
+			return nil
+		}
+		delay := math.Pow(2, float64(i))
+		time.Sleep(time.Duration(delay) * baseDelay)
+	}
+
+	return fmt.Errorf(
+		"submitting settlement tx hash %s to be relayed from chain %s to chain %s: %w",
+		txHash, settlementInitiationChainID, settlementPayoutChainID, err,
+	)
 }
 
 func (r *OrderSettler) maxBatchTxFeeUUSDC(ctx context.Context, batch types.SettlementBatch) (*big.Int, error) {
