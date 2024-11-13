@@ -58,6 +58,12 @@ func runLoadTest(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	ctx := context.Background()
+	ctx = config.ConfigReaderContext(ctx, config.NewConfigReader(cfg))
+
+	// Pass the context to submitCmd
+	submitCmd.SetContext(ctx)
+
 	var evmChains []string
 	for chainID, chain := range cfg.Chains {
 		if chain.Type == config.ChainType_EVM {
@@ -77,27 +83,72 @@ func runLoadTest(cmd *cobra.Command, args []string) {
 
 	for _, sourceChain := range evmChains {
 		chainCfg := cfg.Chains[sourceChain]
+		chainConfig := chainCfg
+
 		for i := 0; i < 6; i++ {
-			go func(chainID string, iteration int) {
+			chainID := sourceChain
+			iteration := i
+
+			go func() {
 				defer wg.Done()
 
-				args := []string{
-					"submit-transfer",
-					"--config", flags.configPath,
-					"--token", chainCfg.EVM.Contracts.USDCERC20Address,
-					"--recipient", flags.recipient,
-					"--amount", flags.amount,
-					"--source-chain-id", chainID,
-					"--destination-chain-id", "osmosis-1",
-					"--gateway", chainCfg.EVM.FastTransferContractAddress,
-					"--private-key", flags.privateKey,
+				// Create a new command instance for each goroutine
+				localCmd := &cobra.Command{}
+
+				// Add all required flags from submitCmd
+				localCmd.PersistentFlags().String("config", "./config/local/config.yml", "Path to config file")
+				localCmd.Flags().String("token", "", "Token address to transfer")
+				localCmd.Flags().String("recipient", "", "Recipient address")
+				localCmd.Flags().String("amount", "", "Amount to transfer")
+				localCmd.Flags().String("source-chain-id", "", "Source chain ID")
+				localCmd.Flags().String("destination-chain-id", "", "Destination chain ID")
+				localCmd.Flags().String("gateway", "", "Gateway contract address")
+				localCmd.Flags().String("private-key", "", "Private key to sign the transaction")
+				localCmd.Flags().Uint32("deadline-hours", 1, "Deadline in hours")
+
+				localCmd.SetContext(ctx)
+
+				if err := localCmd.PersistentFlags().Set("config", flags.configPath); err != nil {
+					errorChan <- fmt.Errorf("setting config flag: %v", err)
+					return
+				}
+				if err := localCmd.Flags().Set("token", chainConfig.EVM.Contracts.USDCERC20Address); err != nil {
+					errorChan <- fmt.Errorf("setting token flag: %v", err)
+					return
+				}
+				if err := localCmd.Flags().Set("recipient", flags.recipient); err != nil {
+					errorChan <- fmt.Errorf("setting recipient flag: %v", err)
+					return
+				}
+				if err := localCmd.Flags().Set("amount", flags.amount); err != nil {
+					errorChan <- fmt.Errorf("setting amount flag: %v", err)
+					return
+				}
+				if err := localCmd.Flags().Set("source-chain-id", chainID); err != nil {
+					errorChan <- fmt.Errorf("setting source-chain-id flag: %v", err)
+					return
+				}
+				if err := localCmd.Flags().Set("destination-chain-id", "osmosis-1"); err != nil {
+					errorChan <- fmt.Errorf("setting destination-chain-id flag: %v", err)
+					return
+				}
+				if err := localCmd.Flags().Set("gateway", chainConfig.FastTransferContractAddress); err != nil {
+					errorChan <- fmt.Errorf("setting gateway flag: %v", err)
+					return
+				}
+				if err := localCmd.Flags().Set("private-key", flags.privateKey); err != nil {
+					errorChan <- fmt.Errorf("setting private-key flag: %v", err)
+					return
+				}
+				if err := localCmd.Flags().Set("deadline-hours", "1"); err != nil {
+					errorChan <- fmt.Errorf("setting deadline-hours flag: %v", err)
+					return
 				}
 
 				fmt.Printf("Executing transfer %d from chain %s\n", iteration, chainID)
-				submitCmd.SetArgs(args)
-				result, err := submitTransfer(submitCmd, args)
+				result, err := submitTransfer(localCmd, []string{})
 				if err != nil {
-					errorChan <- fmt.Errorf("Error executing transfer %d from chain %s: %v", iteration, chainID, err)
+					errorChan <- fmt.Errorf("executing transfer %d from chain %s: %v", iteration, chainID, err)
 					return
 				}
 
@@ -106,7 +157,7 @@ func runLoadTest(cmd *cobra.Command, args []string) {
 					ChainID: chainID,
 					Status:  "pending",
 				}
-			}(sourceChain, i)
+			}()
 		}
 	}
 
@@ -126,21 +177,22 @@ func runLoadTest(cmd *cobra.Command, args []string) {
 			fmt.Printf("Error: %v\n", err)
 		}
 	}
-	checkOrderStatus(orders, &cfg)
+
+	checkOrderStatus(orders, cfg, ctx)
 }
 
-func checkOrderStatus(orders []OrderStatus, cfg *config.Config) {
-	ctx := context.Background()
-
+func checkOrderStatus(orders []OrderStatus, cfg config.Config, ctx context.Context) {
 	osmosisChainCfg := cfg.Chains["osmosis-1"]
 
 	rpc, err := config.GetConfigReader(ctx).GetRPCEndpoint(osmosisChainCfg.ChainID)
 	if err != nil {
+		fmt.Printf("Error getting RPC endpoint: %v\n", err)
 		return
 	}
 
 	basicAuth, err := config.GetConfigReader(ctx).GetBasicAuth(osmosisChainCfg.ChainID)
 	if err != nil {
+		fmt.Printf("Error getting basic auth: %v\n", err)
 		return
 	}
 
@@ -148,6 +200,7 @@ func checkOrderStatus(orders []OrderStatus, cfg *config.Config) {
 		Transport: utils.NewBasicAuthTransport(basicAuth, http.DefaultTransport),
 	})
 	if err != nil {
+		fmt.Printf("Error creating RPC client: %v\n", err)
 		return
 	}
 
@@ -159,6 +212,7 @@ func checkOrderStatus(orders []OrderStatus, cfg *config.Config) {
 	}
 	grpcClient, err := grpc.Dial(osmosisChainCfg.Cosmos.GRPC, grpc.WithTransportCredentials(creds))
 	if err != nil {
+		fmt.Printf("Error creating gRPC client: %v\n", err)
 		return
 	}
 
@@ -183,16 +237,17 @@ func checkOrderStatus(orders []OrderStatus, cfg *config.Config) {
 	for _, order := range orders {
 		fillTx, filler, timestamp, err := client.QueryOrderFillEvent(ctx, osmosisChainCfg.FastTransferContractAddress, order.OrderID)
 		if err != nil {
-			fmt.Printf("❌ Error checking fill status: %v\n", err)
+			fmt.Printf("❌ Error checking fill status for order %s: %v\n", order.OrderID, err)
 			continue
 		}
 
 		if fillTx != nil && filler != nil {
-			fmt.Printf("✅ Filled successfully!\n")
+			fmt.Printf("✅ Order %s filled successfully!\n", order.OrderID)
 			fmt.Printf("Fill tx: %s\n", *fillTx)
 			fmt.Printf("Filled by: %s\n", *filler)
 			fmt.Printf("Timestamp: %s\n", timestamp)
-			continue
+		} else {
+			fmt.Printf("⏳ Order %s is still pending\n", order.OrderID)
 		}
 	}
 }
@@ -201,7 +256,7 @@ func parseLoadTestFlags(cmd *cobra.Command) (*loadTestFlags, error) {
 	flags := &loadTestFlags{}
 	var err error
 
-	if flags.configPath, err = cmd.Flags().GetString("config"); err != nil {
+	if flags.configPath, err = cmd.Root().PersistentFlags().GetString("config"); err != nil {
 		return nil, err
 	}
 	if flags.recipient, err = cmd.Flags().GetString("recipient"); err != nil {

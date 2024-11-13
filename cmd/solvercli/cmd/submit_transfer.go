@@ -63,8 +63,12 @@ Example:
 }
 
 func submitTransfer(cmd *cobra.Command, args []string) (*SubmitTransferResult, error) {
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
+	ctx := cmd.Context()
+	var cancel context.CancelFunc
+	if ctx == nil {
+		ctx, cancel = signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer cancel()
+	}
 
 	lmt.ConfigureLogger()
 	ctx = lmt.LoggerContext(ctx)
@@ -208,7 +212,7 @@ func parseFlags(cmd *cobra.Command) (*submitFlags, error) {
 	if flags.gatewayAddr, err = cmd.Flags().GetString("gateway"); err != nil {
 		return nil, err
 	}
-	if flags.configPath, err = cmd.Flags().GetString("config"); err != nil {
+	if flags.configPath, err = cmd.Root().PersistentFlags().GetString("config"); err != nil {
 		return nil, err
 	}
 	if flags.sourceChainID, err = cmd.Flags().GetString("source-chain-id"); err != nil {
