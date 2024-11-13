@@ -121,13 +121,15 @@ func (r *FundRebalancer) Rebalance(ctx context.Context) {
 			continue
 		}
 
-		lmt.Logger(ctx).Info(
-			"submitted transactions to rebalance usdc to chain",
-			zap.String("chainID", chainID),
-			zap.String("usdcNeeded", usdcNeeded.String()),
-			zap.String("totalUSDCRebalanced", totalUSDCMoved.String()),
-			zap.Int("totalTxnsToRebalance", len(txns)),
-		)
+		if len(txns) > 0 {
+			lmt.Logger(ctx).Info(
+				"submitted transactions to rebalance usdc to chain",
+				zap.String("chainID", chainID),
+				zap.String("usdcNeeded", usdcNeeded.String()),
+				zap.String("totalUSDCRebalanced", totalUSDCMoved.String()),
+				zap.Int("totalTxnsToRebalance", len(txns)),
+			)
+		}
 	}
 }
 
