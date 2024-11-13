@@ -132,7 +132,7 @@ type ChainConfig struct {
 	// TODO: explain a lot more here about how this relates to the batch uusdc
 	// settle up threshold, min fee bps and how to properly set these values
 	// per chain so solvers dont get stuck settlements.
-	MinProfitMarginBPS int `ymal:"min_profit_margin_bps"`
+	MinProfitMarginBPS int `yaml:"min_profit_margin_bps"`
 	// MinFeeBps is the min fee amount the solver is willing to fill in bps.
 	// For example, if an order has an amount in of 100usdc and an amount out
 	// of 99usdc, that is an implied fee to the solver of 1usdc, or a 1%/100bps

@@ -268,6 +268,11 @@ func (r *OrderSettler) maxBatchTxFeeUUSDC(ctx context.Context, batch types.Settl
 		return nil, fmt.Errorf("calculating profit for batch: %w", err)
 	}
 
+	totalValue, err := batch.TotalValue()
+	if err != nil {
+		return nil, fmt.Errorf("calculating total value for batch: %w", err)
+	}
+
 	settlementPayoutChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(batch.SourceChainID())
 	if err != nil {
 		return nil, fmt.Errorf("getting chain config for settlement payout chain %s: %w", batch.SourceChainID(), err)
@@ -275,15 +280,10 @@ func (r *OrderSettler) maxBatchTxFeeUUSDC(ctx context.Context, batch types.Settl
 
 	minProfitMarginBPS := big.NewFloat(float64(settlementPayoutChainConfig.MinProfitMarginBPS))
 	minProfitMarginDec := minProfitMarginBPS.Quo(minProfitMarginBPS, big.NewFloat(10000))
+	valueMargin := minProfitMarginDec.Mul(minProfitMarginDec, new(big.Float).SetInt(totalValue))
+	valueMarginInt, _ := valueMargin.Int(nil)
 
-	// for example if max profit margin dec is 0.98, they want to make 98%
-	// margin on this settlement, leaving 2% of the profit to pay for tx fees
-	maxTxFeePctDec := minProfitMarginDec.Sub(big.NewFloat(1), minProfitMarginDec)
-
-	maxGasFeeUUSDC := maxTxFeePctDec.Mul(maxTxFeePctDec, new(big.Float).SetInt(profit))
-	maxGasFeeUUSDCInt, _ := maxGasFeeUUSDC.Int(nil)
-
-	return maxGasFeeUUSDCInt, nil
+	return profit.Sub(profit, valueMarginInt), nil
 }
 
 func (r *OrderSettler) totalBatchProfit(ctx context.Context, batch types.SettlementBatch) (*big.Int, error) {

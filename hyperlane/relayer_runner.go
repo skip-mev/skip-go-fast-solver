@@ -88,7 +88,6 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 						)
 					case errors.Is(err, ErrNotEnoughSignaturesFound):
 						// warning already logged in relayer
-						continue
 					case strings.Contains(err.Error(), "execution reverted"):
 						// Unrecoverable error
 						lmt.Logger(ctx).Warn(
@@ -112,7 +111,6 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 								zap.Error(err),
 							)
 						}
-						continue
 					default:
 						lmt.Logger(ctx).Error(
 							"error relaying pending hyperlane transfer",
@@ -121,6 +119,7 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 							zap.String("txHash", transfer.MessageSentTx),
 						)
 					}
+					continue
 				}
 
 				if _, err := r.db.InsertSubmittedTx(ctx, db.InsertSubmittedTxParams{
