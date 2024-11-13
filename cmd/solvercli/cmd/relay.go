@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
 	"os/signal"
 	"syscall"
@@ -89,7 +90,9 @@ var relayCmd = &cobra.Command{
 			return
 		}
 
-		hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmrpc.NewEVMRPCClientManager(), keyStore)
+		evmTxExecutor := evm.DefaultEVMTxExecutor()
+
+		hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmrpc.NewEVMRPCClientManager(), keyStore, evmTxExecutor)
 		if err != nil {
 			lmt.Logger(ctx).Error("Error creating hyperlane multi client from config", zap.Error(err))
 		}
