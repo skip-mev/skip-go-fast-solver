@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	evm2 "github.com/skip-mev/go-fast-solver/mocks/shared/txexecutor/evm"
 	"math/big"
 	"os"
 	"strconv"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/fundrebalancer"
 	mock_database "github.com/skip-mev/go-fast-solver/mocks/fundrebalancer"
@@ -135,8 +135,9 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
+		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -203,8 +204,10 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
+		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
+		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", nil)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -226,18 +229,11 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockSkipGo.EXPECT().Route(mockContext, arbitrumUSDCDenom, arbitrumChainID, osmosisUSDCDenom, osmosisChainID, big.NewInt(osmosisTargetAmount)).
 			Return(route, nil).Once()
 
-		txs := []skipgo.Tx{{EVMTx: &skipgo.EVMTx{ChainID: arbitrumChainID, To: osmosisAddress, Value: "0"}}}
+		txs := []skipgo.Tx{{EVMTx: &skipgo.EVMTx{ChainID: arbitrumChainID, To: osmosisAddress, Value: "999", SignerAddress: arbitrumAddress}}}
 		mockSkipGo.EXPECT().Msgs(mockContext, arbitrumUSDCDenom, arbitrumChainID, arbitrumAddress, osmosisUSDCDenom, osmosisChainID, osmosisAddress, big.NewInt(osmosisTargetAmount), big.NewInt(osmosisTargetAmount), []string{arbitrumAddress, osmosisAddress}, route.Operations).
 			Return(txs, nil).Once()
 
-		mockSkipGo.EXPECT().SubmitTx(mockContext, mock.Anything, arbitrumChainID).
-			Return(skipgo.TxHash("arbitrum hash"), nil).Once()
-
-		// setup mock evm client txn construction calls
-		mockEVMClient.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100), nil).Twice()
-		mockEVMClient.On("SuggestGasTipCap", mock.Anything).Return(big.NewInt(50), nil).Once()
-		mockEVMClient.On("SuggestGasPrice", mock.Anything).Return(big.NewInt(25), nil).Once()
-		mockEVMClient.On("PendingNonceAt", mock.Anything, common.HexToAddress(arbitrumAddress)).Return(uint64(1), nil).Once()
+		mockEVMClient.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100), nil).Once()
 
 		// should insert once rebalance transaction from arbitrum to osmosis
 		mockDatabse.EXPECT().InsertRebalanceTransfer(mockContext, db.InsertRebalanceTransferParams{
@@ -312,11 +308,14 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockEVMClientManager.EXPECT().GetClient(mockContext, ethChainID).Return(mockEVMClient, nil)
+		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
+		mockEVMTxExecutor.On("ExecuteTx", mockContext, "42161", arbitrumAddress, []byte{}, "0", osmosisAddress, mock.Anything).Return("arbhash", nil)
+		mockEVMTxExecutor.On("ExecuteTx", mockContext, "1", ethAddress, []byte{}, "0", osmosisAddress, mock.Anything).Return("ethhash", nil)
 
 		// using an in memory database for this test
 		mockDatabse := mock_database.NewFakeDatabase()
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -337,12 +336,9 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockSkipGo.EXPECT().Route(mockContext, arbitrumUSDCDenom, arbitrumChainID, osmosisUSDCDenom, osmosisChainID, big.NewInt(75)).
 			Return(arbRoute, nil).Once()
 
-		arbTxs := []skipgo.Tx{{EVMTx: &skipgo.EVMTx{ChainID: arbitrumChainID, To: osmosisAddress, Value: "0"}}}
+		arbTxs := []skipgo.Tx{{EVMTx: &skipgo.EVMTx{ChainID: arbitrumChainID, To: osmosisAddress, Value: "0", SignerAddress: arbitrumAddress}}}
 		mockSkipGo.EXPECT().Msgs(mockContext, arbitrumUSDCDenom, arbitrumChainID, arbitrumAddress, osmosisUSDCDenom, osmosisChainID, osmosisAddress, big.NewInt(75), big.NewInt(75), []string{arbitrumAddress, osmosisAddress}, arbRoute.Operations).
 			Return(arbTxs, nil).Once()
-
-		mockSkipGo.EXPECT().SubmitTx(mockContext, mock.Anything, arbitrumChainID).
-			Return(skipgo.TxHash("arbhash"), nil).Once()
 
 		ethRoute := &skipgo.RouteResponse{
 			AmountOut:              "25",
@@ -352,19 +348,11 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockSkipGo.EXPECT().Route(mockContext, ethUSDCDenom, ethChainID, osmosisUSDCDenom, osmosisChainID, big.NewInt(25)).
 			Return(ethRoute, nil).Once()
 
-		ethTxs := []skipgo.Tx{{EVMTx: &skipgo.EVMTx{ChainID: ethChainID, To: osmosisAddress, Value: "0"}}}
+		ethTxs := []skipgo.Tx{{EVMTx: &skipgo.EVMTx{ChainID: ethChainID, To: osmosisAddress, Value: "0", SignerAddress: ethAddress}}}
 		mockSkipGo.EXPECT().Msgs(mockContext, ethUSDCDenom, ethChainID, ethAddress, osmosisUSDCDenom, osmosisChainID, osmosisAddress, big.NewInt(25), big.NewInt(25), []string{ethAddress, osmosisAddress}, ethRoute.Operations).
 			Return(ethTxs, nil).Once()
 
-		mockSkipGo.EXPECT().SubmitTx(mockContext, mock.Anything, ethChainID).
-			Return(skipgo.TxHash("ethhash"), nil).Once()
-
-		// setup mock evm client txn construction calls
-		mockEVMClient.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100), nil)
-		mockEVMClient.On("SuggestGasTipCap", mock.Anything).Return(big.NewInt(50), nil)
-		mockEVMClient.On("SuggestGasPrice", mock.Anything).Return(big.NewInt(25), nil)
-		mockEVMClient.On("PendingNonceAt", mock.Anything, common.HexToAddress(arbitrumAddress)).Return(uint64(1), nil).Once()
-		mockEVMClient.On("PendingNonceAt", mock.Anything, common.HexToAddress(ethAddress)).Return(uint64(1), nil).Once()
+		mockEVMClient.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100), nil).Twice()
 
 		rebalancer.Rebalance(ctx)
 
@@ -435,8 +423,9 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
+		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -462,7 +451,6 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 
 	t.Run("skips rebalance when gas threshold exceeded", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := context.Background()
 		mockConfigReader := mock_config.NewMockConfigReader(t)
 		mockConfigReader.On("Config").Return(config.Config{
@@ -499,27 +487,23 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 			nil,
 		)
 		ctx = config.ConfigReaderContext(ctx, mockConfigReader)
-
 		f, err := loadKeysFile(defaultKeys)
 		assert.NoError(t, err)
-
 		mockSkipGo := mock_skipgo.NewMockSkipGoClient(t)
 		mockEVMClientManager := mock_evmrpc.NewMockEVMRPCClientManager(t)
 		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
+		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
 		assert.NoError(t, err)
-
 		// No pending txns
 		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, osmosisChainID).Return(nil, nil)
 		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, arbitrumChainID).Return(nil, nil)
-
 		// Osmosis needs funds, Arbitrum has excess
 		mockSkipGo.EXPECT().Balance(mockContext, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("0", nil)
 		mockEVMClient.EXPECT().GetUSDCBalance(mockContext, arbitrumUSDCDenom, arbitrumAddress).Return(big.NewInt(200), nil)
-
 		route := &skipgo.RouteResponse{
 			AmountOut:              "100",
 			Operations:             []any{"opts"},
@@ -527,7 +511,6 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		}
 		mockSkipGo.EXPECT().Route(mockContext, arbitrumUSDCDenom, arbitrumChainID, osmosisUSDCDenom, osmosisChainID, big.NewInt(100)).
 			Return(route, nil)
-
 		// Return transaction that will require more gas than threshold
 		txs := []skipgo.Tx{{EVMTx: &skipgo.EVMTx{ChainID: arbitrumChainID, To: osmosisAddress, Value: "0"}}}
 		mockSkipGo.EXPECT().Msgs(
@@ -543,12 +526,9 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 			[]string{arbitrumAddress, osmosisAddress},
 			route.Operations,
 		).Return(txs, nil)
-
 		// Return gas estimate higher than threshold
 		mockEVMClient.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100), nil)
-
 		rebalancer.Rebalance(ctx)
-
 		// Verify no transactions were submitted by checking database
 		transfers, err := mockDatabse.GetPendingRebalanceTransfersToChain(ctx, osmosisChainID)
 		assert.NoError(t, err)

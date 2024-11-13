@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	evmtxexecutor "github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
+	"strings"
 	"sync"
 
 	interchain_security_module "github.com/skip-mev/go-fast-solver/shared/contracts/hyperlane/InterchainSecurityModule"
@@ -30,9 +32,11 @@ type HyperlaneClient struct {
 
 	ismAddress     *common.Address
 	ismAddressLock sync.RWMutex
+
+	txExecutor evmtxexecutor.EVMTxExecutor
 }
 
-func NewHyperlaneClient(ctx context.Context, hyperlaneDomain string, manager evmrpc.EVMRPCClientManager, keystore keys.KeyStore) (*HyperlaneClient, error) {
+func NewHyperlaneClient(ctx context.Context, hyperlaneDomain string, manager evmrpc.EVMRPCClientManager, keystore keys.KeyStore, txSubmitter evmtxexecutor.EVMTxExecutor) (*HyperlaneClient, error) {
 	chainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(hyperlaneDomain)
 	if err != nil {
 		return nil, fmt.Errorf("gettting chainID from hyperlane domain %s: %w", hyperlaneDomain, err)
@@ -54,6 +58,7 @@ func NewHyperlaneClient(ctx context.Context, hyperlaneDomain string, manager evm
 		hyperlaneDomain: hyperlaneDomain,
 		mailboxAddress:  common.HexToAddress(chainConfig.Relayer.MailboxAddress),
 		keystore:        keystore,
+		txExecutor:      txSubmitter,
 	}, nil
 }
 
@@ -218,19 +223,38 @@ func (c *HyperlaneClient) Process(ctx context.Context, domain string, message []
 		return nil, fmt.Errorf("creating mailbox contract caller for address %s: %w", c.mailboxAddress.String(), err)
 	}
 
-	processTx, err := destinationMailbox.Process(&bind.TransactOpts{
+	tx, err := destinationMailbox.Process(&bind.TransactOpts{
 		From:    common.HexToAddress(destinationChainConfig.SolverAddress),
 		Context: ctx,
 		Signer: evm.EthereumSignerToBindSignerFn(
 			signing.NewLocalEthereumSigner(privateKey),
 			destinationChainID,
 		),
+		NoSend: true, // generate the transaction without sending
 	}, metadata, message)
+	if err != nil {
+		return nil, fmt.Errorf("creating process transaction: %w", err)
+	}
+
+	txHash, err := c.txExecutor.ExecuteTx(
+		ctx,
+		destinationChainID,
+		destinationChainConfig.SolverAddress,
+		tx.Data(),
+		tx.Value().String(),
+		tx.To().String(),
+		signing.NewLocalEthereumSigner(privateKey),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("processing message on destination mailbox: %w", err)
 	}
 
-	return processTx.Hash().Bytes(), nil
+	txHashBytes, err := hex.DecodeString(strings.TrimPrefix(txHash, "0x"))
+	if err != nil {
+		return nil, fmt.Errorf("decoding process tx hash %s: %w", txHash, err)
+	}
+
+	return txHashBytes, nil
 }
 
 func (c *HyperlaneClient) MerkleTreeLeafCount(ctx context.Context, domain string) (uint64, error) {

@@ -75,7 +75,12 @@ func (t *TransferTracker) UpdateTransfers(ctx context.Context) error {
 }
 
 func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID int64, hash string, chainID string) error {
-	currentStatus, err := t.skipgo.Status(ctx, skipgo.TxHash(hash), chainID)
+	txHash, err := t.skipgo.TrackTx(ctx, hash, chainID)
+	if err != nil {
+		return fmt.Errorf("failed to track transaction %s on chain %s: %w", hash, chainID, err)
+	}
+
+	currentStatus, err := t.skipgo.Status(ctx, txHash, chainID)
 	if err != nil {
 		return fmt.Errorf("getting status for transaction %s on chain %s: %w", hash, chainID, err)
 	}

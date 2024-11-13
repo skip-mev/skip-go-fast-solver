@@ -3,6 +3,7 @@ package cosmos
 import (
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 
 	"google.golang.org/grpc/credentials"
@@ -163,7 +164,11 @@ func (c *HyperlaneClient) GetHyperlaneDispatch(ctx context.Context, domain, orig
 	if err != nil {
 		return nil, nil, fmt.Errorf("getting tendermint rpc client for chain %s: %w", originChainID, err)
 	}
-	tx, err := tmRpcClient.GetTx(ctx, initiateTxHash)
+	txHashBytes, err := hex.DecodeString(initiateTxHash)
+	if err != nil {
+		return nil, nil, fmt.Errorf("decoding tx hash %s: %w", initiateTxHash, err)
+	}
+	tx, err := tmRpcClient.Tx(ctx, txHashBytes, false)
 	if err != nil {
 		return nil, nil, fmt.Errorf("fetching tx results, hash: %s: %w", initiateTxHash, err)
 	}

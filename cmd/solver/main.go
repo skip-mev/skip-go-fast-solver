@@ -4,6 +4,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
+	"github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 	"github.com/skip-mev/go-fast-solver/txverifier"
 	"os/signal"
 	"syscall"
@@ -61,7 +63,10 @@ func main() {
 		lmt.Logger(ctx).Fatal("Unable to load keystore", zap.Error(err))
 	}
 
-	clientManager := clientmanager.NewClientManager(keyStore)
+	cosmosTxExecutor := cosmos.DefaultSerializedCosmosTxExecutor()
+	evmTxExecutor := evm.DefaultEVMTxExecutor()
+
+	clientManager := clientmanager.NewClientManager(keyStore, cosmosTxExecutor)
 
 	dbConn, err := connect.ConnectAndMigrate(ctx, *sqliteDBPath, *migrationsPath)
 	if err != nil {
@@ -135,7 +140,7 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		r, err := fundrebalancer.NewFundRebalancer(ctx, *keysPath, skipgo, evmManager, db.New(dbConn))
+		r, err := fundrebalancer.NewFundRebalancer(ctx, *keysPath, skipgo, evmManager, db.New(dbConn), evmTxExecutor)
 		if err != nil {
 			return fmt.Errorf("creating fund rebalancer: %w", err)
 		}
@@ -144,7 +149,7 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmManager, keyStore)
+		hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmManager, keyStore, evmTxExecutor)
 		if err != nil {
 			return fmt.Errorf("creating hyperlane multi client from config: %w", err)
 		}
