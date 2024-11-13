@@ -368,13 +368,21 @@ func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.
 	if err != nil {
 		return "", err
 	}
-	if submittedTxs, err := r.db.GetSubmittedTxsByOrderIdAndType(ctx, db.GetSubmittedTxsByOrderIdAndTypeParams{
+
+	submittedTxs, err := r.db.GetSubmittedTxsByOrderIdAndType(ctx, db.GetSubmittedTxsByOrderIdAndTypeParams{
 		OrderID: sql.NullInt64{Int64: order.ID, Valid: true},
 		TxType:  dbtypes.TxTypeInitiateTimeout,
-	}); err != nil {
+	})
+	if err != nil {
 		return "", fmt.Errorf("failed to get submitted txs: %w", err)
-	} else if len(submittedTxs) > 0 {
-		return "", nil
+	}
+	if len(submittedTxs) > 1 {
+		return "", fmt.Errorf("got more %d submitted tx's for order %s with type %s, expected only 1", len(submittedTxs), order.OrderStatusMessage.String, dbtypes.TxTypeInitiateTimeout)
+	}
+	if len(submittedTxs) == 1 {
+		// the timeout for this order has already been submitted, return the tx
+		// hash
+		return submittedTxs[0].TxHash, nil
 	}
 
 	txHash, rawTx, _, err := destinationChainBridgeClient.InitiateTimeout(ctx, order, destinationChainGatewayContractAddress)
@@ -385,6 +393,7 @@ func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.
 	if txHash == "" {
 		return "", fmt.Errorf("empty tx hash after submitting order for timeout to address %s", destinationChainGatewayContractAddress)
 	}
+
 	if _, err := r.db.InsertSubmittedTx(ctx, db.InsertSubmittedTxParams{
 		OrderID:  sql.NullInt64{Int64: order.ID, Valid: true},
 		ChainID:  order.DestinationChainID,
