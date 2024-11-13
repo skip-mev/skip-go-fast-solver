@@ -244,7 +244,15 @@ func (r *OrderSettler) submitInitiatedSettlementsForRelay(ctx context.Context) e
 		// first one since they are all the same
 		hash := batch[0].InitiateSettlementTx.String
 		if err := r.relayBatch(ctx, hash, batch); err != nil {
-			return fmt.Errorf("submitting batch with tx hash %s to be relayed: %w", hash, err)
+			// continue to try and relay other settlements if one fails to be
+			// submitted
+			lmt.Logger(ctx).Error(
+				"submitting batch to be relayed",
+				zap.Error(err),
+				zap.String("txHash", hash),
+				zap.String("settlementPayoutChainID", batch.SourceChainID()),
+				zap.String("settlementInitiationChainID", batch.DestinationChainID()),
+			)
 		}
 	}
 
@@ -268,6 +276,12 @@ func (r *OrderSettler) relayBatch(
 	maxTxFeeUUSDC, err := r.maxBatchTxFeeUUSDC(ctx, batch)
 	if err != nil {
 		return fmt.Errorf("calculating max batch (hash: %s) tx fee in uusdc: %w", txHash, err)
+	}
+	if maxTxFeeUUSDC.Cmp(big.NewInt(0)) <= 0 {
+		return fmt.Errorf(
+			"batch max tx fee in uusdc is <= 0 based on configured profit margin for %s. min profit margin should be lowered based on current batch size and min fee bps",
+			settlementPayoutChainID,
+		)
 	}
 
 	return r.relaySettlement(
