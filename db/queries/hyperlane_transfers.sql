@@ -16,3 +16,6 @@ UPDATE hyperlane_transfers
 SET updated_at=CURRENT_TIMESTAMP, transfer_status = ?, transfer_status_message = ?
 WHERE source_chain_id = ? AND destination_chain_id = ? AND message_id = ?
     RETURNING *;
+
+-- name: GetHyperlaneTransferByMessageSentTx :one
+SELECT * FROM hyperlane_transfers WHERE message_sent_tx = ? AND source_chain_id = ?;

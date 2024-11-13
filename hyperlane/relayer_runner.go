@@ -21,7 +21,7 @@ const (
 )
 
 type Database interface {
-	RelaySubmitter
+	InsertHyperlaneTransfer(ctx context.Context, arg db.InsertHyperlaneTransferParams) (db.HyperlaneTransfer, error)
 	GetAllOrderSettlementsWithSettlementStatus(ctx context.Context, settlementStatus string) ([]db.OrderSettlement, error)
 	SetMessageStatus(ctx context.Context, arg db.SetMessageStatusParams) (db.HyperlaneTransfer, error)
 	GetSubmittedTxsByHyperlaneTransferId(ctx context.Context, hyperlaneTransferID sql.NullInt64) ([]db.SubmittedTx, error)
@@ -29,10 +29,7 @@ type Database interface {
 	InsertSubmittedTx(ctx context.Context, arg db.InsertSubmittedTxParams) (db.SubmittedTx, error)
 	GetSubmittedTxsByOrderStatusAndType(ctx context.Context, arg db.GetSubmittedTxsByOrderStatusAndTypeParams) ([]db.SubmittedTx, error)
 	GetAllOrdersWithOrderStatus(ctx context.Context, orderStatus string) ([]db.Order, error)
-}
-
-type RelaySubmitter interface {
-	InsertHyperlaneTransfer(ctx context.Context, arg db.InsertHyperlaneTransferParams) (db.HyperlaneTransfer, error)
+	GetHyperlaneTransferByMessageSentTx(ctx context.Context, arg db.GetHyperlaneTransferByMessageSentTxParams) (db.HyperlaneTransfer, error)
 }
 
 type RelayerRunner struct {
@@ -216,13 +213,24 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 // SubmitTxToRelay submits a transaction hash on a source chain to be relayed.
 // This transaction must contain a dispatch message/event that can be relayed
 // by hyperlane. This tx will not be immediately relayed but will be placed in
-// a queue to be eventually relayed.
+// a queue to be eventually relayed. It is OK to call this function with the
+// same txHash and sourceChainID twice, if the txHash has already been
+// submitted to relay on the sourceChainID, this will return nil without
+// submitting again.
 func (r *RelayerRunner) SubmitTxToRelay(
 	ctx context.Context,
 	txHash string,
 	sourceChainID string,
 	maxTxFeeUUSDC *big.Int,
 ) error {
+	alreadySubmitted, err := r.TxAlreadySubmitted(ctx, txHash, sourceChainID)
+	if err != nil {
+		return fmt.Errorf("checking if tx %s has already been submitted: %w", txHash, err)
+	}
+	if alreadySubmitted {
+		return nil
+	}
+
 	sourceChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(sourceChainID)
 	if err != nil {
 		return fmt.Errorf("getting source chain config for chainID %s: %w", sourceChainID, err)
@@ -253,4 +261,23 @@ func (r *RelayerRunner) SubmitTxToRelay(
 	}
 
 	return nil
+}
+
+// TxAlreadySubmitted returns true if txHash hash already been submitted to
+// be hyperlane transferred.
+func (r *RelayerRunner) TxAlreadySubmitted(ctx context.Context, txHash string, sourceChainID string) (bool, error) {
+	query := db.GetHyperlaneTransferByMessageSentTxParams{
+		MessageSentTx: txHash,
+		SourceChainID: sourceChainID,
+	}
+	_, err := r.db.GetHyperlaneTransferByMessageSentTx(ctx, query)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return false, nil
+		default:
+			return false, fmt.Errorf("getting hyperlane transfers by message sent tx %s: %w", txHash, err)
+		}
+	}
+	return true, nil
 }

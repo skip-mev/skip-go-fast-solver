@@ -48,6 +48,33 @@ func (q *Queries) GetAllHyperlaneTransfersWithTransferStatus(ctx context.Context
 	return items, nil
 }
 
+const getHyperlaneTransferByMessageSentTx = `-- name: GetHyperlaneTransferByMessageSentTx :one
+SELECT id, created_at, updated_at, source_chain_id, destination_chain_id, message_id, message_sent_tx, transfer_status, transfer_status_message, max_tx_fee_uusdc FROM hyperlane_transfers WHERE message_sent_tx = ? AND source_chain_id = ?
+`
+
+type GetHyperlaneTransferByMessageSentTxParams struct {
+	MessageSentTx string
+	SourceChainID string
+}
+
+func (q *Queries) GetHyperlaneTransferByMessageSentTx(ctx context.Context, arg GetHyperlaneTransferByMessageSentTxParams) (HyperlaneTransfer, error) {
+	row := q.db.QueryRowContext(ctx, getHyperlaneTransferByMessageSentTx, arg.MessageSentTx, arg.SourceChainID)
+	var i HyperlaneTransfer
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SourceChainID,
+		&i.DestinationChainID,
+		&i.MessageID,
+		&i.MessageSentTx,
+		&i.TransferStatus,
+		&i.TransferStatusMessage,
+		&i.MaxTxFeeUusdc,
+	)
+	return i, err
+}
+
 const insertHyperlaneTransfer = `-- name: InsertHyperlaneTransfer :one
 INSERT INTO hyperlane_transfers (
     source_chain_id,
