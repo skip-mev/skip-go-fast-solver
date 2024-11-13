@@ -19,7 +19,7 @@ fund_rebalancer:
     target_amount: <target_amount> # e.g. "1000000000"
     min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
 chains:
-  ethereum:
+  1:
     chain_name: "ethereum"
     chain_id: "1"
     type: "evm"
@@ -29,8 +29,6 @@ chains:
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
-    min_fill_size: <min_fill_size> # e.g. 5000000
-    max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
@@ -42,36 +40,8 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 4290000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 1430000000000000000
-      gas_price: <gas_price> # e.g. "30000000000"
-      min_gas_tip_cap: <min_gas_tip_cap> # e.g. 30000000000
 
-  ethereum-testnet:
-    chain_name: "ethereum"
-    chain_id: "11155111"
-    type: "evm"
-    environment: "testnet"
-    gas_token_symbol: "ETH"
-    gas_token_decimals: 18
-    fast_transfer_contract_address: <use_address_from_readme>
-    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
-    min_fill_size: <min_fill_size> # e.g. 5000000
-    max_fill_size: <max_fill_size> # e.g. 10000000000
-    max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
-    solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
-    evm:
-      rpc: <ethereum_testnet_rpc_server_url> # e.g. "https://sepolia.infura.io/v3/YOUR-API-KEY"
-      rpc_basic_auth_var: <server_password>
-      contracts:
-        usdc_erc20_address: 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
-      signer_gas_balance:
-        warning_threshold_wei: 250000000000000000
-        critical_threshold_wei: 0
-      gas_price: <gas_price> # e.g. "30000000000"
-      min_gas_tip_cap: <min_gas_tip_cap> # e.g. 30000000000
-
-  avalanche:
+  43114:
     chain_name: "avalanche"
     chain_id: "43114"
     type: "evm"
@@ -81,8 +51,6 @@ chains:
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
-    min_fill_size: <min_fill_size> # e.g. 5000000
-    max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
@@ -94,10 +62,8 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 1720000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 580000000000000000
-      gas_price: <gas_price> # e.g. "30000000000"
-      min_gas_tip_cap: <min_gas_tip_cap> # e.g. 30000000000
 
-  optimism:
+  10:
     chain_name: "optimism"
     chain_id: "10"
     type: evm
@@ -107,8 +73,6 @@ chains:
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
-    min_fill_size: <min_fill_size> # e.g. 5000000
-    max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
@@ -120,10 +84,8 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 180000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 60000000000000000
-      gas_price: <gas_price> # e.g. "30000000000"
-      min_gas_tip_cap: <min_gas_tip_cap> # e.g. 30000000000
 
-  arbitrum:
+  42161:
     chain_name: "arbitrum"
     chain_id: "42161"
     type: evm
@@ -136,8 +98,6 @@ chains:
     hyperlane_domain: "42161"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: 5000000
-    min_fill_size: <min_fill_size> # e.g. 5000000
-    max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     min_fee_bps: <min_fee_bps> # e.g. 100
     evm:
@@ -148,28 +108,12 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 180000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 60000000000000000
-      gas_price: <gas_price> # e.g. "30000000000"
-      min_gas_tip_cap: <min_gas_tip_cap> # e.g. 30000000000
     relayer:
       validator_announce_contract_address: "0x1df063280C4166AF9a725e3828b4dAC6c7113B08"
       merkle_hook_contract_address: "0xb49a14568f9CC440f2c7DCf7FC6766040a5eb860"
       mailbox_address: "0x979Ca5202784112f4738403dBec5D0F3B9daabB9"
-  arbitrum-testnet:
-    chain_name: "arbitrum"
-    chain_id: "421614"
-    type: evm
-    environment: "testnet"
-    gas_token_symbol: "ETH"
-    gas_token_decimals: 18
-    evm:
-      rpc: <arbitrum_rpc_server_url>
-      rpc_basic_auth_var: <server_password>
-      contracts:
-        usdc_erc20_address: 0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
-      signer_gas_balance:
-        warning_threshold_wei: 250000000000000000
-        critical_threshold_wei: 0
-  osmosis:
+
+  osmosis-1:
     chain_name: "osmosis"
     chain_id: "osmosis-1"
     type: "cosmos"
@@ -180,7 +124,6 @@ chains:
     solver_address: <solver_address>
     hyperlane_domain: "875"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
@@ -203,7 +146,7 @@ chains:
       merkle_hook_contract_address: "osmo1e765uc5mctl7rz8dzl9decl5ghgxggeqyxutkjp2xkggrg6zma3qgdq2g4"
       mailbox_address: "osmo1r6u37zv47ke4d2k9tkzun72ch466w6594kv8gqgrtmsvf7qxpm9sj95v98"
 
-  base-mainnet:
+  8453:
     chain_name: "base"
     chain_id: "8453"
     type: evm
@@ -213,8 +156,6 @@ chains:
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
-    min_fill_size: <min_fill_size> # e.g. 5000000
-    max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
@@ -226,10 +167,8 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 180000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 60000000000000000
-      gas_price: <gas_price> # e.g. "30000000000"
-      min_gas_tip_cap: <min_gas_tip_cap> # e.g. 30000000000
 
-  polygon:
+  137:
     chain_name: "polygon"
     chain_id: "137"
     type: evm
@@ -239,8 +178,6 @@ chains:
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
-    min_fill_size: <min_fill_size> # e.g. 5000000
-    max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
@@ -252,5 +189,3 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 15000000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 5000000000000000000
-      gas_price: <gas_price> # e.g. "30000000000"
-      min_gas_tip_cap: <min_gas_tip_cap> # e.g. 30000000000

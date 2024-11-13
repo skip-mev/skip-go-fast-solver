@@ -39,8 +39,6 @@ type EVMBridgeClient struct {
 
 	fromAddress common.Address
 	signer      bind.SignerFn
-
-	minGasTipCap *big.Int
 }
 
 var _ BridgeClient = (*EVMBridgeClient)(nil)
@@ -49,18 +47,16 @@ func NewEVMBridgeClient(
 	client EVMClient,
 	chainID string,
 	signer signing.Signer,
-	minGasTipCap *big.Int,
 ) (*EVMBridgeClient, error) {
 	if signer == nil {
 		signer = signing.NewNopSigner()
 	}
 
 	return &EVMBridgeClient{
-		client:       client,
-		chainID:      chainID,
-		fromAddress:  common.BytesToAddress(signer.Address()),
-		signer:       signingevm.EthereumSignerToBindSignerFn(signer, chainID),
-		minGasTipCap: minGasTipCap,
+		client:      client,
+		chainID:     chainID,
+		fromAddress: common.BytesToAddress(signer.Address()),
+		signer:      signingevm.EthereumSignerToBindSignerFn(signer, chainID),
 	}, nil
 }
 

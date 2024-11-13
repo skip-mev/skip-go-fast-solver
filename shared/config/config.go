@@ -178,11 +178,6 @@ type CosmosConfig struct {
 }
 
 type EVMConfig struct {
-	// MinGasTipCap is the minimum tip to include for EIP-1559 transactions
-	MinGasTipCap *int64 `yaml:"min_gas_tip_cap"`
-	// FastTransferContractAddress is the address of Skip Go Fast
-	// gateway contract on this chain
-	FastTransferContractAddress string `yaml:"fast_transfer_contract_address"`
 	// RPC is the HTTP endpoint for the EVM chain's RPC server
 	RPC string `yaml:"rpc"`
 	// RPCBasicAuthVar is the environment variable name containing the basic auth
