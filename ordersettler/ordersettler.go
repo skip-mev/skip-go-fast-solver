@@ -84,6 +84,10 @@ func (r *OrderSettler) Run(ctx context.Context) {
 		case <-time.After(params.Delay):
 		}
 
+		if err := r.submitInitiatedSettlementsForRelay(ctx); err != nil {
+			lmt.Logger(ctx).Error("error submitting settlements for relay", zap.Error(err))
+		}
+
 		if err := r.findNewSettlements(ctx); err != nil {
 			lmt.Logger(ctx).Error("error finding new settlements", zap.Error(err))
 			continue
@@ -225,39 +229,54 @@ func (r *OrderSettler) settleOrders(ctx context.Context) error {
 	return nil
 }
 
-// relaySettlements submits tx hashes for settlements to be relayed from the
-// settlements initiation chain (the orders destination chain), to the payout
-// chain (the orders source chain).
-func (r *OrderSettler) relaySettlements(
-	ctx context.Context,
-	txHashes []string,
-	batches []types.SettlementBatch,
-) error {
-	for i, txHash := range txHashes {
-		// the orders destination chain is where the settlement is initiated
-		settlementInitiationChainID := batches[i].DestinationChainID()
+// submitInitiatedSettlementsForRelay finds all order settlements that have
+// been initiated on chain and submits them for hyperlane relay.
+func (r *OrderSettler) submitInitiatedSettlementsForRelay(ctx context.Context) error {
+	initiatedSettlements, err := r.db.GetAllOrderSettlementsWithSettlementStatus(ctx, dbtypes.SettlementStatusSettlementInitiated)
+	if err != nil {
+		return fmt.Errorf("getting initiated order settlements: %w", err)
+	}
 
-		// the orders source chain is where the settlement is paid out to the solver
-		settlementPayoutChainID := batches[i].SourceChainID()
+	batches := types.IntoSettlementBatchesByHash(initiatedSettlements)
 
-		maxTxFeeUUSDC, err := r.maxBatchTxFeeUUSDC(ctx, batches[i])
-		if err != nil {
-			return fmt.Errorf("calculating max batch (hash: %s) tx fee in uusdc: %w", txHash, err)
-		}
-
-		err = r.relaySettlement(
-			ctx,
-			txHash,
-			settlementInitiationChainID,
-			settlementPayoutChainID,
-			maxTxFeeUUSDC,
-		)
-		if err != nil {
-			return fmt.Errorf("relaying settlement: %w", err)
+	for _, batch := range batches {
+		// these batches are grouped by initiation hash, so just choose the
+		// first one since they are all the same
+		hash := batch[0].InitiateSettlementTx.String
+		if err := r.relayBatch(ctx, hash, batch); err != nil {
+			return fmt.Errorf("submitting batch with tx hash %s to be relayed: %w", hash, err)
 		}
 	}
 
 	return nil
+}
+
+// relayBatch submits a tx hash for an initiated batch settlement to be relayed
+// from the settlements initiation chain (the orders destination chain), to the
+// payout chain (the orders source chain).
+func (r *OrderSettler) relayBatch(
+	ctx context.Context,
+	txHash string,
+	batch types.SettlementBatch,
+) error {
+	// the orders destination chain is where the settlement is initiated
+	settlementInitiationChainID := batch.DestinationChainID()
+
+	// the orders source chain is where the settlement is paid out to the solver
+	settlementPayoutChainID := batch.SourceChainID()
+
+	maxTxFeeUUSDC, err := r.maxBatchTxFeeUUSDC(ctx, batch)
+	if err != nil {
+		return fmt.Errorf("calculating max batch (hash: %s) tx fee in uusdc: %w", txHash, err)
+	}
+
+	return r.relaySettlement(
+		ctx,
+		txHash,
+		settlementInitiationChainID,
+		settlementPayoutChainID,
+		maxTxFeeUUSDC,
+	)
 }
 
 // relaySettlement submits a tx hash for a settlement to be relayed with
@@ -342,16 +361,12 @@ func (r *OrderSettler) totalBatchProfit(ctx context.Context, batch types.Settlem
 // verifyOrderSettlements checks on all instated settlements and updates their
 // status in the db with their on chain tx results.
 func (r *OrderSettler) verifyOrderSettlements(ctx context.Context) error {
-	pendingSettlements, err := r.db.GetAllOrderSettlementsWithSettlementStatus(ctx, dbtypes.SettlementStatusPending)
+	incompleteSettlements, err := r.IncompleteSettlements(ctx)
 	if err != nil {
-		return fmt.Errorf("getting pending settlements: %w", err)
-	}
-	initatedSettlements, err := r.InitiatedSettlements(ctx)
-	if err != nil {
-		return fmt.Errorf("getting initiated settlements: %w", err)
+		return fmt.Errorf("getting incomplete settlements: %w", err)
 	}
 
-	for _, settlement := range append(pendingSettlements, initatedSettlements...) {
+	for _, settlement := range incompleteSettlements {
 		if !settlement.InitiateSettlementTx.Valid {
 			continue
 		}
@@ -389,15 +404,7 @@ func (r *OrderSettler) PendingSettlementBatches(ctx context.Context) ([]types.Se
 			uniniatedSettlements = append(uniniatedSettlements, settlement)
 		}
 	}
-	return types.IntoSettlementBatches(uniniatedSettlements)
-}
-
-func (r *OrderSettler) InitiatedSettlements(ctx context.Context) ([]db.OrderSettlement, error) {
-	iniatedSettlements, err := r.db.GetAllOrderSettlementsWithSettlementStatus(ctx, dbtypes.SettlementStatusSettlementInitiated)
-	if err != nil {
-		return nil, fmt.Errorf("getting orders that have initiated settlement: %w", err)
-	}
-	return iniatedSettlements, nil
+	return types.IntoSettlementBatchesByChains(uniniatedSettlements), nil
 }
 
 // ShouldInitiateSettlement returns true if a settlement should be initiated
@@ -517,17 +524,6 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 		return "", fmt.Errorf("recording batch settlement result: %w", err)
 	}
 
-	// submit the settlement to be relayed, this is not included in the db tx
-	// since the order settler will automatically submit all pending settlement
-	// tx's to the relayer on startup, to prevent the situation where we have
-	// inserted a settlement tx to the db and then the solver is killed and the
-	// settlement is never relayed
-	if err := r.relaySettlements(ctx, []string{txHash}, []types.SettlementBatch{batch}); err != nil {
-		return "", fmt.Errorf("relaying settlements: %w", err)
-	}
-
-	lmt.Logger(ctx).Info("submitted order settlements to be relayed")
-
 	return txHash, nil
 }
 
@@ -621,4 +617,18 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 	}
 
 	return fmt.Errorf("settlement is not complete")
+}
+
+func (r *OrderSettler) IncompleteSettlements(ctx context.Context) ([]db.OrderSettlement, error) {
+	pendingSettlements, err := r.db.GetAllOrderSettlementsWithSettlementStatus(ctx, dbtypes.SettlementStatusPending)
+	if err != nil {
+		return nil, fmt.Errorf("getting pending settlements: %w", err)
+	}
+
+	initiatedSettlements, err := r.db.GetAllOrderSettlementsWithSettlementStatus(ctx, dbtypes.SettlementStatusSettlementInitiated)
+	if err != nil {
+		return nil, fmt.Errorf("getting initiated settlements: %w", err)
+	}
+
+	return append(pendingSettlements, initiatedSettlements...), nil
 }
