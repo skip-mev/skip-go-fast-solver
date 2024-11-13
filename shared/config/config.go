@@ -48,13 +48,6 @@ type OrderFillerConfig struct {
 	// process order fills. Each worker handles filling orders independently to
 	// increase throughput.
 	OrderFillWorkerCount int `yaml:"order_fill_worker_count"`
-
-	// MinFeeBps is the min fee amount the solver is willing to fill in bps.
-	// For example, if an order has an amount in of 100usdc and an amount out
-	// of 99usdc, that is an implied fee to the solver of 1usdc, or a 1%/100bps
-	// fee. Thus, if MinFeeBps is set to 200, and an order comes in with the
-	// above amount in and out, then the solver will ignore it.
-	MinFeeBps int `yaml:"min_fee_bps"`
 }
 
 type MetricsConfig struct {
@@ -108,7 +101,8 @@ type ChainConfig struct {
 	// MaxFillSize is the maximum amount of USDC that can be processed in a single
 	// order fill. Orders exceeding this size will be abandoned
 	MaxFillSize big.Int `yaml:"max_fill_size"`
-	// Maximum total gas cost for rebalancing txs per chain, fails if gas sum of rebalancing txs exceeds this threshold
+	// Maximum total gas cost for rebalancing txs per chain, fails if gas sum
+	// of rebalancing txs exceeds this threshold
 	MaxRebalancingGasThreshold uint64 `yaml:"max_rebalancing_gas_threshold"`
 	// FastTransferContractAddress is the address of the Skip Go Fast Transfer
 	// Protocol contract deployed on this chain
@@ -122,38 +116,105 @@ type ChainConfig struct {
 	// Relayer contains configuration for the Hyperlane relayer service
 	// used for cross-chain message passing during settlement
 	Relayer RelayerConfig `yaml:"relayer"`
-	// BatchUUSDCSettleUpThreshold is the amount of uusdc that needs to
-	// accumulate in filled (but not settled) orders before the solver will
-	// initiate a batch settlement. A settlement batch is per (source chain,
-	// destination chain).
-	BatchUUSDCSettleUpThreshold string `yaml:"batch_uusdc_settle_up_threshold"`
-	// MinProfitMarginBPS is the minimum amount of bps that the solver should make
-	// when settling order batches.
-	// TODO: explain a lot more here about how this relates to the batch uusdc
-	// settle up threshold, min fee bps and how to properly set these values
-	// per chain so solvers dont get stuck settlements.
-	MinProfitMarginBPS int `yaml:"min_profit_margin_bps"`
+
+	/* *** SETTING THE FOLLOWING CONFIG VALUES ARE VERY IMPORTANT FOR SOLVER PROFITABILITY *** */
+
 	// MinFeeBps is the min fee amount the solver is willing to fill in bps.
 	// For example, if an order has an amount in of 100usdc and an amount out
 	// of 99usdc, that is an implied fee to the solver of 1usdc, or a 1%/100bps
 	// fee. Thus, if MinFeeBps is set to 200, and an order comes in with the
 	// above amount in and out, then the solver will ignore it.
 	MinFeeBps int `yaml:"min_fee_bps"`
+
+	// BatchUUSDCSettleUpThreshold is the amount of uusdc that needs to
+	// accumulate in filled (but not settled) orders before the solver will
+	// initiate a batch settlement. A settlement batch is per source chain and
+	// destination chain pair. Note that this amount is for the total amount
+	// being settled up, not just the profit that will be made.
+	BatchUUSDCSettleUpThreshold string `yaml:"batch_uusdc_settle_up_threshold"`
+
+	// MinProfitMarginBPS is the minimum amount of bps that the solver should
+	// make when settling order batches. This value should be set carefully as
+	// it is used to determine what the max tx fee that should be paid to
+	// settle a batch of orders in order to maintain your set profit margin.
+	// Thus, this value should always be to a lower value than the MinFeeBps,
+	// since your profit margin must be less than the actual profit (you have
+	// to pay some tx fee). Below is an equation that shows how this value will
+	// be used when settling up.
+	//
+	// (SettlementProfit - TxFee) / TotalSettlementValue = MinProfitMargin
+	//
+	// To determine the TxFee, we can rearrange the equation as follows.
+	//
+	// SettlementProfit - (TotalSettlementValue * MinProfitMargin) = TxFee
+	//
+	// Here you can see the relationship between how MinProfitMarginBPS,
+	// BatchUUSDCSettleUpThreshold, and MinFeeBps all relate to each other. As
+	// you increase BatchUUSDCSettleUpThreshold, the TotalSettlementValue of
+	// each batch will increase. As you increase the MinFeeBps, the
+	// SettlementProfit will increase, and as you increase MinProfitMarginBPS,
+	// the max TxFee you are willing to pay to get your settlement landed on
+	// chain will decrease. So, all three of these values should be set with
+	// care for each chain, based on solver fund reserves on this chain,
+	// typical gas costs, and expected minimum fees to be paid by users to
+	// submit orders on this chain.
+	//
+	// As an example, lets say MinFeeBps is set to 20bps,
+	// BatchUUSDCSettleUpThreshold is set to 5000000000uusdc (5 usdc), and
+	// MinProfitMarginBPS is set to 15bps. When a settlement happens, you can
+	// expect a typical batch to have a total value of 5000000000 uusdc, and a
+	// profit of 10000000 uusdc (5000usdc and 10usdc, respectively). Using the
+	// above formula, we can calculate the max TxFee that we can pay to land
+	// the settlement on chain in order to maintain the MinProfitMarginBPS of
+	// 15bps.
+	//
+	// 10000000uusdc - (5000000000uusdc * (20bps / 10000)) = 2500000uusdc
+	//
+	// Thus, the solver will not submit the settlement on chain if simulating
+	// the submission and converting the gas cost to uusdc is > 2500000uusdc.
+	// So, if these were you actual numbers, you should be sure that the gas
+	// cost will be lower than 2500000uusdc on this chain to land the
+	// settlement. This number may be OK for a cheap L2 like Arbitrum, however
+	// it would likely be impossible to land a settlement tx on Ethereum
+	// mainnet for only 2.5usdc paid in tx fees (you would never receive your
+	// profit!).
+	//
+	// As an extreme example, lets say you keep the above values but set
+	// MinProfitMarginBPS to 0bps. Applying the same formula to determine the
+	// max TxFee that we can pay to land the settlement on chain in order to
+	// maintain the MinProfitMarginBPS of 0bps.
+	//
+	// 10000000uusdc - (5000000000uusdc * (0bps / 10000)) = 10000000uusdc
+	//
+	// This means that the solver is willing to (potentially) use all of its
+	// profit on the TxFee to settle up (you most likely do not want this).
+	//
+	// As a final example, if you set the MinProfitMarginBPS higher than your
+	// MinFeeBps. For exmaple if MinProfitMarginBPS is 25bps and MinFeeBps is
+	// 20bps. Then applying the same formula to determine the max TxFee that we
+	// can pay to land the settlement on chain in order to maintain the
+	// MinProfitMarginBPS of 25bps.
+	//
+	// 10000000uusdc - (5000000000uusdc * (25bps / 10000)) = -2500000uusdc
+	//
+	// The result is now a negative tx fee. This means that chain would need to
+	// pay the solver in order to land the settlement tx on chain to maintain
+	// the profit margin of 25bps, this is obviously impossible and the tx will
+	// never land on chain. The solver will log an error if it sees this
+	// occurring.
+	MinProfitMarginBPS int `yaml:"min_profit_margin_bps"`
 }
 
 type RelayerConfig struct {
 	// ValidatorAnnounceContractAddress is the address of the Hyperlane validator
 	// announce contract used for cross-chain message validation
 	ValidatorAnnounceContractAddress string `yaml:"validator_announce_contract_address"`
-
 	// MerkleHookContractAddress is the address of the Hyperlane merkle hook
 	// contract used for verifying cross-chain message proofs
 	MerkleHookContractAddress string `yaml:"merkle_hook_contract_address"`
 	// MailboxAddress is the address of the Hyperlane mailbox contract used
 	// for sending and receiving cross-chain messages
 	MailboxAddress string `yaml:"mailbox_address"`
-
-	MaxGasPricePct *uint8 `yaml:"max_gas_price_pct"`
 }
 
 // Used to monitor gas balance prometheus metric per chain for the solver addresses
