@@ -39,10 +39,6 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/signing"
 )
 
-const (
-	simulationGasUsedMultiplier = 1.2
-)
-
 type CosmosBridgeClient struct {
 	rpcClient  rpcclient.Client
 	grpcClient grpc.ClientConnInterface

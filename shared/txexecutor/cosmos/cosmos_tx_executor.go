@@ -182,7 +182,7 @@ func (s *SerializedCosmosTxExecutor) estimateGasUsed(
 	if err != nil {
 		return 0, err
 	}
-	txBytes, err := txConfig.TxEncoder()(signedTxForSimulation.(*signing.CosmosTransaction).Tx.(types.Tx))
+	txBytes, err := txConfig.TxEncoder()(signedTxForSimulation.(*signing.CosmosTransaction).Tx)
 	if err != nil {
 		return 0, err
 	}
@@ -193,8 +193,4 @@ func (s *SerializedCosmosTxExecutor) estimateGasUsed(
 		return 0, err
 	}
 	return uint64(float64(simulateResponse.GasInfo.GasUsed) * simulationGasUsedMultiplier), nil
-}
-
-func abciError(codespace string, code uint32, log string) error {
-	return fmt.Errorf("%s error, code: %d, log: %s", codespace, code, log)
 }
