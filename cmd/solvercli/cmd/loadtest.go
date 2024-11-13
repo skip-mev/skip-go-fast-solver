@@ -8,6 +8,8 @@ import (
 	"time"
 
 	rpcclienthttp "github.com/cometbft/cometbft/rpc/client/http"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/skip-mev/go-fast-solver/shared/bridges/cctp"
 	"github.com/skip-mev/go-fast-solver/shared/config"
@@ -33,10 +35,12 @@ Example:
 }
 
 type loadTestFlags struct {
-	configPath string
-	recipient  string
-	amount     string
-	privateKey string
+	configPath  string
+	recipient   string
+	amount      string
+	privateKey  string
+	nonceMutex  sync.Mutex
+	chainNonces map[string]uint64
 }
 
 type OrderStatus struct {
@@ -81,9 +85,36 @@ func runLoadTest(cmd *cobra.Command, args []string) {
 	var wg sync.WaitGroup
 	wg.Add(totalTransfers)
 
+	flags.chainNonces = make(map[string]uint64)
+
 	for _, sourceChain := range evmChains {
 		chainCfg := cfg.Chains[sourceChain]
 		chainConfig := chainCfg
+		client, err := ethclient.Dial(chainConfig.EVM.RPC)
+		defer client.Close()
+		if err != nil {
+			fmt.Printf("Failed to connect to network: %v\n", err)
+			return
+		}
+
+		privateKey := flags.privateKey
+		if privateKey[:2] == "0x" {
+			privateKey = privateKey[2:]
+		}
+		key, err := crypto.HexToECDSA(privateKey)
+		if err != nil {
+			fmt.Printf("Failed to parse private key: %v\n", err)
+			return
+		}
+
+		address := crypto.PubkeyToAddress(key.PublicKey)
+		startingNonce, err := client.PendingNonceAt(ctx, address)
+		if err != nil {
+			fmt.Printf("Failed to get starting nonce: %v\n", err)
+			return
+		}
+
+		flags.chainNonces[sourceChain] = startingNonce
 
 		for i := 0; i < 6; i++ {
 			chainID := sourceChain
@@ -92,8 +123,14 @@ func runLoadTest(cmd *cobra.Command, args []string) {
 			go func() {
 				defer wg.Done()
 
-				// Create a new command instance for each goroutine
+				// This assumes all transactions pass
+				flags.nonceMutex.Lock()
+				currentNonce := flags.chainNonces[chainID]
+				flags.chainNonces[chainID]++
+				flags.nonceMutex.Unlock()
+
 				localCmd := &cobra.Command{}
+				localCmd.SetContext(ctx)
 
 				// Add all required flags from submitCmd
 				localCmd.PersistentFlags().String("config", "./config/local/config.yml", "Path to config file")
@@ -105,8 +142,7 @@ func runLoadTest(cmd *cobra.Command, args []string) {
 				localCmd.Flags().String("gateway", "", "Gateway contract address")
 				localCmd.Flags().String("private-key", "", "Private key to sign the transaction")
 				localCmd.Flags().Uint32("deadline-hours", 1, "Deadline in hours")
-
-				localCmd.SetContext(ctx)
+				localCmd.Flags().Uint64("nonce", currentNonce, "Transaction nonce")
 
 				if err := localCmd.PersistentFlags().Set("config", flags.configPath); err != nil {
 					errorChan <- fmt.Errorf("setting config flag: %v", err)
@@ -142,6 +178,10 @@ func runLoadTest(cmd *cobra.Command, args []string) {
 				}
 				if err := localCmd.Flags().Set("deadline-hours", "1"); err != nil {
 					errorChan <- fmt.Errorf("setting deadline-hours flag: %v", err)
+					return
+				}
+				if err := localCmd.Flags().Set("nonce", fmt.Sprintf("%d", currentNonce)); err != nil {
+					errorChan <- fmt.Errorf("setting nonce flag: %v", err)
 					return
 				}
 

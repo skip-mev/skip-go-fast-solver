@@ -107,12 +107,6 @@ func submitTransfer(cmd *cobra.Command, args []string) (*SubmitTransferResult, e
 		return nil, err
 	}
 
-	gateway, auth, err := setupGatewayAndAuth(ctx, client, flags)
-	if err != nil {
-		lmt.Logger(ctx).Error("Failed to setup gateway and auth", zap.Error(err))
-		return nil, err
-	}
-
 	usdc, err := usdc.NewUsdc(common.HexToAddress(flags.token), client)
 	if err != nil {
 		lmt.Logger(ctx).Error("Failed to create USDC contract instance", zap.Error(err))
@@ -122,9 +116,21 @@ func submitTransfer(cmd *cobra.Command, args []string) (*SubmitTransferResult, e
 	amountBig := new(big.Int)
 	amountBig.SetString(flags.amount, 10)
 
+	gateway, auth, err := setupGatewayAndAuth(ctx, client, flags, flags.nonce)
+	if err != nil {
+		lmt.Logger(ctx).Error("Failed to setup gateway and auth", zap.Error(err))
+		return nil, err
+	}
+
 	tx, err := usdc.Approve(auth, common.HexToAddress(flags.gatewayAddr), amountBig)
 	if err != nil {
-		lmt.Logger(ctx).Error("Failed to approve USDC spending", zap.Error(err))
+		lmt.Logger(ctx).Error("Failed to submit USDC approval", zap.Error(err))
+		return nil, err
+	}
+
+	_, err = bind.WaitMined(ctx, client, tx)
+	if err != nil {
+		lmt.Logger(ctx).Error("Failed waiting for USDC approval to be mined", zap.Error(err))
 		return nil, err
 	}
 
@@ -132,13 +138,6 @@ func submitTransfer(cmd *cobra.Command, args []string) (*SubmitTransferResult, e
 		zap.String("tx_hash", tx.Hash().Hex()),
 		zap.String("amount", flags.amount),
 	)
-
-	// Wait for approval transaction to be mined
-	_, err = bind.WaitMined(ctx, client, tx)
-	if err != nil {
-		lmt.Logger(ctx).Error("Failed waiting for USDC approval to be mined", zap.Error(err))
-		return nil, err
-	}
 
 	destChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(flags.destinationChainId)
 	if err != nil {
@@ -149,6 +148,17 @@ func submitTransfer(cmd *cobra.Command, args []string) (*SubmitTransferResult, e
 	destDomain, err := strconv.ParseUint(destChainConfig.HyperlaneDomain, 10, 32)
 	if err != nil {
 		lmt.Logger(ctx).Error("parsing destination hyperlane domain: %w", zap.Error(err))
+		return nil, err
+	}
+
+	if flags.nonce != nil {
+		*flags.nonce++
+	}
+
+	// Setup auth with incremented nonce for transfer
+	gateway, auth, err = setupGatewayAndAuth(ctx, client, flags, flags.nonce)
+	if err != nil {
+		lmt.Logger(ctx).Error("Failed to setup gateway and auth", zap.Error(err))
 		return nil, err
 	}
 
@@ -188,6 +198,7 @@ type submitFlags struct {
 	configPath         string
 	sourceChainID      string
 	privateKey         string
+	nonce              *uint64
 }
 
 func parseFlags(cmd *cobra.Command) (*submitFlags, error) {
@@ -221,11 +232,13 @@ func parseFlags(cmd *cobra.Command) (*submitFlags, error) {
 	if flags.privateKey, err = cmd.Flags().GetString("private-key"); err != nil {
 		return nil, err
 	}
-
+	if nonce, err := cmd.Flags().GetUint64("nonce"); err == nil {
+		flags.nonce = &nonce
+	}
 	return flags, nil
 }
 
-func setupGatewayAndAuth(ctx context.Context, client *ethclient.Client, flags *submitFlags) (*fast_transfer_gateway.FastTransferGateway, *bind.TransactOpts, error) {
+func setupGatewayAndAuth(ctx context.Context, client *ethclient.Client, flags *submitFlags, nonce *uint64) (*fast_transfer_gateway.FastTransferGateway, *bind.TransactOpts, error) {
 	gateway, err := fast_transfer_gateway.NewFastTransferGateway(common.HexToAddress(flags.gatewayAddr), client)
 	if err != nil {
 		return nil, nil, err
@@ -249,6 +262,10 @@ func setupGatewayAndAuth(ctx context.Context, client *ethclient.Client, flags *s
 	auth, err := bind.NewKeyedTransactorWithChainID(privateKey, chainID)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if nonce != nil {
+		auth.Nonce = big.NewInt(int64(*nonce))
 	}
 
 	return gateway, auth, nil
