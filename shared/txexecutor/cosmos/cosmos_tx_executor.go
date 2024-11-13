@@ -177,6 +177,9 @@ func (s *SerializedCosmosTxExecutor) estimateGasUsed(
 	signer signing.Signer,
 ) (uint64, error) {
 	clientConn, err := s.grpcClientConnManager.GetClient(ctx, chainID)
+	if err != nil {
+		return 0, err
+	}
 	serviceClient := sdktypes.NewServiceClient(clientConn)
 	signedTxForSimulation, err := signer.Sign(ctx, chainID, signing.NewCosmosTransaction(tx, account.GetAccountNumber(), account.GetSequence(), txConfig))
 	if err != nil {
