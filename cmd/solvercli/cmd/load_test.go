@@ -177,8 +177,7 @@ func checkOrderStatus(orders []OrderStatus, cfg *config.Config) {
 	}
 	defer client.Close()
 
-	// Wait 30 seconds before checking order statuses
-	time.Sleep(30)
+	time.Sleep(30 * time.Second)
 	fmt.Printf("\nChecking status for %d orders on Osmosis:\n", len(orders))
 
 	for _, order := range orders {
