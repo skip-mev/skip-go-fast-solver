@@ -132,13 +132,6 @@ func (r *OrderFulfiller) startOrderTimeoutWorker(ctx context.Context) {
 					continue
 				}
 
-				lmt.Logger(ctx).Info(
-					"successfully initiated timeout",
-					zap.String("orderID", order.OrderID),
-					zap.String("sourceChainID", order.SourceChainID),
-					zap.String("destinationChainID", order.DestinationChainID),
-				)
-
 				if err = r.fillHandler.SubmitTimeoutForRelay(ctx, order, txHash); err != nil {
 					lmt.Logger(ctx).Error(
 						"error submitting timeout to be relayed",
@@ -151,7 +144,7 @@ func (r *OrderFulfiller) startOrderTimeoutWorker(ctx context.Context) {
 				}
 
 				lmt.Logger(ctx).Debug(
-					"successfully submitted timeout for relay",
+					"successfully submitted timeout for relay (this may be a duplicate)",
 					zap.String("orderID", order.OrderID),
 					zap.String("sourceChainID", order.SourceChainID),
 					zap.String("destinationChainID", order.DestinationChainID),

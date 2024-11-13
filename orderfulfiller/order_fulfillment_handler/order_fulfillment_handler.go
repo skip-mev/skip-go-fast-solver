@@ -404,6 +404,14 @@ func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.
 	}); err != nil {
 		return "", fmt.Errorf("failed to insert raw tx %w", err)
 	}
+
+	lmt.Logger(ctx).Info(
+		"successfully initiated timeout",
+		zap.String("orderID", order.OrderID),
+		zap.String("sourceChainID", order.SourceChainID),
+		zap.String("destinationChainID", order.DestinationChainID),
+	)
+
 	return txHash, nil
 }
 
