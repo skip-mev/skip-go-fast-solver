@@ -271,6 +271,7 @@ func checkOrderStatus(orders []OrderStatus, cfg config.Config, ctx context.Conte
 	}
 	defer client.Close()
 
+	fmt.Println("Sleeping for 30 seconds before querying fill orders status")
 	time.Sleep(30 * time.Second)
 	fmt.Printf("\nChecking status for %d orders on Osmosis:\n", len(orders))
 
