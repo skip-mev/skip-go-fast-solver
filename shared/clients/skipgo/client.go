@@ -358,8 +358,9 @@ func (s *skipGoClient) SubmitTx(
 		ChainID string `json:"chain_id"`
 	}
 
+	encodedTx := base64.StdEncoding.EncodeToString(tx)
 	body := SubmitRequest{
-		Tx:      base64.StdEncoding.EncodeToString(tx),
+		Tx:      encodedTx,
 		ChainID: chainID,
 	}
 	bodyBytes, err := json.Marshal(body)
@@ -379,7 +380,7 @@ func (s *skipGoClient) SubmitTx(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("status code %d returned from Skip Go when submitting transaction %s: %w", resp.StatusCode, string(tx), handleError(resp.Body))
+		return "", fmt.Errorf("status code %d returned from Skip Go when submitting transaction %s: %w", resp.StatusCode, encodedTx, handleError(resp.Body))
 	}
 
 	type SubmitResponse struct {
