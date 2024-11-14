@@ -6,14 +6,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
-	"sync"
 	"time"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
 
-	"cosmossdk.io/math"
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -24,7 +21,6 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
 	"github.com/skip-mev/go-fast-solver/shared/tmrpc"
 	"go.uber.org/zap"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -80,80 +76,6 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 	return nil
 }
 
-func (t *TransferMonitor) findNewTransferIntentsOnEVMChain(ctx context.Context, chain config.ChainConfig, startBlockHeight uint64) ([]Order, uint64, error) {
-	client, err := t.getClient(ctx, chain.ChainID)
-	if err != nil {
-		lmt.Logger(ctx).Error("Error getting client", zap.Error(err))
-		return nil, 0, err
-	}
-
-	header, err := client.HeaderByNumber(ctx, nil)
-	if err != nil {
-		lmt.Logger(ctx).Error("Error fetching latest block", zap.Error(err))
-		return nil, 0, err
-	}
-
-	endBlockHeight := math.Min(header.Number.Uint64(), startBlockHeight+maxBlocksProcessedPerIteration)
-
-	fastTransferContractAddress := chain.FastTransferContractAddress
-	fastTransferGateway, err := fast_transfer_gateway.NewFastTransferGateway(
-		common.HexToAddress(fastTransferContractAddress),
-		client,
-	)
-	if err != nil {
-		lmt.Logger(ctx).Error("Error creating MessageTransmitter object", zap.Error(err))
-		return nil, 0, err
-	}
-
-	orders, err := t.findTransferIntents(ctx, startBlockHeight, endBlockHeight, fastTransferGateway, client, chain.Environment, chain.ChainID)
-	if err != nil {
-		lmt.Logger(ctx).Error("Error finding burn transactions", zap.Error(err))
-		return nil, 0, err
-	}
-
-	if orders != nil {
-		orderCounts := make(map[string]int)
-		for _, order := range orders {
-			key := fmt.Sprintf("%s->%s", order.ChainID, order.DestinationChainID)
-			orderCounts[key]++
-		}
-
-		for chainPair, numOfOrders := range orderCounts {
-			lmt.Logger(ctx).Info("Fast transfer orders found",
-				zap.String("source->destination", chainPair),
-				zap.Int("numOfOrders", numOfOrders))
-		}
-	}
-	return orders, endBlockHeight, nil
-}
-
-func (t *TransferMonitor) getClient(ctx context.Context, chainID string) (*ethclient.Client, error) {
-	if _, ok := t.clients[chainID]; !ok {
-		rpc, err := config.GetConfigReader(ctx).GetRPCEndpoint(chainID)
-		if err != nil {
-			return nil, err
-		}
-
-		basicAuth, err := config.GetConfigReader(ctx).GetBasicAuth(chainID)
-		if err != nil {
-			return nil, err
-		}
-
-		conn, err := ethereumrpc.DialContext(ctx, rpc)
-		if err != nil {
-			return nil, err
-		}
-		if basicAuth != nil {
-			conn.SetHeader("Authorization", fmt.Sprintf("Basic %s", *basicAuth))
-		}
-
-		client := ethclient.NewClient(conn)
-		t.clients[chainID] = client
-	}
-
-	return t.clients[chainID], nil
-}
-
 type Order struct {
 	TxHash             string                                  `json:"tx_hash"`
 	TxBlockHeight      uint64                                  `json:"tx_block_height"`
@@ -163,87 +85,6 @@ type Order struct {
 	OrderEvent         fast_transfer_gateway.FastTransferOrder `json:"order_event"`
 	OrderID            string                                  `json:"order_id"`
 	TimeoutTimestamp   int64                                   `json:"timeout_timestamp"`
-}
-
-func (t *TransferMonitor) findTransferIntents(
-	ctx context.Context,
-	startBlock,
-	endBlock uint64,
-	fastTransferGateway *fast_transfer_gateway.FastTransferGateway,
-	client *ethclient.Client,
-	chainEnvironment config.ChainEnvironment,
-	chainID string,
-) (orders []Order, err error) {
-	offset := uint64(0)
-	limit := uint64(1000)
-	m := sync.Mutex{}
-	eg, egctx := errgroup.WithContext(ctx)
-	eg.SetLimit(20)
-OuterLoop:
-	for {
-		select {
-		case <-egctx.Done():
-			return nil, nil
-		default:
-			start := startBlock + offset
-			end := startBlock + offset + limit
-			if start > endBlock {
-				break OuterLoop
-			}
-			if end > endBlock {
-				end = endBlock
-			}
-			eg.Go(func() error {
-				var iter *fast_transfer_gateway.FastTransferGatewayOrderSubmittedIterator
-				for i := 0; i < 5; i++ {
-					iter, err = fastTransferGateway.FilterOrderSubmitted(&bind.FilterOpts{
-						Context: ctx,
-						Start:   start,
-						End:     &[]uint64{end}[0],
-					}, nil)
-					if err != nil && i == 4 { // TODO dont retry on context cancellation
-						return err
-					}
-					if err == nil {
-						break
-					}
-					time.Sleep(1 * time.Second)
-				}
-				if iter == nil {
-					return nil
-				}
-
-				for iter.Next() {
-					m.Lock()
-					orderData := decodeOrder(iter.Event.Order)
-					orders = append(orders, Order{
-						TxHash:             iter.Event.Raw.TxHash.Hex(),
-						TxBlockHeight:      iter.Event.Raw.BlockNumber,
-						ChainID:            chainID,
-						DestinationChainID: destinationChainID,
-						OrderEvent:         orderData,
-						ChainEnvironment:   chainEnvironment,
-						OrderID:            hex.EncodeToString(iter.Event.OrderID[:]),
-						TimeoutTimestamp:   int64(orderData.TimeoutTimestamp),
-					})
-					m.Unlock()
-				}
-
-				if err := iter.Error(); err != nil {
-					return err
-				}
-
-				return nil
-			})
-			offset += limit
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
-	if err := eg.Wait(); err != nil {
-		lmt.Logger(egctx).Error("Error encountered while searching for transfers", zap.Error(err))
-		return nil, err
-	}
-	return orders, nil
 }
 
 func decodeOrder(bytes []byte) fast_transfer_gateway.FastTransferOrder {
@@ -258,44 +99,6 @@ func decodeOrder(bytes []byte) fast_transfer_gateway.FastTransferOrder {
 	order.TimeoutTimestamp = new(big.Int).SetBytes(bytes[140:148]).Uint64()
 	order.Data = bytes[148:]
 	return order
-}
-
-func getChainID(chain config.ChainConfig) (string, error) {
-	switch chain.Type {
-	case config.ChainType_COSMOS:
-		return chain.ChainID, nil
-	case config.ChainType_EVM:
-		return chain.ChainID, nil
-	default:
-		return "", fmt.Errorf("unknown chain type")
-	}
-}
-
-func (t *TransferMonitor) getLatestBlockHeight(ctx context.Context, chain config.ChainConfig) (uint64, error) {
-	switch chain.Type {
-	case config.ChainType_EVM:
-		client, err := t.getClient(ctx, chain.ChainID)
-		if err != nil {
-			return 0, err
-		}
-		header, err := client.HeaderByNumber(ctx, nil)
-		if err != nil {
-			return 0, err
-		}
-		return header.Number.Uint64(), nil
-	case config.ChainType_COSMOS:
-		client, err := t.tmRPCManager.GetClient(ctx, chain.ChainID)
-		if err != nil {
-			return 0, err
-		}
-		status, err := client.Status(ctx)
-		if err != nil {
-			return 0, err
-		}
-		return uint64(status.SyncInfo.LatestBlockHeight), nil
-	default:
-		return 0, fmt.Errorf("unsupported chain type: %s", chain.Type)
-	}
 }
 
 func (t *TransferMonitor) getWsClient(ctx context.Context, chainID string) (*ethclient.Client, error) {
