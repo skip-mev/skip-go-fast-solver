@@ -86,6 +86,7 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 				} else if err == nil {
 					startBlockHeight = uint64(transferMonitorMetadata.HeightLastSeen)
 				}
+
 				if t.quickStart && !t.didQuickStart[chainID] {
 					latestBlock, err := t.getLatestBlockHeight(ctx, chain)
 					if err != nil {
@@ -99,13 +100,8 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 
 					// Mark this chain as having been quickstarted
 					t.didQuickStart[chainID] = true
-				} else {
-					if t.didQuickStart[chainID] {
-						// continue using last processed block height
-					} else {
-						lmt.Logger(ctx).Info("Started in non-quickstart mode")
-					}
 				}
+
 				lmt.Logger(ctx).Debug("Processing new blocks", zap.String("chain_id", chainID), zap.Uint64("height", startBlockHeight))
 				var orders []Order
 				var endBlockHeight uint64
