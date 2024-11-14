@@ -343,7 +343,7 @@ func (t *TransferMonitor) subscribeToTransferIntents(
 	query := ethereum.FilterQuery{
 		Addresses: []common.Address{contractAddr},
 		Topics: [][]common.Hash{{
-			common.HexToHash(orderSubmittedEventSignature), // OrderSubmitted event signature
+			common.HexToHash(orderSubmittedEventSignature),
 		}},
 	}
 
