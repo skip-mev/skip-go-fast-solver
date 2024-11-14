@@ -57,6 +57,10 @@ func main() {
 	if err != nil {
 		lmt.Logger(ctx).Fatal("Unable to load config", zap.Error(err))
 	}
+
+	lmt.Logger(ctx).Info("starting skip go fast solver",
+		zap.Any("config", cfg), zap.Bool("quickstart", *quickStart),
+		zap.Bool("shouldRefundOrders", *refundOrders))
 	ctx = config.ConfigReaderContext(ctx, config.NewConfigReader(cfg))
 
 	keyStore, err := keys.GetKeyStore(*keyStoreType, keys.GetKeyStoreOpts{KeyFilePath: *keysPath, AESKeyHex: *aesKeyHex})
