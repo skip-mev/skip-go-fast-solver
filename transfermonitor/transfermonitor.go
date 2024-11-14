@@ -37,18 +37,20 @@ type MonitorDBQueries interface {
 }
 
 type TransferMonitor struct {
-	db           MonitorDBQueries
-	clients      map[string]*ethclient.Client
-	tmRPCManager tmrpc.TendermintRPCClientManager
-	quickStart   bool
+	db            MonitorDBQueries
+	clients       map[string]*ethclient.Client
+	tmRPCManager  tmrpc.TendermintRPCClientManager
+	quickStart    bool
+	didQuickStart map[string]bool // Track which chains have been quick-started
 }
 
 func NewTransferMonitor(db MonitorDBQueries, quickStart bool) *TransferMonitor {
 	return &TransferMonitor{
-		db:           db,
-		clients:      make(map[string]*ethclient.Client),
-		tmRPCManager: tmrpc.NewTendermintRPCClientManager(),
-		quickStart:   quickStart,
+		db:            db,
+		clients:       make(map[string]*ethclient.Client),
+		tmRPCManager:  tmrpc.NewTendermintRPCClientManager(),
+		quickStart:    quickStart,
+		didQuickStart: make(map[string]bool),
 	}
 }
 
@@ -84,7 +86,7 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 				} else if err == nil {
 					startBlockHeight = uint64(transferMonitorMetadata.HeightLastSeen)
 				}
-				if t.quickStart {
+				if t.quickStart && !t.didQuickStart[chainID] {
 					latestBlock, err := t.getLatestBlockHeight(ctx, chain)
 					if err != nil {
 						lmt.Logger(ctx).Error("Error getting latest block height", zap.Error(err))
@@ -93,6 +95,15 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 					quickStartBlockHeight := latestBlock - chain.QuickStartNumBlocksBack
 					if quickStartBlockHeight > startBlockHeight {
 						startBlockHeight = quickStartBlockHeight
+					}
+
+					// Mark this chain as having been quickstarted
+					t.didQuickStart[chainID] = true
+				} else {
+					if t.didQuickStart[chainID] {
+						// continue using last processed block height
+					} else {
+						lmt.Logger(ctx).Info("Started in non-quickstart mode")
 					}
 				}
 				lmt.Logger(ctx).Debug("Processing new blocks", zap.String("chain_id", chainID), zap.Uint64("height", startBlockHeight))
