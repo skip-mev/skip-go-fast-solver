@@ -37,6 +37,7 @@ var sqliteDBPath = flag.String("sqlite-db-path", "./solver.db", "path to sqlite 
 var migrationsPath = flag.String("migrations-path", "./db/migrations", "path to db migrations directory")
 var quickStart = flag.Bool("quickstart", false, "run quick start mode")
 var refundOrders = flag.Bool("refund-orders", true, "if the solver should refund timed out order")
+var fillOrders = flag.Bool("fill-orders", true, "if the solver should fill orders")
 
 func main() {
 	flag.Parse()
@@ -106,7 +107,7 @@ func main() {
 			db.New(dbConn),
 			cfg.OrderFillerConfig.OrderFillWorkerCount,
 			orderFillHandler,
-			true,
+			*fillOrders,
 			*refundOrders,
 		)
 		if err != nil {
