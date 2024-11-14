@@ -4,11 +4,12 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os/signal"
+	"syscall"
+
 	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
 	"github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 	"github.com/skip-mev/go-fast-solver/txverifier"
-	"os/signal"
-	"syscall"
 
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/mattn/go-sqlite3"
@@ -37,7 +38,7 @@ var keyStoreType = flag.String("key-store-type", "plaintext-file", "where to loa
 var aesKeyHex = flag.String("aes-key-hex", "", "hex-encoded AES key used to decrypt keys file. must be specified if key-store-type is encrypted-file")
 var sqliteDBPath = flag.String("sqlite-db-path", "./solver.db", "path to sqlite db file")
 var migrationsPath = flag.String("migrations-path", "./db/migrations", "path to db migrations directory")
-var quickStart = flag.Bool("quickstart", false, "run quick start mode")
+var quickStart = flag.Bool("quickstart", true, "run quick start mode")
 var refundOrders = flag.Bool("refund-orders", true, "if the solver should refund timed out order")
 
 func main() {

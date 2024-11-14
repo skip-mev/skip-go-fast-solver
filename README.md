@@ -51,8 +51,8 @@ Use these addresses in the solver config and when using the CLI tool to submit t
 ```shell
 make build # build solver server binary
 # quickstart mode determines whether solver starts monitoring for user intent events from latest chain block height,
-# or from the last block the solver has previously processed
-make run-solver quickstart=true
+# or from the last block the solver has previously processed (set to true by default)
+make run-solver
 ```
 
 ### How to run Solver docker image
