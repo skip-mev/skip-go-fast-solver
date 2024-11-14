@@ -185,8 +185,10 @@ type EVMConfig struct {
 	FastTransferContractAddress string `yaml:"fast_transfer_contract_address"`
 	// RPC is the HTTP endpoint for the EVM chain's RPC server
 	RPC string `yaml:"rpc"`
+	// WsRPC is the websocket RPC endpoint used to query for user transfer logs
+	WsRPC string `yaml:"ws_rpc"`
 	// RPCBasicAuthVar is the environment variable name containing the basic auth
-	// credentials for the RPC endpoint if required
+	// credentials for the RPC endpoints if required
 	RPCBasicAuthVar string `yaml:"rpc_basic_auth_var"`
 	// GRPC is the endpoint for the chain's gRPC server
 	GRPC string `yaml:"grpc"`

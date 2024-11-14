@@ -6,16 +6,18 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
-	"strings"
 	"sync"
 	"time"
 
+	dbtypes "github.com/skip-mev/go-fast-solver/db"
+
 	"cosmossdk.io/math"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	ethereumrpc "github.com/ethereum/go-ethereum/rpc"
-	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
@@ -28,6 +30,7 @@ import (
 const (
 	maxBlocksProcessedPerIteration = 100000
 	destinationChainID             = "osmosis-1"
+	orderSubmittedEventSignature   = "0x59f858504f8d8ad967dd7453df850e265270474e364b7e2fbd3333e06efdbfc0"
 )
 
 type MonitorDBQueries interface {
@@ -54,112 +57,27 @@ func NewTransferMonitor(db MonitorDBQueries, quickStart bool) *TransferMonitor {
 
 func (t *TransferMonitor) Start(ctx context.Context) error {
 	lmt.Logger(ctx).Info("Starting transfer monitor")
-	var chains []config.ChainConfig
+
 	evmChains, err := config.GetConfigReader(ctx).GetAllChainConfigsOfType(config.ChainType_EVM)
 	if err != nil {
 		return fmt.Errorf("error getting EVM chains: %w", err)
 	}
+
 	for _, chain := range evmChains {
-		if chain.FastTransferContractAddress != "" {
-			chains = append(chains, chain)
+		if chain.FastTransferContractAddress == "" {
+			continue
+		}
+
+		if err := t.subscribeToTransferIntents(ctx, chain); err != nil {
+			lmt.Logger(ctx).Error("failed to subscribe to chain logs",
+				zap.String("chainID", chain.ChainID),
+				zap.Error(err))
+			continue
 		}
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			for _, chain := range chains {
-				chainID, err := getChainID(chain)
-				if err != nil {
-					lmt.Logger(ctx).Error("Error getting chain id", zap.Error(err))
-					continue
-				}
-				var startBlockHeight uint64
-				transferMonitorMetadata, err := t.db.GetTransferMonitorMetadata(ctx, chainID)
-				if err != nil && !strings.Contains(err.Error(), "no rows in result set") {
-					lmt.Logger(ctx).Error("Error getting transfer monitor metadata", zap.Error(err))
-					continue
-				} else if err == nil {
-					startBlockHeight = uint64(transferMonitorMetadata.HeightLastSeen)
-				}
-				if t.quickStart {
-					latestBlock, err := t.getLatestBlockHeight(ctx, chain)
-					if err != nil {
-						lmt.Logger(ctx).Error("Error getting latest block height", zap.Error(err))
-						continue
-					}
-					quickStartBlockHeight := latestBlock - chain.QuickStartNumBlocksBack
-					if quickStartBlockHeight > startBlockHeight {
-						startBlockHeight = quickStartBlockHeight
-					}
-				}
-				lmt.Logger(ctx).Debug("Processing new blocks", zap.String("chain_id", chainID), zap.Uint64("height", startBlockHeight))
-				var orders []Order
-				var endBlockHeight uint64
-				var fastTransferGatewayContractAddress string
-				switch chain.Type {
-				case config.ChainType_EVM:
-					fastTransferGatewayContractAddress = chain.FastTransferContractAddress
-					orders, endBlockHeight, err = t.findNewTransferIntentsOnEVMChain(ctx, chain, startBlockHeight)
-					if err != nil {
-						lmt.Logger(ctx).Error("Error finding burn transactions", zap.Error(err))
-						continue
-					}
-				default:
-					lmt.Logger(ctx).Error("Unsupported chain type", zap.String("chain_type", string(chain.Type)))
-					continue
-				}
-
-				errorInsertingOrder := false
-				if len(orders) > 0 {
-					lmt.Logger(ctx).Info("Found burn transactions", zap.Int("count", len(orders)), zap.String("chain_id", chainID))
-					for _, order := range orders {
-						toInsert := db.InsertOrderParams{
-							SourceChainID:                     order.ChainID,
-							DestinationChainID:                order.DestinationChainID,
-							SourceChainGatewayContractAddress: fastTransferGatewayContractAddress,
-							Sender:                            order.OrderEvent.Sender[:],
-							Recipient:                         order.OrderEvent.Recipient[:],
-							AmountIn:                          order.OrderEvent.AmountIn.String(),
-							AmountOut:                         order.OrderEvent.AmountOut.String(),
-							Nonce:                             int64(order.OrderEvent.Nonce),
-							OrderCreationTx:                   order.TxHash,
-							OrderCreationTxBlockHeight:        int64(order.TxBlockHeight),
-							OrderID:                           order.OrderID,
-							OrderStatus:                       dbtypes.OrderStatusPending,
-							TimeoutTimestamp:                  time.Unix(order.TimeoutTimestamp, 0).UTC(),
-						}
-						if len(order.OrderEvent.Data) > 0 {
-							toInsert.Data = sql.NullString{String: hex.EncodeToString(order.OrderEvent.Data), Valid: true}
-						}
-
-						_, err := t.db.InsertOrder(ctx, toInsert)
-						if err != nil && !strings.Contains(err.Error(), "sql: no rows in result set") {
-							lmt.Logger(ctx).Error("Error inserting order", zap.Error(err))
-							errorInsertingOrder = true
-							break
-						}
-					}
-				}
-				lmt.Logger(ctx).Debug("num orders found while processing blocks", zap.Int("numOrders", len(orders)))
-				if errorInsertingOrder {
-					continue
-				}
-
-				_, err = t.db.InsertTransferMonitorMetadata(ctx, db.InsertTransferMonitorMetadataParams{
-					ChainID:        chainID,
-					HeightLastSeen: int64(endBlockHeight),
-				})
-				if err != nil {
-					lmt.Logger(ctx).Error("Error inserting transfer monitor metadata", zap.Error(err))
-					continue
-				}
-			}
-			time.Sleep(15 * time.Second)
-		}
-	}
+	<-ctx.Done()
+	return nil
 }
 
 func (t *TransferMonitor) findNewTransferIntentsOnEVMChain(ctx context.Context, chain config.ChainConfig, startBlockHeight uint64) ([]Order, uint64, error) {
@@ -378,4 +296,128 @@ func (t *TransferMonitor) getLatestBlockHeight(ctx context.Context, chain config
 	default:
 		return 0, fmt.Errorf("unsupported chain type: %s", chain.Type)
 	}
+}
+
+func (t *TransferMonitor) getWsClient(ctx context.Context, chainID string) (*ethclient.Client, error) {
+	if _, ok := t.clients[chainID]; !ok {
+		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
+		if err != nil {
+			return nil, err
+		}
+
+		rpc := chainConfig.EVM.WsRPC
+		if rpc == "" {
+			return nil, fmt.Errorf("WebSocket RPC not configured for chainID %s", chainID)
+		}
+
+		conn, err := ethereumrpc.DialContext(ctx, rpc)
+		if err != nil {
+			return nil, err
+		}
+
+		basicAuth, err := config.GetConfigReader(ctx).GetBasicAuth(chainID)
+		if err != nil {
+			return nil, err
+		}
+		if basicAuth != nil {
+			conn.SetHeader("Authorization", fmt.Sprintf("Basic %s", *basicAuth))
+		}
+
+		client := ethclient.NewClient(conn)
+		t.clients[chainID] = client
+	}
+
+	return t.clients[chainID], nil
+}
+
+func (t *TransferMonitor) subscribeToTransferIntents(
+	ctx context.Context,
+	chain config.ChainConfig,
+) error {
+	client, err := t.getWsClient(ctx, chain.ChainID)
+	if err != nil {
+		return fmt.Errorf("getting rpc client: %w", err)
+	}
+
+	contractAddr := common.HexToAddress(chain.FastTransferContractAddress)
+	query := ethereum.FilterQuery{
+		Addresses: []common.Address{contractAddr},
+		Topics: [][]common.Hash{{
+			common.HexToHash(orderSubmittedEventSignature), // OrderSubmitted event signature
+		}},
+	}
+
+	logs := make(chan types.Log)
+	sub, err := client.SubscribeFilterLogs(ctx, query, logs)
+	if err != nil {
+		return fmt.Errorf("subscribing to logs: %w", err)
+	}
+
+	go func() {
+		for {
+			select {
+			case err := <-sub.Err():
+				lmt.Logger(ctx).Error("subscription error", zap.Error(err))
+				return
+			case vLog := <-logs:
+				fastTransferGateway, err := fast_transfer_gateway.NewFastTransferGateway(contractAddr, client)
+				if err != nil {
+					lmt.Logger(ctx).Error("creating contract instance", zap.Error(err))
+					continue
+				}
+
+				event, err := fastTransferGateway.ParseOrderSubmitted(vLog)
+				if err != nil {
+					lmt.Logger(ctx).Error("parsing log", zap.Error(err))
+					continue
+				}
+
+				order := Order{
+					TxHash:             vLog.TxHash.Hex(),
+					TxBlockHeight:      vLog.BlockNumber,
+					ChainID:            chain.ChainID,
+					DestinationChainID: destinationChainID,
+					OrderEvent:         decodeOrder(event.Order),
+					ChainEnvironment:   chain.Environment,
+					OrderID:            hex.EncodeToString(event.OrderID[:]),
+					TimeoutTimestamp:   int64(decodeOrder(event.Order).TimeoutTimestamp),
+				}
+
+				if err := t.insertOrder(ctx, order, chain.FastTransferContractAddress); err != nil {
+					lmt.Logger(ctx).Error("inserting order", zap.Error(err))
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return nil
+}
+
+func (t *TransferMonitor) insertOrder(ctx context.Context, order Order, contractAddress string) error {
+	toInsert := db.InsertOrderParams{
+		SourceChainID:                     order.ChainID,
+		DestinationChainID:                order.DestinationChainID,
+		SourceChainGatewayContractAddress: contractAddress,
+		Sender:                            order.OrderEvent.Sender[:],
+		Recipient:                         order.OrderEvent.Recipient[:],
+		AmountIn:                          order.OrderEvent.AmountIn.String(),
+		AmountOut:                         order.OrderEvent.AmountOut.String(),
+		Nonce:                             int64(order.OrderEvent.Nonce),
+		OrderCreationTx:                   order.TxHash,
+		OrderCreationTxBlockHeight:        int64(order.TxBlockHeight),
+		OrderID:                           order.OrderID,
+		OrderStatus:                       dbtypes.OrderStatusPending,
+		TimeoutTimestamp:                  time.Unix(order.TimeoutTimestamp, 0).UTC(),
+	}
+	if len(order.OrderEvent.Data) > 0 {
+		toInsert.Data = sql.NullString{String: hex.EncodeToString(order.OrderEvent.Data), Valid: true}
+	}
+
+	_, err := t.db.InsertOrder(ctx, toInsert)
+	if err != nil {
+		return fmt.Errorf("error inserting order: %w", err)
+	}
+	return nil
 }
