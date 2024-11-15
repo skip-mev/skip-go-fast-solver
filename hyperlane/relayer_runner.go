@@ -57,7 +57,6 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 			// grab all pending hyperlane transfers from the db
 			transfers, err := r.db.GetAllHyperlaneTransfersWithTransferStatus(ctx, dbtypes.TransferStatusPending)
 			if err != nil {
-				metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 				return fmt.Errorf("getting pending hyperlane transfers: %w", err)
 			}
 
@@ -129,7 +128,6 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 					TxType:              dbtypes.TxTypeHyperlaneMessageDelivery,
 					TxStatus:            dbtypes.TxStatusPending,
 				}); err != nil {
-					metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.INSERT)
 					lmt.Logger(ctx).Error(
 						"error inserting submitted tx for hyperlane transfer",
 						zap.Error(err),
@@ -185,7 +183,6 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 			DestinationChainID: transfer.DestinationChainID,
 			MessageID:          transfer.MessageID,
 		}); err != nil {
-			metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
 			return false, fmt.Errorf("setting message status to success: %w", err)
 		}
 		lmt.Logger(ctx).Info(
@@ -199,7 +196,6 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 
 	txs, err := r.db.GetSubmittedTxsByHyperlaneTransferId(ctx, sql.NullInt64{Int64: transfer.ID, Valid: true})
 	if err != nil {
-		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 		return false, fmt.Errorf("getting submitted txs by hyperlane transfer id %d: %w", transfer.ID, err)
 	}
 	if len(txs) > 0 {

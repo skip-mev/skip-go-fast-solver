@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/skip-mev/go-fast-solver/db"
-	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	genDB "github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
@@ -55,7 +54,7 @@ func (t *TransferTracker) TrackPendingTransfers(ctx context.Context) {
 func (t *TransferTracker) UpdateTransfers(ctx context.Context) error {
 	pendingTransfers, err := t.database.GetAllPendingRebalanceTransfers(ctx)
 	if err != nil {
-		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
+
 		return fmt.Errorf("getting all pending rebalance transfers: %w", err)
 	}
 
@@ -135,7 +134,7 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 			ID:     transferID,
 		})
 		if err != nil {
-			metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
+
 			return fmt.Errorf("updating transfer status to failed for hash %s on chain %s: %w", hash, sourceChainID, err)
 		}
 
@@ -155,7 +154,7 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 		ID:     transferID,
 	})
 	if err != nil {
-		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.UPDATE)
+
 		return fmt.Errorf("updating transfer status to completed for hash %s on chain %s: %w", hash, sourceChainID, err)
 	}
 

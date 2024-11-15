@@ -375,7 +375,6 @@ func (r *FundRebalancer) usdcBalance(ctx context.Context, chainID string) (*big.
 func (r *FundRebalancer) pendingUSDCBalance(ctx context.Context, chainID string) (*big.Int, error) {
 	pendingTransfers, err := r.database.GetPendingRebalanceTransfersToChain(ctx, chainID)
 	if err != nil {
-		metrics.FromContext(ctx).IncDatabaseErrors(dbtypes.GET)
 		return nil, fmt.Errorf("getting pending rebalance transfers to chain from db: %w", err)
 	}
 

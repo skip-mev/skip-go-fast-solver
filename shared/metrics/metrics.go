@@ -43,8 +43,6 @@ type Metrics interface {
 
 	ObserveTransferSizeOutOfRange(sourceChainID, destinationChainID string, amountExceededBy int64)
 	ObserveFeeBpsRejection(sourceChainID, destinationChainID string, feeBpsExceededBy int64)
-
-	IncDatabaseErrors(operation string)
 }
 
 type metricsContextKey struct{}
@@ -240,10 +238,6 @@ func (m *PromMetrics) ObserveFeeBpsRejection(sourceChainID, destinationChainID s
 	).Observe(float64(feeBps))
 }
 
-func (m *PromMetrics) IncDatabaseErrors(operation string) {
-	m.databaseErrors.With(operationLabel, operation).Add(1)
-}
-
 type NoOpMetrics struct{}
 
 func (n NoOpMetrics) IncTransactionSubmitted(success bool, sourceChainID, destinationChainID string) {
@@ -271,7 +265,6 @@ func (n NoOpMetrics) IncHyperlaneMessages(sourceChainID, destinationChainID, mes
 func (n NoOpMetrics) DecHyperlaneMessages(sourceChainID, destinationChainID, messageStatus string) {}
 func (n NoOpMetrics) ObserveTransferSizeOutOfRange(sourceChainID, destinationChainID string, amountExceededBy int64) {
 }
-func (n NoOpMetrics) IncDatabaseErrors(operation string)                                            {}
 func (n NoOpMetrics) ObserveFeeBpsRejection(sourceChainID, destinationChainID string, feeBps int64) {}
 func NewNoOpMetrics() Metrics {
 	return &NoOpMetrics{}
