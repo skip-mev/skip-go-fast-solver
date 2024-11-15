@@ -11,6 +11,9 @@ INSERT INTO order_settlements (
 -- name: GetAllOrderSettlementsWithSettlementStatus :many
 SELECT * FROM order_settlements WHERE settlement_status = ?;
 
+-- name: GetOrderSettlement :one
+SELECT * FROM order_settlements WHERE source_chain_id = ? AND source_chain_gateway_contract_address = ? AND order_id = ?;
+
 -- name: SetInitiateSettlementTx :one
 UPDATE order_settlements
 SET updated_at=CURRENT_TIMESTAMP, initiate_settlement_tx = ?

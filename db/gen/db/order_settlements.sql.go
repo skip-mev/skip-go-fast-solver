@@ -50,6 +50,36 @@ func (q *Queries) GetAllOrderSettlementsWithSettlementStatus(ctx context.Context
 	return items, nil
 }
 
+const getOrderSettlement = `-- name: GetOrderSettlement :one
+SELECT id, created_at, updated_at, source_chain_id, destination_chain_id, source_chain_gateway_contract_address, amount, order_id, initiate_settlement_tx, complete_settlement_tx, settlement_status, settlement_status_message FROM order_settlements WHERE source_chain_id = ? AND source_chain_gateway_contract_address = ? AND order_id = ?
+`
+
+type GetOrderSettlementParams struct {
+	SourceChainID                     string
+	SourceChainGatewayContractAddress string
+	OrderID                           string
+}
+
+func (q *Queries) GetOrderSettlement(ctx context.Context, arg GetOrderSettlementParams) (OrderSettlement, error) {
+	row := q.db.QueryRowContext(ctx, getOrderSettlement, arg.SourceChainID, arg.SourceChainGatewayContractAddress, arg.OrderID)
+	var i OrderSettlement
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SourceChainID,
+		&i.DestinationChainID,
+		&i.SourceChainGatewayContractAddress,
+		&i.Amount,
+		&i.OrderID,
+		&i.InitiateSettlementTx,
+		&i.CompleteSettlementTx,
+		&i.SettlementStatus,
+		&i.SettlementStatusMessage,
+	)
+	return i, err
+}
+
 const insertOrderSettlement = `-- name: InsertOrderSettlement :one
 INSERT INTO order_settlements (
     source_chain_id,

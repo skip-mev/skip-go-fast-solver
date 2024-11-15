@@ -472,6 +472,7 @@ func (c *CosmosBridgeClient) OrderFillsByFiller(ctx context.Context, gatewayCont
 	var startAfter *string
 	const limit uint64 = 100
 
+	var fills []Fill
 	for {
 		query := struct {
 			OrderFillsByFiller struct {
@@ -503,19 +504,22 @@ func (c *CosmosBridgeClient) OrderFillsByFiller(ctx context.Context, gatewayCont
 			return nil, fmt.Errorf("failed to query smart contract state: %w", err)
 		}
 
-		var fills []Fill
-		if err := json.Unmarshal(resp.Data, &fills); err != nil {
+		var page []Fill
+		if err := json.Unmarshal(resp.Data, &page); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 		}
 
+		fills = append(fills, page...)
+
 		// If we received fewer results than the limit, we've reached the end
-		if len(fills) < int(limit) {
-			return fills, nil
+		if len(page) < int(limit) {
+			break
 		}
 
 		// Set the startAfter for the next iteration
-		startAfter = &fills[len(fills)-1].OrderID
+		startAfter = &page[len(page)-1].OrderID
 	}
+	return fills, nil
 }
 
 func (c *CosmosBridgeClient) WaitForTx(ctx context.Context, txHash string) error {
