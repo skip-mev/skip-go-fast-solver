@@ -19,13 +19,13 @@ order_filler:
 # will not be fast transferred via Skip Go Fast), you can omit the
 # fund_rebalancer config all together.
 fund_rebalancer:
-  ethereum:
+  1:
     target_amount: <target_amount> # e.g. "1000000000"
     min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
-  arbitrum:
+  42161:
     target_amount: <target_amount> # e.g. "1000000000"
     min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
-  osmosis:
+  osmosis-1:
     target_amount: <target_amount> # e.g. "1000000000"
     min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
 chains:
