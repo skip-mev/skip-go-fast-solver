@@ -257,6 +257,7 @@ type CosmosConfig struct {
 
 type EVMConfig struct {
 	// MinGasTipCap is the minimum tip to include for EIP-1559 transactions
+	// If the gas price oracle price returns a lower tip than MinGasTipCap, MinGasTipCap is used
 	// Used mainly for Polygon where there is a network gas tip cap minimum and nodes frequently return values lower
 	// than it
 	MinGasTipCap *int64 `yaml:"min_gas_tip_cap"`
