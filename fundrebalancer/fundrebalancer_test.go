@@ -110,17 +110,15 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockConfigReader.On("GetChainConfig", osmosisChainID).Return(
 			config.ChainConfig{
 				Type:          config.ChainType_COSMOS,
-				Cosmos:        &config.CosmosConfig{USDCDenom: osmosisUSDCDenom},
+				USDCDenom:     osmosisUSDCDenom,
 				SolverAddress: osmosisAddress,
 			},
 			nil,
 		)
 		mockConfigReader.On("GetChainConfig", arbitrumChainID).Return(
 			config.ChainConfig{
-				Type: config.ChainType_EVM,
-				EVM: &config.EVMConfig{
-					Contracts: config.ContractsConfig{USDCERC20Address: arbitrumUSDCDenom},
-				},
+				Type:          config.ChainType_EVM,
+				USDCDenom:     arbitrumUSDCDenom,
 				SolverAddress: arbitrumAddress,
 			},
 			nil,
@@ -179,17 +177,15 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockConfigReader.On("GetChainConfig", osmosisChainID).Return(
 			config.ChainConfig{
 				Type:          config.ChainType_COSMOS,
-				Cosmos:        &config.CosmosConfig{USDCDenom: osmosisUSDCDenom},
+				USDCDenom:     osmosisUSDCDenom,
 				SolverAddress: osmosisAddress,
 			},
 			nil,
 		)
 		mockConfigReader.On("GetChainConfig", arbitrumChainID).Return(
 			config.ChainConfig{
-				Type: config.ChainType_EVM,
-				EVM: &config.EVMConfig{
-					Contracts: config.ContractsConfig{USDCERC20Address: arbitrumUSDCDenom},
-				},
+				Type:          config.ChainType_EVM,
+				USDCDenom:     arbitrumUSDCDenom,
 				SolverAddress: arbitrumAddress,
 			},
 			nil,
@@ -273,27 +269,23 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockConfigReader.On("GetChainConfig", osmosisChainID).Return(
 			config.ChainConfig{
 				Type:          config.ChainType_COSMOS,
-				Cosmos:        &config.CosmosConfig{USDCDenom: osmosisUSDCDenom},
+				USDCDenom:     osmosisUSDCDenom,
 				SolverAddress: osmosisAddress,
 			},
 			nil,
 		)
 		mockConfigReader.On("GetChainConfig", arbitrumChainID).Return(
 			config.ChainConfig{
-				Type: config.ChainType_EVM,
-				EVM: &config.EVMConfig{
-					Contracts: config.ContractsConfig{USDCERC20Address: arbitrumUSDCDenom},
-				},
+				Type:          config.ChainType_EVM,
+				USDCDenom:     arbitrumUSDCDenom,
 				SolverAddress: arbitrumAddress,
 			},
 			nil,
 		)
 		mockConfigReader.On("GetChainConfig", ethChainID).Return(
 			config.ChainConfig{
-				Type: config.ChainType_EVM,
-				EVM: &config.EVMConfig{
-					Contracts: config.ContractsConfig{USDCERC20Address: ethUSDCDenom},
-				},
+				Type:          config.ChainType_EVM,
+				USDCDenom:     ethUSDCDenom,
 				SolverAddress: ethAddress,
 			},
 			nil,
@@ -398,17 +390,15 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockConfigReader.On("GetChainConfig", osmosisChainID).Return(
 			config.ChainConfig{
 				Type:          config.ChainType_COSMOS,
-				Cosmos:        &config.CosmosConfig{USDCDenom: osmosisUSDCDenom},
+				USDCDenom:     osmosisUSDCDenom,
 				SolverAddress: osmosisAddress,
 			},
 			nil,
 		)
 		mockConfigReader.On("GetChainConfig", arbitrumChainID).Return(
 			config.ChainConfig{
-				Type: config.ChainType_EVM,
-				EVM: &config.EVMConfig{
-					Contracts: config.ContractsConfig{USDCERC20Address: arbitrumUSDCDenom},
-				},
+				Type:          config.ChainType_EVM,
+				USDCDenom:     arbitrumUSDCDenom,
 				SolverAddress: arbitrumAddress,
 			},
 			nil,
@@ -470,17 +460,15 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockConfigReader.On("GetChainConfig", osmosisChainID).Return(
 			config.ChainConfig{
 				Type:          config.ChainType_COSMOS,
-				Cosmos:        &config.CosmosConfig{USDCDenom: osmosisUSDCDenom},
+				USDCDenom:     osmosisUSDCDenom,
 				SolverAddress: osmosisAddress,
 			},
 			nil,
 		)
 		mockConfigReader.On("GetChainConfig", arbitrumChainID).Return(
 			config.ChainConfig{
-				Type: config.ChainType_EVM,
-				EVM: &config.EVMConfig{
-					Contracts: config.ContractsConfig{USDCERC20Address: arbitrumUSDCDenom},
-				},
+				Type:                       config.ChainType_EVM,
+				USDCDenom:                  arbitrumUSDCDenom,
 				SolverAddress:              arbitrumAddress,
 				MaxRebalancingGasThreshold: 50, // Set low threshold that will be exceeded
 			},
