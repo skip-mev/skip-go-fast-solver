@@ -71,8 +71,8 @@ func (s *SerializedEVMTxExecutor) ExecuteTx(
 		evm.WithChainID(chainID),
 		evm.WithNonce(nonce),
 		evm.WithEstimatedGasLimit(signerAddress, to, value, data),
-		evm.WithEstimatedGasFeeCap(),
 		evm.WithEstimatedGasTipCap(),
+		evm.WithEstimatedGasFeeCap(),
 	)
 	signedTx, err := signer.Sign(ctx, chainID, tx)
 	if err != nil {
