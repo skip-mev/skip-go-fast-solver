@@ -216,9 +216,9 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 
 	var abandonmentReason string
 	switch {
-	case transferAmount.Cmp(&destinationChainConfig.MinFillSize) < 0:
+	case transferAmount.Cmp(&destinationChainConfig.Cosmos.MinFillSize) < 0:
 		abandonmentReason = "transfer amount is below configured min fill size for chain " + orderFill.DestinationChainID
-	case transferAmount.Cmp(&destinationChainConfig.MaxFillSize) > 0:
+	case transferAmount.Cmp(&destinationChainConfig.Cosmos.MaxFillSize) > 0:
 		abandonmentReason = "transfer amount exceeds configured max fill size for chain" + orderFill.DestinationChainID
 	default:
 		return true, nil
@@ -240,8 +240,8 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 		zap.String("orderID", orderFill.OrderID),
 		zap.String("sourceChainID", orderFill.SourceChainID),
 		zap.String("orderAmountOut", orderFill.AmountOut),
-		zap.Any("minAllowedFillSize", destinationChainConfig.MinFillSize),
-		zap.Any("maxAllowedFillSize", destinationChainConfig.MaxFillSize),
+		zap.Any("minAllowedFillSize", destinationChainConfig.Cosmos.MinFillSize),
+		zap.Any("maxAllowedFillSize", destinationChainConfig.Cosmos.MaxFillSize),
 	)
 	return false, nil
 }
