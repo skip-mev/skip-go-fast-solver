@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
+
 	"os/signal"
 	"syscall"
 
@@ -96,8 +98,8 @@ var relayCmd = &cobra.Command{
 		coingeckoClient := coingecko.NewCoingeckoClient(rateLimitedClient, "https://api.coingecko.com/api/v3/", "")
 		cachedCoinGeckoClient := coingecko.NewCachedPriceClient(coingeckoClient, 15*time.Minute)
 		evmTxPriceOracle := evmrpc.NewOracle(cachedCoinGeckoClient)
-
-		hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmrpc.NewEVMRPCClientManager(), keyStore, evmTxPriceOracle)
+		evmTxExecutor := evm.DefaultEVMTxExecutor()
+		hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmrpc.NewEVMRPCClientManager(), keyStore, evmTxPriceOracle, evmTxExecutor)
 		if err != nil {
 			lmt.Logger(ctx).Error("Error creating hyperlane multi client from config", zap.Error(err))
 		}

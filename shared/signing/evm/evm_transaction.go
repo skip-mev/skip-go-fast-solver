@@ -89,13 +89,20 @@ func WithChainID(chainID string) TxBuildOption {
 	}
 }
 
-func WithNonce(address string) TxBuildOption {
+func WithNonceOfSigner(address string) TxBuildOption {
 	return func(ctx context.Context, b TxBuilder, tx *types.DynamicFeeTx) error {
 		nonce, err := b.rpc.PendingNonceAt(ctx, common.HexToAddress(address))
 		if err != nil {
 			return fmt.Errorf("fetching next nonce for %s: %w", address, err)
 		}
 
+		tx.Nonce = nonce
+		return nil
+	}
+}
+
+func WithNonce(nonce uint64) TxBuildOption {
+	return func(ctx context.Context, b TxBuilder, tx *types.DynamicFeeTx) error {
 		tx.Nonce = nonce
 		return nil
 	}

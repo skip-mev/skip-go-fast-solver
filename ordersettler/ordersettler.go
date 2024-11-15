@@ -36,6 +36,7 @@ var params = Config{
 
 type Database interface {
 	GetAllOrderSettlementsWithSettlementStatus(ctx context.Context, settlementStatus string) ([]db.OrderSettlement, error)
+	GetOrderSettlement(ctx context.Context, arg db.GetOrderSettlementParams) (db.OrderSettlement, error)
 
 	GetOrderByOrderID(ctx context.Context, orderID string) (db.Order, error)
 
@@ -149,6 +150,17 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 			height, err := sourceBridgeClient.BlockHeight(ctx)
 			if err != nil {
 				return fmt.Errorf("fetching current block height on chain %s: %w", sourceChainID, err)
+			}
+
+			// continue if settlement has already been ingested
+			if _, err := r.db.GetOrderSettlement(ctx, db.GetOrderSettlementParams{
+				SourceChainID:                     sourceChainID,
+				SourceChainGatewayContractAddress: sourceGatewayAddress,
+				OrderID:                           fill.OrderID,
+			}); err == nil {
+				continue
+			} else if !errors.Is(err, sql.ErrNoRows) {
+				return fmt.Errorf("error querying db settlement for order %s on chainID %s", fill.OrderID, sourceChainID)
 			}
 
 			// ensure order exists on source chain

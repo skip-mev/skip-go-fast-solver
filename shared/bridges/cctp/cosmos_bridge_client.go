@@ -7,14 +7,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
 	"math/big"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	grpc2 "github.com/cosmos/cosmos-sdk/types/grpc"
-	tx2 "github.com/cosmos/cosmos-sdk/types/tx"
+	sdkgrpc "github.com/cosmos/cosmos-sdk/types/grpc"
 	"google.golang.org/grpc/metadata"
 
 	"google.golang.org/grpc"
@@ -40,20 +39,16 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/signing"
 )
 
-const (
-	simulationGasUsedMultiplier = 1.2
-)
-
 type CosmosBridgeClient struct {
 	rpcClient  rpcclient.Client
 	grpcClient grpc.ClientConnInterface
 	cdc        *codec.ProtoCodec
 	txConfig   client.TxConfig
 
-	chainID           string
-	prefix            string
-	signer            signing.Signer
-	txSubmissionMutex sync.Mutex
+	chainID    string
+	prefix     string
+	signer     signing.Signer
+	txExecutor cosmos.CosmosTxExecutor
 
 	gasPrice float64
 	gasDenom string
@@ -69,6 +64,7 @@ func NewCosmosBridgeClient(
 	signer signing.Signer,
 	gasPrice float64,
 	gasDenom string,
+	txSubmitter cosmos.CosmosTxExecutor,
 ) (*CosmosBridgeClient, error) {
 	registry := codectypes.NewInterfaceRegistry()
 
@@ -94,6 +90,7 @@ func NewCosmosBridgeClient(
 		signer:     signer,
 		gasPrice:   gasPrice,
 		gasDenom:   gasDenom,
+		txExecutor: txSubmitter,
 	}, nil
 }
 
@@ -238,7 +235,6 @@ func (c *CosmosBridgeClient) FillOrder(ctx context.Context, order db.Order, gate
 		return "", "", nil, err
 	}
 
-	txBuilder := c.txConfig.NewTxBuilder()
 	msgs := []sdk.Msg{}
 	amount, ok := math.NewIntFromString(order.AmountOut)
 	if !ok {
@@ -255,15 +251,14 @@ func (c *CosmosBridgeClient) FillOrder(ctx context.Context, order db.Order, gate
 		}},
 	}
 	msgs = append(msgs, wasmExecuteContractMsg)
-	err = txBuilder.SetMsgs(msgs...)
+	txHash, tx, err := c.submitTx(ctx, msgs)
 	if err != nil {
 		return "", "", nil, err
 	}
-	txBytes, err := c.txConfig.TxJSONEncoder()(txBuilder.GetTx())
+	txBytes, err := c.txConfig.TxJSONEncoder()(tx)
 	if err != nil {
 		return "", "", nil, err
 	}
-	txHash, err := c.submitTx(ctx, txBuilder.GetTx())
 	return txHash, base64.StdEncoding.EncodeToString(txBytes), nil, err
 }
 
@@ -324,7 +319,6 @@ func (c *CosmosBridgeClient) InitiateTimeout(ctx context.Context, order db.Order
 		return "", "", nil, err
 	}
 
-	txBuilder := c.txConfig.NewTxBuilder()
 	msgs := []sdk.Msg{}
 	wasmExecuteContractMsg := &wasmtypes.MsgExecuteContract{
 		Sender:   fromAddress,
@@ -332,15 +326,14 @@ func (c *CosmosBridgeClient) InitiateTimeout(ctx context.Context, order db.Order
 		Msg:      initiateTimeoutMsgBytes,
 	}
 	msgs = append(msgs, wasmExecuteContractMsg)
-	err = txBuilder.SetMsgs(msgs...)
+	txHash, tx, err := c.submitTx(ctx, msgs)
 	if err != nil {
 		return "", "", nil, err
 	}
-	txBytes, err := c.txConfig.TxJSONEncoder()(txBuilder.GetTx())
+	txBytes, err := c.txConfig.TxJSONEncoder()(tx)
 	if err != nil {
 		return "", "", nil, err
 	}
-	txHash, err := c.submitTx(ctx, txBuilder.GetTx())
 	return txHash, base64.StdEncoding.EncodeToString(txBytes), nil, err
 }
 
@@ -388,7 +381,6 @@ func (c *CosmosBridgeClient) InitiateBatchSettlement(ctx context.Context, batch 
 		return "", "", fmt.Errorf("getting batch gateway contract address: %w", err)
 	}
 
-	txBuilder := c.txConfig.NewTxBuilder()
 	msgs := []sdk.Msg{}
 	wasmExecuteContractMsg := &wasmtypes.MsgExecuteContract{
 		Sender:   fromAddress,
@@ -397,18 +389,15 @@ func (c *CosmosBridgeClient) InitiateBatchSettlement(ctx context.Context, batch 
 	}
 
 	msgs = append(msgs, wasmExecuteContractMsg)
-	if err = txBuilder.SetMsgs(msgs...); err != nil {
-		return "", "", fmt.Errorf("setting tx messages: %w", err)
-	}
 
-	txBytes, err := c.txConfig.TxJSONEncoder()(txBuilder.GetTx())
-	if err != nil {
-		return "", "", fmt.Errorf("json encoding tx: %w", err)
-	}
-
-	txHash, err := c.submitTx(ctx, txBuilder.GetTx())
+	txHash, tx, err := c.submitTx(ctx, msgs)
 	if err != nil {
 		return "", "", fmt.Errorf("submitting tx: %w", err)
+	}
+
+	txBytes, err := c.txConfig.TxJSONEncoder()(tx)
+	if err != nil {
+		return "", "", fmt.Errorf("json encoding tx: %w", err)
 	}
 
 	return txHash, base64.StdEncoding.EncodeToString(txBytes), nil
@@ -423,7 +412,7 @@ func (c *CosmosBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayCon
 	}, grpc.Header(&header))
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			blockHeight := header.Get(grpc2.GRPCBlockHeightHeader)
+			blockHeight := header.Get(sdkgrpc.GRPCBlockHeightHeader)
 			blockHeightInt, err := strconv.ParseInt(blockHeight[0], 10, 64)
 			if err != nil {
 				return nil, nil, time.Time{}, fmt.Errorf("parsing block height: %w", err)
@@ -446,7 +435,7 @@ func (c *CosmosBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayCon
 	if err := json.Unmarshal(resp.Data, &fill); err != nil {
 		return nil, nil, time.Time{}, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	blockHeight := header.Get(grpc2.GRPCBlockHeightHeader)
+	blockHeight := header.Get(sdkgrpc.GRPCBlockHeightHeader)
 	blockHeightInt, err := strconv.ParseInt(blockHeight[0], 10, 64)
 	if err != nil {
 		return nil, nil, time.Time{}, fmt.Errorf("parsing block height: %w", err)
@@ -472,6 +461,7 @@ func (c *CosmosBridgeClient) OrderFillsByFiller(ctx context.Context, gatewayCont
 	var startAfter *string
 	const limit uint64 = 100
 
+	var fills []Fill
 	for {
 		query := struct {
 			OrderFillsByFiller struct {
@@ -503,19 +493,22 @@ func (c *CosmosBridgeClient) OrderFillsByFiller(ctx context.Context, gatewayCont
 			return nil, fmt.Errorf("failed to query smart contract state: %w", err)
 		}
 
-		var fills []Fill
-		if err := json.Unmarshal(resp.Data, &fills); err != nil {
+		var page []Fill
+		if err := json.Unmarshal(resp.Data, &page); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 		}
 
+		fills = append(fills, page...)
+
 		// If we received fewer results than the limit, we've reached the end
-		if len(fills) < int(limit) {
-			return fills, nil
+		if len(page) < int(limit) {
+			break
 		}
 
 		// Set the startAfter for the next iteration
-		startAfter = &fills[len(fills)-1].OrderID
+		startAfter = &page[len(page)-1].OrderID
 	}
+	return fills, nil
 }
 
 func (c *CosmosBridgeClient) WaitForTx(ctx context.Context, txHash string) error {
@@ -550,113 +543,29 @@ func (c *CosmosBridgeClient) OrderStatus(ctx context.Context, gatewayContractAdd
 
 func (c *CosmosBridgeClient) Close() {}
 
-func (c *CosmosBridgeClient) sign(ctx context.Context, tx sdk.Tx, accountNumber uint64, sequence uint64) (sdk.Tx, error) {
-	signedTx, err := c.signer.Sign(ctx, c.chainID, signing.NewCosmosTransaction(tx, accountNumber, sequence, c.txConfig))
-	if err != nil {
-		return nil, err
-	}
-	return signedTx.(*signing.CosmosTransaction).Tx, nil
-}
-
-func (c *CosmosBridgeClient) submitTx(ctx context.Context, tx sdk.Tx) (string, error) {
+func (c *CosmosBridgeClient) submitTx(ctx context.Context, msgs []sdk.Msg) (string, sdk.Tx, error) {
 	bech32Address, err := bech32.ConvertAndEncode(c.prefix, c.signer.Address())
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	c.txSubmissionMutex.Lock()
-	defer c.txSubmissionMutex.Unlock()
 
 	numRetries := 5
 	for i := 0; i < numRetries; i++ {
-		account, err := c.queryAccount(ctx, bech32Address)
-		if err != nil {
-			return "", err
-		}
-		gasEstimate, err := c.estimateGasUsed(ctx, tx, account)
-		if err != nil {
-			return "", err
-		}
-		txBuilder, err := c.txConfig.WrapTxBuilder(tx)
-		if err != nil {
-			return "", err
-		}
-		gasEstimateDec := math.LegacyNewDec(int64(gasEstimate))
-		gasPriceDec, err := math.LegacyNewDecFromStr(strconv.FormatFloat(c.gasPrice, 'f', -1, 64))
-		if err != nil {
-			return "", err
-		}
-		txBuilder.SetFeeAmount(sdk.NewCoins(sdk.NewCoin(c.gasDenom, gasPriceDec.Mul(gasEstimateDec).Ceil().RoundInt())))
-		txBuilder.SetGasLimit(gasEstimate)
+		result, tx, err := c.txExecutor.ExecuteTx(ctx, c.chainID, bech32Address, msgs, c.txConfig, c.signer, c.gasPrice, c.gasDenom)
 
-		signedTx, err := c.sign(ctx, txBuilder.GetTx(), account.GetAccountNumber(), account.GetSequence())
 		if err != nil {
-			return "", err
-		}
-
-		signedTxBytes, err := c.txConfig.TxEncoder()(signedTx)
-		if err != nil {
-			return "", err
-		}
-
-		result, err := c.rpcClient.BroadcastTxSync(ctx, signedTxBytes)
-		if err != nil {
-			return "", err
+			return "", nil, err
 		} else if result.Code != 0 {
 			if strings.Contains(result.Log, "account sequence mismatch") {
 				time.Sleep(1 * time.Second)
 				continue
 			}
-			return "", abciError(result.Codespace, result.Code, result.Log)
+			return "", nil, abciError(result.Codespace, result.Code, result.Log)
 		}
 
-		return strings.ToUpper(hex.EncodeToString(result.Hash)), nil
+		return strings.ToUpper(hex.EncodeToString(result.Hash)), tx, nil
 	}
-	return "", errors.New("failed to submit tx")
-}
-
-func (c *CosmosBridgeClient) estimateGasUsed(ctx context.Context, tx sdk.Tx, account sdk.AccountI) (uint64, error) {
-	serviceClient := tx2.NewServiceClient(c.grpcClient)
-	signedTxForSimulation, err := c.sign(ctx, tx, account.GetAccountNumber(), account.GetSequence())
-	if err != nil {
-		return 0, err
-	}
-	txBytes, err := c.txConfig.TxEncoder()(signedTxForSimulation)
-	if err != nil {
-		return 0, err
-	}
-	simulateResponse, err := serviceClient.Simulate(ctx, &tx2.SimulateRequest{
-		TxBytes: txBytes,
-	})
-	if err != nil {
-		return 0, err
-	}
-	return uint64(float64(simulateResponse.GasInfo.GasUsed) * simulationGasUsedMultiplier), nil
-}
-
-func (c *CosmosBridgeClient) queryAccount(ctx context.Context, address string) (sdk.AccountI, error) {
-	requestBytes, err := c.cdc.Marshal(&authtypes.QueryAccountRequest{Address: address})
-	if err != nil {
-		return nil, fmt.Errorf("account query failed: %w", err)
-	}
-
-	abciResponse, err := c.rpcClient.ABCIQuery(ctx, "/cosmos.auth.v1beta1.Query/Account", requestBytes)
-	if err != nil {
-		return nil, fmt.Errorf("account query failed: %w", err)
-	} else if abciResponse.Response.Code != 0 {
-		return nil, abciError(abciResponse.Response.Codespace, abciResponse.Response.Code, abciResponse.Response.Log)
-	}
-
-	response := authtypes.QueryAccountResponse{}
-	if err := c.cdc.Unmarshal(abciResponse.Response.Value, &response); err != nil {
-		return nil, fmt.Errorf("account query failed: %w", err)
-	}
-
-	var account sdk.AccountI
-	if err := c.cdc.UnpackAny(response.Account, &account); err != nil {
-		return nil, fmt.Errorf("account query failed: %w", err)
-	}
-
-	return account, nil
+	return "", nil, errors.New("failed to submit tx")
 }
 
 func abciError(codespace string, code uint32, log string) error {

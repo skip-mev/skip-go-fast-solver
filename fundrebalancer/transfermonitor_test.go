@@ -26,6 +26,10 @@ func TestTransferMonitor_UpdateTransfers(t *testing.T) {
 			{ID: 2, TxHash: "hash2", SourceChainID: arbitrumChainID, DestinationChainID: osmosisChainID, Amount: strconv.Itoa(osmosisTargetAmount)},
 		}, nil)
 
+		mockSkipGo.EXPECT().TrackTx(mockContext, "hash", arbitrumChainID).Return("hash", nil)
+
+		mockSkipGo.EXPECT().TrackTx(mockContext, "hash2", arbitrumChainID).Return("hash2", nil)
+
 		mockSkipGo.EXPECT().Status(mockContext, skipgo.TxHash("hash"), arbitrumChainID).Return(&skipgo.StatusResponse{
 			Transfers: []skipgo.Transfer{
 				{State: skipgo.STATE_COMPLETED_SUCCESS, Error: nil},

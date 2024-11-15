@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	evmtxsubmission "github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 	"math/big"
 	"os"
 	"time"
@@ -38,6 +39,7 @@ type FundRebalancer struct {
 	config              map[string]config.FundRebalancerConfig
 	database            Database
 	trasferTracker      *TransferTracker
+	evmTxExecutor       evmtxsubmission.EVMTxExecutor
 }
 
 func NewFundRebalancer(
@@ -46,6 +48,7 @@ func NewFundRebalancer(
 	skipgo skipgo.SkipGoClient,
 	evmClientManager evmrpc.EVMRPCClientManager,
 	database Database,
+	evmTxExecutor evmtxsubmission.EVMTxExecutor,
 ) (*FundRebalancer, error) {
 	chainIDToPriavateKey, err := loadChainIDToPrivateKeyMap(keysPath)
 	if err != nil {
@@ -59,6 +62,7 @@ func NewFundRebalancer(
 		config:              config.GetConfigReader(ctx).Config().FundRebalancer,
 		database:            database,
 		trasferTracker:      NewTransferTracker(skipgo, database),
+		evmTxExecutor:       evmTxExecutor,
 	}, nil
 }
 
@@ -266,18 +270,17 @@ func (r *FundRebalancer) MoveFundsToChain(
 			}
 		}
 
-		signedTxns, err := r.SignTxns(ctx, txns)
-		if err != nil {
-			return nil, nil, fmt.Errorf("signing txns required for fund rebalancing: %w", err)
+		if len(txns) != 1 {
+			return nil, nil, fmt.Errorf("only single transaction transfers are supported")
 		}
 
-		txnHashes, err := r.SubmitTxns(ctx, signedTxns)
+		txHash, err := r.SignAndSubmitTxn(ctx, txns[0])
 		if err != nil {
-			return nil, nil, fmt.Errorf("submitting signed txns required for fund rebalancing: %w", err)
+			return nil, nil, fmt.Errorf("signing and submitting transaction: %w", err)
 		}
 
 		totalUSDCcMoved = new(big.Int).Add(totalUSDCcMoved, usdcToRebalance)
-		hashes = append(hashes, txnHashes...)
+		hashes = append(hashes, txHash)
 
 		// if there is no more usdc needed, we are done rebalancing
 		remainingUSDCNeeded = new(big.Int).Sub(remainingUSDCNeeded, usdcToRebalance)
@@ -496,152 +499,61 @@ func (r *FundRebalancer) GetRebalanceTxns(
 	return txnsWithMetadata, nil
 }
 
-// TxnWithMetadata is a wrapper around a transaction with metadata about the
-// chain that is is signed for, bound to, and the amount of USDC being moved
-// with this transaction.
-type TxnWithMetadata struct {
-	Tx                 signing.Transaction
-	SourceChainID      string
-	DestinationChainID string
-	Amount             *big.Int
-}
-
-// SignTxns takes transaction msgs/data from Skip Go and signs them.
-func (r *FundRebalancer) SignTxns(
+// SignAndSubmitTxn signs and submits txs to chain
+func (r *FundRebalancer) SignAndSubmitTxn(
 	ctx context.Context,
-	txns []SkipGoTxnWithMetadata,
-) ([]TxnWithMetadata, error) {
-	var transactions []TxnWithMetadata
-	for _, txn := range txns {
-		var unsignedTx signing.Transaction
-		var chainID string
-
-		// convert the Skip Go transaction into a signable data structure for
-		// each chain type
-		switch {
-		case txn.tx.EVMTx != nil:
-			tx, err := r.buildEVMTx(ctx, txn.tx.EVMTx.ChainID, txn.tx.EVMTx, txn.gasEstimate)
-			if err != nil {
-				return nil, fmt.Errorf("building evm transaction from skip go transaction data: %w", err)
-			}
-
-			unsignedTx = tx
-			chainID = txn.tx.EVMTx.ChainID
-		case txn.tx.CosmosTx != nil:
-			return nil, fmt.Errorf("cosmos txns not supported yet")
-		default:
-			return nil, fmt.Errorf("no valid transaction types returned from Skip Go")
+	txn SkipGoTxnWithMetadata,
+) (skipgo.TxHash, error) {
+	// convert the Skip Go txHash into a signable data structure for
+	// each chain type
+	switch {
+	case txn.tx.EVMTx != nil:
+		signer, err := signing.NewSigner(ctx, txn.sourceChainID, r.chainIDToPrivateKey)
+		if err != nil {
+			return "", fmt.Errorf("creating signer for chain %s: %w", txn.sourceChainID, err)
 		}
 
-		signedTxn, err := r.SignTxn(ctx, unsignedTx, chainID)
+		txData, err := hex.DecodeString(txn.tx.EVMTx.Data)
 		if err != nil {
-			return nil, fmt.Errorf("signing transaction on chain %s: %w", chainID, err)
+			return "", fmt.Errorf("decoding hex data from Skip Go: %w", err)
 		}
 
-		transactions = append(transactions, TxnWithMetadata{
-			Tx:                 signedTxn,
-			SourceChainID:      txn.sourceChainID,
-			DestinationChainID: txn.destinationChainID,
-			Amount:             txn.amount,
-		})
-	}
-
-	return transactions, nil
-}
-
-// SignTxn creates a signer for a transaction on chain chainID and signs it.
-func (r *FundRebalancer) SignTxn(
-	ctx context.Context,
-	unsignedTx signing.Transaction,
-	chainID string,
-) (signing.Transaction, error) {
-	signer, err := signing.NewSigner(ctx, chainID, r.chainIDToPrivateKey)
-	if err != nil {
-		return nil, fmt.Errorf("creating signer for chain %s: %w", chainID, err)
-	}
-
-	signedTxn, err := signer.Sign(ctx, chainID, unsignedTx)
-	if err != nil {
-		return nil, fmt.Errorf("singing transaction on chain %s: %w", chainID, err)
-	}
-
-	return signedTxn, nil
-}
-
-// buildEVMTx constructs an evm transaction out of Skip Go transaction data.
-func (r *FundRebalancer) buildEVMTx(
-	ctx context.Context,
-	chainID string,
-	tx *skipgo.EVMTx,
-	gasEstimate uint64,
-) (signing.Transaction, error) {
-	client, err := r.evmClientManager.GetClient(ctx, chainID)
-	if err != nil {
-		return nil, fmt.Errorf("fetching evm rpc client from manager for chain %s: %w", chainID, err)
-	}
-
-	decodedData, err := hex.DecodeString(tx.Data)
-	if err != nil {
-		return nil, fmt.Errorf("hex decoding evm call data: %w", err)
-	}
-
-	chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
-	if err != nil {
-		return nil, fmt.Errorf("getting chain config for chain %s: %w", chainID, err)
-	}
-
-	return evm.NewTxBuilder(client).Build(
-		ctx,
-		evm.WithData(decodedData),
-		evm.WithValue(tx.Value),
-		evm.WithTo(tx.To),
-		evm.WithChainID(chainID),
-		evm.WithNonce(chainConfig.SolverAddress),
-		evm.WithEstimatedGasLimit(chainConfig.SolverAddress, tx.To, tx.Value, decodedData),
-		evm.WithEstimatedGasFeeCap(),
-		evm.WithEstimatedGasTipCap(),
-	)
-}
-
-// SubmitTxns submits txs to chain via Skip Go
-func (r *FundRebalancer) SubmitTxns(
-	ctx context.Context,
-	signedTxns []TxnWithMetadata,
-) ([]skipgo.TxHash, error) {
-	var hashes []skipgo.TxHash
-
-	for _, signedTxn := range signedTxns {
-		txBytes, err := signedTxn.Tx.MarshalBinary()
+		txHash, err := r.evmTxExecutor.ExecuteTx(
+			ctx,
+			txn.sourceChainID,
+			txn.tx.EVMTx.SignerAddress,
+			txData,
+			txn.tx.EVMTx.Value,
+			txn.tx.EVMTx.To,
+			signer,
+		)
 		if err != nil {
-			return nil, fmt.Errorf("marshaling signed tx to bytes: %w", err)
-		}
-
-		hash, err := r.skipgo.SubmitTx(ctx, txBytes, signedTxn.SourceChainID)
-		if err != nil {
-			return nil, fmt.Errorf("submitting transaction to Skip Go on chain %s: %w", signedTxn.SourceChainID, err)
+			return "", fmt.Errorf("submitting evm txn to chain %s: %w", txn.sourceChainID, err)
 		}
 
 		lmt.Logger(ctx).Info(
-			"submitted transaction to Skip Go to rebalance funds",
-			zap.String("sourceChainID", signedTxn.SourceChainID),
-			zap.String("destinationChainID", signedTxn.DestinationChainID),
-			zap.String("txnHash", string(hash)),
+			"submitted txHash to Skip Go to rebalance funds",
+			zap.String("sourceChainID", txn.sourceChainID),
+			zap.String("destChainID", txn.destinationChainID),
+			zap.String("txnHash", txHash),
 		)
 
 		args := db.InsertRebalanceTransferParams{
-			TxHash:             string(hash),
-			SourceChainID:      signedTxn.SourceChainID,
-			DestinationChainID: signedTxn.DestinationChainID,
-			Amount:             signedTxn.Amount.String(),
+			TxHash:             txHash,
+			SourceChainID:      txn.sourceChainID,
+			DestinationChainID: txn.destinationChainID,
+			Amount:             txn.amount.String(),
 		}
 		if _, err := r.database.InsertRebalanceTransfer(ctx, args); err != nil {
-			return nil, fmt.Errorf("inserting rebalance transaction with hash %s into db: %w", hash, err)
+			return "", fmt.Errorf("inserting rebalance txHash with hash %s into db: %w", txHash, err)
 		}
 
-		hashes = append(hashes, hash)
+		return skipgo.TxHash(txHash), nil
+	case txn.tx.CosmosTx != nil:
+		return "", fmt.Errorf("cosmos txns not supported yet")
+	default:
+		return "", fmt.Errorf("no valid txHash types returned from Skip Go")
 	}
-
-	return hashes, nil
 }
 
 func (r *FundRebalancer) estimateTotalGas(txns []SkipGoTxnWithMetadata) (uint64, error) {

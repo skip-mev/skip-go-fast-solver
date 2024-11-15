@@ -8,6 +8,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
+	"github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
+
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/skip-mev/go-fast-solver/db/connect"
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/txverifier"
@@ -40,8 +45,9 @@ var keyStoreType = flag.String("key-store-type", "plaintext-file", "where to loa
 var aesKeyHex = flag.String("aes-key-hex", "", "hex-encoded AES key used to decrypt keys file. must be specified if key-store-type is encrypted-file")
 var sqliteDBPath = flag.String("sqlite-db-path", "./solver.db", "path to sqlite db file")
 var migrationsPath = flag.String("migrations-path", "./db/migrations", "path to db migrations directory")
-var quickStart = flag.Bool("quickstart", false, "run quick start mode")
+var quickStart = flag.Bool("quickstart", true, "run quick start mode")
 var refundOrders = flag.Bool("refund-orders", true, "if the solver should refund timed out order")
+var fillOrders = flag.Bool("fill-orders", true, "if the solver should fill orders")
 
 func main() {
 	flag.Parse()
@@ -59,6 +65,13 @@ func main() {
 	if err != nil {
 		lmt.Logger(ctx).Fatal("Unable to load config", zap.Error(err))
 	}
+
+	redactedConfig := redactConfig(&cfg)
+
+	lmt.Logger(ctx).Info("starting skip go fast solver",
+		zap.Any("config", redactedConfig), zap.Bool("quickstart", *quickStart),
+		zap.Bool("shouldRefundOrders", *refundOrders))
+
 	ctx = config.ConfigReaderContext(ctx, config.NewConfigReader(cfg))
 
 	keyStore, err := keys.GetKeyStore(*keyStoreType, keys.GetKeyStoreOpts{KeyFilePath: *keysPath, AESKeyHex: *aesKeyHex})
@@ -66,7 +79,10 @@ func main() {
 		lmt.Logger(ctx).Fatal("Unable to load keystore", zap.Error(err))
 	}
 
-	clientManager := clientmanager.NewClientManager(keyStore)
+	cosmosTxExecutor := cosmos.DefaultSerializedCosmosTxExecutor()
+	evmTxExecutor := evm.DefaultEVMTxExecutor()
+
+	clientManager := clientmanager.NewClientManager(keyStore, cosmosTxExecutor)
 
 	dbConn, err := connect.ConnectAndMigrate(ctx, *sqliteDBPath, *migrationsPath)
 	if err != nil {
@@ -111,7 +127,7 @@ func main() {
 			db.New(dbConn),
 			cfg.OrderFillerConfig.OrderFillWorkerCount,
 			orderFillHandler,
-			true,
+			*fillOrders,
 			*refundOrders,
 		)
 		if err != nil {
@@ -131,7 +147,7 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		r, err := fundrebalancer.NewFundRebalancer(ctx, *keysPath, skipgo, evmManager, db.New(dbConn))
+		r, err := fundrebalancer.NewFundRebalancer(ctx, *keysPath, skipgo, evmManager, db.New(dbConn), evmTxExecutor)
 		if err != nil {
 			return fmt.Errorf("creating fund rebalancer: %w", err)
 		}
@@ -167,4 +183,29 @@ func main() {
 	if err := eg.Wait(); err != nil {
 		lmt.Logger(ctx).Fatal("error running solver", zap.Error(err))
 	}
+}
+
+func redactConfig(cfg *config.Config) config.Config {
+	redactedConfig := *cfg
+	redactedConfig.Chains = make(map[string]config.ChainConfig)
+
+	for chainID, chain := range cfg.Chains {
+		chainCopy := chain
+		if chainCopy.Cosmos != nil {
+			cosmosCopy := *chainCopy.Cosmos
+			cosmosCopy.RPC = "[redacted]"
+			cosmosCopy.GRPC = "[redacted]"
+			cosmosCopy.RPCBasicAuthVar = "[redacted]"
+			chainCopy.Cosmos = &cosmosCopy
+		}
+		if chainCopy.EVM != nil {
+			evmCopy := *chainCopy.EVM
+			evmCopy.RPC = "[redacted]"
+			evmCopy.RPCBasicAuthVar = "[redacted]"
+			chainCopy.EVM = &evmCopy
+		}
+		redactedConfig.Chains[chainID] = chainCopy
+	}
+
+	return redactedConfig
 }
