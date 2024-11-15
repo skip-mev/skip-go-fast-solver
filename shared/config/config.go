@@ -137,27 +137,33 @@ type ChainConfig struct {
 	// make when settling order batches. This value should be set carefully as
 	// it is used to determine what the max tx fee that should be paid to
 	// settle a batch of orders in order to maintain your set profit margin.
-	// Thus, this value should always be to a lower value than the MinFeeBps,
-	// since your profit margin must be less than the actual profit (you have
-	// to pay some tx fee). Below is an equation that shows how this value will
-	// be used when settling up.
+	// Thus, this value should always be set to a lower value than the
+	// MinFeeBps, since your profit margin must be less than the actual profit
+	// (you have to pay some tx fee). Below is an equation that shows how this
+	// value will be used when settling up.
 	//
-	// (SettlementProfit - TxFee) / TotalSettlementValue = MinProfitMargin
+	// (NetSettlementProfit - TxFee) / TotalSettlementValue = MinProfitMargin
+	//
+	// Where:
+	// NetSettlementProfit = total amount in of orders in settlement batch -
+	//   total amount out of orders in settlement batch.
+	// and,
+	// TotalSettlementValue = total amount in of orders in settlement batch.
 	//
 	// To determine the TxFee, we can rearrange the equation as follows.
 	//
-	// SettlementProfit - (TotalSettlementValue * MinProfitMargin) = TxFee
+	// NetSettlementProfit - (TotalSettlementValue * MinProfitMargin) = TxFee
 	//
 	// Here you can see the relationship between how MinProfitMarginBPS,
 	// BatchUUSDCSettleUpThreshold, and MinFeeBps all relate to each other. As
 	// you increase BatchUUSDCSettleUpThreshold, the TotalSettlementValue of
 	// each batch will increase. As you increase the MinFeeBps, the
-	// SettlementProfit will increase, and as you increase MinProfitMarginBPS,
-	// the max TxFee you are willing to pay to get your settlement landed on
-	// chain will decrease. So, all three of these values should be set with
-	// care for each chain, based on solver fund reserves on this chain,
-	// typical gas costs, and expected minimum fees to be paid by users to
-	// submit orders on this chain.
+	// NetSettlementProfit will increase, and as you increase
+	// MinProfitMarginBPS, the max TxFee you are willing to pay to get your
+	// settlement landed on chain will decrease. So, all three of these values
+	// should be set with care for each chain, based on solver fund reserves on
+	// this chain, typical gas costs, and expected minimum fees to be paid by
+	// users to submit orders on this chain.
 	//
 	// As an example, lets say MinFeeBps is set to 20bps,
 	// BatchUUSDCSettleUpThreshold is set to 5000000000uusdc (5 usdc), and
