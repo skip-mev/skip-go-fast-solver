@@ -67,7 +67,7 @@ func (s *SerializedEVMTxExecutor) ExecuteTx(
 		return "", err
 	}
 	if chainCfg.EVM == nil {
-		return "", fmt.Errorf("EVM chain config is null for chain id %s")
+		return "", fmt.Errorf("EVM chain config is null for chain id %s", chainID)
 	}
 	var minGasTipCap *big.Int
 	if chainCfg.EVM.MinGasTipCap != nil {
