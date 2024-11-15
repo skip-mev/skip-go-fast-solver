@@ -168,12 +168,22 @@ func WithEstimatedGasTipCap() TxBuildOption {
 
 func WithEstimatedGasFeeCap() TxBuildOption {
 	return func(ctx context.Context, b TxBuilder, tx *types.DynamicFeeTx) error {
-		price, err := b.rpc.SuggestGasPrice(ctx)
-		if err != nil {
-			return fmt.Errorf("getting suggested gas price: %w", err)
+		if tx.GasTipCap == nil {
+			if err := WithEstimatedGasTipCap()(ctx, b, tx); err != nil {
+				return fmt.Errorf("getting estimated gas tip cap: %w", err)
+			}
 		}
 
-		tx.GasFeeCap = price
+		head, err := b.rpc.HeaderByNumber(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("getting latest block header: %w", err)
+		}
+
+		tx.GasFeeCap = new(big.Int).Add(
+			tx.GasTipCap,
+			new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
+		)
+
 		return nil
 	}
 }

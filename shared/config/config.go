@@ -2,14 +2,11 @@ package config
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"os"
-	"strings"
 	"time"
 
-	"github.com/cosmos/cosmos-sdk/types/bech32"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -408,34 +405,6 @@ func (r *configReader) createIndexes() {
 
 func (r configReader) Config() Config {
 	return r.config
-}
-
-func (r configReader) GetSolverAddress(domain uint32, environment ChainEnvironment) (string, []byte, error) {
-	domainIndex, ok := r.cctpDomainIndex[environment]
-	if !ok {
-		return "", nil, fmt.Errorf("cctp domain index not found for environment %s", environment)
-	}
-
-	chain, ok := domainIndex[domain]
-	if !ok {
-		return "", nil, fmt.Errorf("cctp domain %d not found for environment %s", domain, environment)
-	}
-	switch chain.Type {
-	case ChainType_COSMOS:
-		_, addressBytes, err := bech32.DecodeAndConvert(chain.SolverAddress)
-		if err != nil {
-			return "", nil, err
-		}
-		return chain.SolverAddress, addressBytes, nil
-	case ChainType_EVM:
-		addressBytes, err := hex.DecodeString(strings.TrimPrefix(chain.SolverAddress, "0x"))
-		if err != nil {
-			return "", nil, err
-		}
-		return chain.SolverAddress, addressBytes, nil
-	default:
-		return "", nil, fmt.Errorf("unknown chain type")
-	}
 }
 
 func (r configReader) GetChainEnvironment(chainID string) (ChainEnvironment, error) {

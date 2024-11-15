@@ -250,11 +250,18 @@ func (s *skipGoClient) Route(
 }
 
 type EVMTx struct {
-	ChainID       string `json:"chain_id"`
-	To            string `json:"to"`
-	Value         string `json:"value"`
-	Data          string `json:"data"`
-	SignerAddress string `json:"signer_address"`
+	ChainID                string          `json:"chain_id"`
+	To                     string          `json:"to"`
+	Value                  string          `json:"value"`
+	Data                   string          `json:"data"`
+	SignerAddress          string          `json:"signer_address"`
+	RequiredERC20Approvals []ERC20Approval `json:"required_erc20_approvals"`
+}
+
+type ERC20Approval struct {
+	TokenContract string `json:"token_contract"`
+	Spender       string `json:"spender"`
+	Amount        string `json:"amount"`
 }
 
 type CosmosMessage struct {
@@ -364,8 +371,9 @@ func (s *skipGoClient) SubmitTx(
 		ChainID string `json:"chain_id"`
 	}
 
+	encodedTx := base64.StdEncoding.EncodeToString(tx)
 	body := SubmitRequest{
-		Tx:      base64.StdEncoding.EncodeToString(tx),
+		Tx:      encodedTx,
 		ChainID: chainID,
 	}
 	bodyBytes, err := json.Marshal(body)
@@ -385,7 +393,7 @@ func (s *skipGoClient) SubmitTx(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("status code %d returned from Skip Go when submitting transaction %s: %w", resp.StatusCode, string(tx), handleError(resp.Body))
+		return "", fmt.Errorf("status code %d returned from Skip Go when submitting transaction %s: %w", resp.StatusCode, encodedTx, handleError(resp.Body))
 	}
 
 	type SubmitResponse struct {
