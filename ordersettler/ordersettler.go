@@ -34,7 +34,6 @@ var params = Config{
 
 type Database interface {
 	GetAllOrderSettlementsWithSettlementStatus(ctx context.Context, settlementStatus string) ([]db.OrderSettlement, error)
-	GetOrderSettlement(ctx context.Context, arg db.GetOrderSettlementParams) (db.OrderSettlement, error)
 
 	SetSettlementStatus(ctx context.Context, arg db.SetSettlementStatusParams) (db.OrderSettlement, error)
 
@@ -52,6 +51,7 @@ type Database interface {
 type OrderSettler struct {
 	db            Database
 	clientManager *clientmanager.ClientManager
+	ordersSeen    map[string]bool
 }
 
 func NewOrderSettler(ctx context.Context, db Database, clientManager *clientmanager.ClientManager) (*OrderSettler, error) {
@@ -59,6 +59,7 @@ func NewOrderSettler(ctx context.Context, db Database, clientManager *clientmana
 	return &OrderSettler{
 		db:            db,
 		clientManager: clientManager,
+		ordersSeen:    make(map[string]bool),
 	}, nil
 }
 
@@ -134,15 +135,9 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 				return fmt.Errorf("fetching current block height on chain %s: %w", sourceChainID, err)
 			}
 
-			// continue if settlement has already been ingested
-			if _, err := r.db.GetOrderSettlement(ctx, db.GetOrderSettlementParams{
-				SourceChainID:                     sourceChainID,
-				SourceChainGatewayContractAddress: sourceGatewayAddress,
-				OrderID:                           fill.OrderID,
-			}); err == nil {
+			// continue if order has already been seen
+			if r.ordersSeen[fill.OrderID] {
 				continue
-			} else if !errors.Is(err, sql.ErrNoRows) {
-				return fmt.Errorf("error querying db settlement for order %s on chainID %s", fill.OrderID, sourceChainID)
 			}
 
 			// ensure order exists on source chain
@@ -151,6 +146,7 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 				return fmt.Errorf("checking if order %s exists on chainID %s: %w", fill.OrderID, sourceChainID, err)
 			}
 			if !exists {
+				r.ordersSeen[fill.OrderID] = true
 				continue
 			}
 
@@ -161,6 +157,7 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 				return fmt.Errorf("getting order %s status on chainID %s: %w", fill.OrderID, sourceChainID, err)
 			}
 			if status != fast_transfer_gateway.OrderStatusUnfilled {
+				r.ordersSeen[fill.OrderID] = true
 				continue
 			}
 
@@ -175,6 +172,7 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return fmt.Errorf("failed to insert settlement: %w", err)
 			}
+			r.ordersSeen[fill.OrderID] = true
 		}
 	}
 	return nil
