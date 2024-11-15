@@ -54,8 +54,6 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 4290000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 1430000000000000000
-      gas_price: <gas_price> # e.g. "30000000000"
-      min_gas_tip_cap: <min_gas_tip_cap> # e.g. 30000000000
 
   ethereum-testnet:
     chain_name: "ethereum"
@@ -82,8 +80,6 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: 250000000000000000
         critical_threshold_wei: 0
-      gas_price: <gas_price> # e.g. "30000000000"
-      min_gas_tip_cap: <min_gas_tip_cap> # e.g. 30000000000
 
   avalanche:
     chain_name: "avalanche"
@@ -110,8 +106,6 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 1720000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 580000000000000000
-      gas_price: <gas_price> # e.g. "30000000000"
-      min_gas_tip_cap: <min_gas_tip_cap> # e.g. 30000000000
 
   optimism:
     chain_name: "optimism"
@@ -138,8 +132,6 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 180000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 60000000000000000
-      gas_price: <gas_price> # e.g. "30000000000"
-      min_gas_tip_cap: <min_gas_tip_cap> # e.g. 30000000000
 
   arbitrum:
     chain_name: "arbitrum"
@@ -168,8 +160,6 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 180000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 60000000000000000
-      gas_price: <gas_price> # e.g. "30000000000"
-      min_gas_tip_cap: <min_gas_tip_cap> # e.g. 30000000000
     relayer:
       validator_announce_contract_address: "0x1df063280C4166AF9a725e3828b4dAC6c7113B08"
       merkle_hook_contract_address: "0xb49a14568f9CC440f2c7DCf7FC6766040a5eb860"
@@ -222,7 +212,7 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 42860000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 14290000
-      gas_price: <gas_price> # e.g. "0.0025"
+      gas_price: 0.0025
       gas_denom: "uosmo"
     relayer:
       validator_announce_contract_address: "osmo147r8mfdsngswujgkr4tln9rhcrzz6yq0xn448ksd96mlcmp9wg6stvznke"
@@ -254,8 +244,6 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 180000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 60000000000000000
-      gas_price: <gas_price> # e.g. "30000000000"
-      min_gas_tip_cap: <min_gas_tip_cap> # e.g. 30000000000
 
   polygon:
     chain_name: "polygon"
@@ -282,5 +270,4 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 15000000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 5000000000000000000
-      gas_price: <gas_price> # e.g. "30000000000"
-      min_gas_tip_cap: <min_gas_tip_cap> # e.g. 30000000000
+      min_gas_tip_cap: 30000000000

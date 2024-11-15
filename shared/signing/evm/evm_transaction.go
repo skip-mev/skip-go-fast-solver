@@ -3,6 +3,7 @@ package evm
 import (
 	"context"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/lmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum"
@@ -154,11 +155,22 @@ func WithEstimatedGasLimit(from, to, value string, data []byte) TxBuildOption {
 	}
 }
 
-func WithEstimatedGasTipCap() TxBuildOption {
+func WithEstimatedGasTipCap(minGasTipCap *big.Int) TxBuildOption {
 	return func(ctx context.Context, b TxBuilder, tx *types.DynamicFeeTx) error {
 		tipCap, err := b.rpc.SuggestGasTipCap(ctx)
 		if err != nil {
 			return fmt.Errorf("getting suggested gas tip cap: %w", err)
+		}
+
+		if minGasTipCap != nil {
+			// The polygon node occasionally suggests a tip cap less than the network minimum
+			// Here we enforce a minimum on the tip cap to prevent the transaction from being stuck
+			if tipCap.Cmp(minGasTipCap) < 0 {
+				lmt.Logger(ctx).Debug(
+					fmt.Sprintf("Suggested tip cap %s less than configured minimum %s. Using the minimum instead", tipCap.String(), minGasTipCap.String()),
+				)
+				tipCap = minGasTipCap
+			}
 		}
 
 		tx.GasTipCap = tipCap
