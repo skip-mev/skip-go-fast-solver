@@ -42,6 +42,7 @@ chains:
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
@@ -69,6 +70,7 @@ chains:
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
@@ -96,6 +98,7 @@ chains:
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
@@ -123,6 +126,7 @@ chains:
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
@@ -152,6 +156,7 @@ chains:
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
@@ -176,6 +181,7 @@ chains:
     environment: "testnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
@@ -202,6 +208,7 @@ chains:
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     usdc_denom: "ibc/498A0751C798A0D9A389AA3691123DADA57DAA4FE165D5C75894505B876BA6E4"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
@@ -235,6 +242,7 @@ chains:
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
@@ -262,6 +270,7 @@ chains:
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
