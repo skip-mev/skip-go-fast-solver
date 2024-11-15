@@ -58,9 +58,12 @@ func main() {
 		lmt.Logger(ctx).Fatal("Unable to load config", zap.Error(err))
 	}
 
+	redactedConfig := redactConfig(&cfg)
+
 	lmt.Logger(ctx).Info("starting skip go fast solver",
-		zap.Any("config", cfg), zap.Bool("quickstart", *quickStart),
+		zap.Any("config", redactedConfig), zap.Bool("quickstart", *quickStart),
 		zap.Bool("shouldRefundOrders", *refundOrders))
+
 	ctx = config.ConfigReaderContext(ctx, config.NewConfigReader(cfg))
 
 	keyStore, err := keys.GetKeyStore(*keyStoreType, keys.GetKeyStoreOpts{KeyFilePath: *keysPath, AESKeyHex: *aesKeyHex})
@@ -171,4 +174,29 @@ func main() {
 	if err := eg.Wait(); err != nil {
 		lmt.Logger(ctx).Fatal("error running solver", zap.Error(err))
 	}
+}
+
+func redactConfig(cfg *config.Config) config.Config {
+	redactedConfig := *cfg
+	redactedConfig.Chains = make(map[string]config.ChainConfig)
+
+	for chainID, chain := range cfg.Chains {
+		chainCopy := chain
+		if chainCopy.Cosmos != nil {
+			cosmosCopy := *chainCopy.Cosmos
+			cosmosCopy.RPC = "[redacted]"
+			cosmosCopy.GRPC = "[redacted]"
+			cosmosCopy.RPCBasicAuthVar = "[redacted]"
+			chainCopy.Cosmos = &cosmosCopy
+		}
+		if chainCopy.EVM != nil {
+			evmCopy := *chainCopy.EVM
+			evmCopy.RPC = "[redacted]"
+			evmCopy.RPCBasicAuthVar = "[redacted]"
+			chainCopy.EVM = &evmCopy
+		}
+		redactedConfig.Chains[chainID] = chainCopy
+	}
+
+	return redactedConfig
 }
