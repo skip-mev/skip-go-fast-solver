@@ -117,6 +117,11 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 		}
 
 		for _, fill := range fills {
+			// continue if order has already been seen
+			if r.ordersSeen[fill.OrderID] {
+				continue
+			}
+
 			sourceChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(strconv.Itoa(int(fill.SourceDomain)))
 			if err != nil {
 				return fmt.Errorf("getting source chainID: %w", err)
@@ -133,11 +138,6 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 			height, err := sourceBridgeClient.BlockHeight(ctx)
 			if err != nil {
 				return fmt.Errorf("fetching current block height on chain %s: %w", sourceChainID, err)
-			}
-
-			// continue if order has already been seen
-			if r.ordersSeen[fill.OrderID] {
-				continue
 			}
 
 			// ensure order exists on source chain
