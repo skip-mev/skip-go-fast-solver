@@ -349,7 +349,7 @@ func (r *orderFulfillmentHandler) checkFeeAmount(ctx context.Context, orderFill 
 // IsWithinBpsRange returns true if the % change between amount in and amount
 // out is >= min fee bps. If false, also returns the difference in bps.
 func IsWithinBpsRange(ctx context.Context, minFeeBps int64, amountIn, amountOut string) (bool, int64, error) {
-	minFee := big.NewInt(int64(minFeeBps))
+	minFee := new(big.Int).SetInt64(minFeeBps)
 	in, ok := new(big.Int).SetString(amountIn, 10)
 	if !ok {
 		return false, 0, fmt.Errorf("converting amount in %s to *big.Int", amountIn)
