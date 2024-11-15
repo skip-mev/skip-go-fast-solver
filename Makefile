@@ -30,7 +30,7 @@ deps:
 	go mod download
 
 run-solver:
-	quickstart=true ${SERVER_BIN} 
+	${SERVER_BIN} --quickstart
 
 
 ###############################################################################

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
 	"sync"
 
 	"github.com/skip-mev/go-fast-solver/shared/bridges/cctp"
@@ -32,15 +33,17 @@ import (
 )
 
 type ClientManager struct {
-	keyStore keys.KeyStore
-	clients  map[string]cctp.BridgeClient
-	mu       sync.RWMutex
+	keyStore         keys.KeyStore
+	clients          map[string]cctp.BridgeClient
+	mu               sync.RWMutex
+	cosmosTxExecutor cosmos.CosmosTxExecutor
 }
 
-func NewClientManager(chainIDToPrivateKey keys.KeyStore) *ClientManager {
+func NewClientManager(chainIDToPrivateKey keys.KeyStore, cosmosTxExecutor cosmos.CosmosTxExecutor) *ClientManager {
 	return &ClientManager{
-		keyStore: chainIDToPrivateKey,
-		clients:  make(map[string]cctp.BridgeClient),
+		keyStore:         chainIDToPrivateKey,
+		clients:          make(map[string]cctp.BridgeClient),
+		cosmosTxExecutor: cosmosTxExecutor,
 	}
 }
 
@@ -157,6 +160,7 @@ func (cm *ClientManager) createCosmosClient(
 		signing.NewLocalCosmosSigner(privateKey, bech32Address),
 		chainCfg.Cosmos.GasPrice,
 		chainCfg.Cosmos.GasDenom,
+		cm.cosmosTxExecutor,
 	)
 
 	return bridgeClient, err

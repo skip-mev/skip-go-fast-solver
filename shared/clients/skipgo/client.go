@@ -51,6 +51,12 @@ type SkipGoClient interface {
 		chainID string,
 	) (TxHash, error)
 
+	TrackTx(
+		ctx context.Context,
+		txHash string,
+		chainID string,
+	) (TxHash, error)
+
 	Status(
 		ctx context.Context,
 		tx TxHash,
@@ -387,6 +393,57 @@ func (s *skipGoClient) SubmitTx(
 		TxHash string `json:"tx_hash"`
 	}
 	var res SubmitResponse
+	if err = json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return "", fmt.Errorf("decoding response body: %w", err)
+	}
+
+	return TxHash(res.TxHash), nil
+}
+
+func (s *skipGoClient) TrackTx(
+	ctx context.Context,
+	txHash string,
+	chainID string,
+) (TxHash, error) {
+	const endpoint = "/v2/tx/track"
+	u, err := url.JoinPath(s.baseURL.String(), endpoint)
+	if err != nil {
+		return "", fmt.Errorf("joining base url to endpoint %s: %w", endpoint, err)
+	}
+
+	type TrackRequest struct {
+		TxHash  string `json:"tx_hash"`
+		ChainID string `json:"chain_id"`
+	}
+
+	body := TrackRequest{
+		TxHash:  txHash,
+		ChainID: chainID,
+	}
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return "", fmt.Errorf("marshaling request body to bytes: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return "", fmt.Errorf("creating http request: %w", err)
+	}
+
+	resp, err := s.http.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("making http request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("status code %d returned from Skip Go when submitting transaction to /track %s: %w", resp.StatusCode, txHash, handleError(resp.Body))
+	}
+
+	type TrackResponse struct {
+		TxHash string `json:"tx_hash"`
+	}
+	var res TrackResponse
 	if err = json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return "", fmt.Errorf("decoding response body: %w", err)
 	}

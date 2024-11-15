@@ -67,10 +67,8 @@ func (r *OrderFulfiller) Run(ctx context.Context) {
 	if r.shouldRefundOrders {
 		go r.startOrderTimeoutWorker(ctx)
 	}
-	if r.shouldFillOrders {
-		go r.startOrderFillWorkers(ctx)
-		r.dispatchOrderFills(ctx)
-	}
+	go r.startOrderFillWorkers(ctx)
+	r.dispatchOrderFills(ctx)
 }
 
 func (r *OrderFulfiller) dispatchOrderFills(ctx context.Context) {
