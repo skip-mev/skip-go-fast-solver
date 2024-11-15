@@ -38,12 +38,13 @@ chains:
     gas_token_decimals: 18
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <ethereum_rpc_server_url> # e.g. "https://eth.llamarpc.com"
       rpc_basic_auth_var: <server_password>
@@ -64,12 +65,13 @@ chains:
     gas_token_decimals: 18
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <ethereum_testnet_rpc_server_url> # e.g. "https://sepolia.infura.io/v3/YOUR-API-KEY"
       rpc_basic_auth_var: <server_password>
@@ -90,12 +92,13 @@ chains:
     gas_token_decimals: 18
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <avalanche_rpc_server_url> # e.g. "https://api.avax.network/ext/bc/C/rpc"
       rpc_basic_auth_var: <server_password>
@@ -116,12 +119,13 @@ chains:
     gas_token_decimals: 18
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <optimism_rpc_server_url> # e.g. "https://mainnet.optimism.io"
       rpc_basic_auth_var: <server_password>
@@ -145,11 +149,12 @@ chains:
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     hyperlane_domain: "42161"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <arbitrum_rpc_server_url> # e.g. "https://arb1.arbitrum.io/rpc"
       rpc_basic_auth_var: <server_password>
@@ -171,6 +176,9 @@ chains:
     environment: "testnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <arbitrum_rpc_server_url>
       rpc_basic_auth_var: <server_password>
@@ -190,12 +198,13 @@ chains:
     solver_address: <solver_address>
     hyperlane_domain: "875"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
     usdc_denom: "ibc/498A0751C798A0D9A389AA3691123DADA57DAA4FE165D5C75894505B876BA6E4"
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     cosmos:
       address_prefix: "osmo"
       rpc: <osmosis_rpc_server_url> # e.g. "https://rpc.osmosis.zone"
@@ -222,12 +231,13 @@ chains:
     gas_token_decimals: 18
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <base_mainnet_rpc_server_url> # e.g. "https://mainnet.base.org"
       rpc_basic_auth_var: <server_password>
@@ -248,12 +258,13 @@ chains:
     gas_token_decimals: 18
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_fill_size: <min_fill_size> # e.g. 5000000
     max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <polygon_mainnet_rpc_server_url> # e.g. "https://polygon-rpc.com"
       rpc_basic_auth_var: <server_password>
