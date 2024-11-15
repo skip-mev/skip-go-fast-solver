@@ -1,13 +1,14 @@
 package evm
 
 import (
+	"sync"
+	"time"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/skip-mev/go-fast-solver/shared/evmrpc"
 	"github.com/skip-mev/go-fast-solver/shared/signing"
 	"github.com/skip-mev/go-fast-solver/shared/signing/evm"
 	"golang.org/x/net/context"
-	"sync"
-	"time"
 )
 
 type EVMTxExecutor interface {
@@ -74,6 +75,9 @@ func (s *SerializedEVMTxExecutor) ExecuteTx(
 		evm.WithEstimatedGasTipCap(),
 	)
 	signedTx, err := signer.Sign(ctx, chainID, tx)
+	if err != nil {
+		return "", err
+	}
 	signedTxBytes, err := signedTx.MarshalBinary()
 	if err != nil {
 		return "", err

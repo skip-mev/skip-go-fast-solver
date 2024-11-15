@@ -1,8 +1,12 @@
 package cosmos
 
 import (
-	"cosmossdk.io/math"
 	"fmt"
+	"strconv"
+	"sync"
+	"time"
+
+	"cosmossdk.io/math"
 	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/cometbft/cometbft/rpc/client"
 	coretypes "github.com/cometbft/cometbft/rpc/core/types"
@@ -17,9 +21,6 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/signing"
 	"github.com/skip-mev/go-fast-solver/shared/tmrpc"
 	"golang.org/x/net/context"
-	"strconv"
-	"sync"
-	"time"
 )
 
 const (

@@ -250,11 +250,18 @@ func (s *skipGoClient) Route(
 }
 
 type EVMTx struct {
-	ChainID       string `json:"chain_id"`
-	To            string `json:"to"`
-	Value         string `json:"value"`
-	Data          string `json:"data"`
-	SignerAddress string `json:"signer_address"`
+	ChainID                string          `json:"chain_id"`
+	To                     string          `json:"to"`
+	Value                  string          `json:"value"`
+	Data                   string          `json:"data"`
+	SignerAddress          string          `json:"signer_address"`
+	RequiredERC20Approvals []ERC20Approval `json:"required_erc20_approvals"`
+}
+
+type ERC20Approval struct {
+	TokenContract string `json:"token_contract"`
+	Spender       string `json:"spender"`
+	Amount        string `json:"amount"`
 }
 
 type CosmosMessage struct {
