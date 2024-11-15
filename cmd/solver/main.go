@@ -11,8 +11,6 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
 	"github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/skip-mev/go-fast-solver/db/connect"
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/txverifier"
@@ -101,7 +99,7 @@ func main() {
 	cachedCoinGeckoClient := coingecko.NewCachedPriceClient(coingeckoClient, 15*time.Minute)
 	evmTxPriceOracle := evmrpc.NewOracle(cachedCoinGeckoClient)
 
-	hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmManager, keyStore, evmTxPriceOracle)
+	hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmManager, keyStore, evmTxPriceOracle, evmTxExecutor)
 	if err != nil {
 		lmt.Logger(ctx).Fatal("creating hyperlane multi client from config", zap.Error(err))
 	}
