@@ -291,9 +291,20 @@ type ContractsConfig struct {
 }
 
 type CoingeckoConfig struct {
-	BaseURL              string        `yaml:"base_url"`
-	RequestsPerMinute    int           `yaml:"requests_per_minute"`
-	APIKey               string        `yaml:"api_key"`
+	// BaseURL is the coingecko api url used to fetch token prices
+	BaseURL string `yaml:"base_url"`
+	// RequestsPerMinute is the max amount of requests allowed to be made to
+	// the coin gecko api per minute
+	RequestsPerMinute int `yaml:"requests_per_minute"`
+	// APIKey is optional. If you do not have an API key, you can remove the
+	// APIKey option all together. If you have a coin gecko API key, we will
+	// use it to get more up to date gas costs. If you specify an API key, you
+	// should reduce the requests per minute and cache refresh interval
+	// according to your keys limits.
+	APIKey string `yaml:"api_key"`
+	// CacheRefreshInterval is how long the internal coin gecko client will
+	// cache prices for. Set this accoridng to your coin gecko's plans rate
+	// limits (if you have one).
 	CacheRefreshInterval time.Duration `yaml:"cache_refresh_interval"`
 }
 

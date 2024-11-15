@@ -4,6 +4,11 @@ metrics:
   prometheus_address: "0.0.0.0:8001"
 coingecko:
   base_url: "https://pro-api.coingecko.com/api/v3/"
+  # API key is optional here. If you do not have an API key, you can remove the
+  # api_key option all together. If you have a coin gecko API key, we will use
+  # it to get more up to date gas costs. If you specify an API key, you should
+  # reduce the requests per minute and cache refresh interval according to your
+  # keys limits. The values are currently set for no API key use.
   api_key: <api_key>
   requests_per_minute: 2
   cache_refresh_interval: "15m"
