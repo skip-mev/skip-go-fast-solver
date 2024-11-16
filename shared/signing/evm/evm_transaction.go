@@ -178,10 +178,10 @@ func WithEstimatedGasTipCap(minGasTipCap *big.Int) TxBuildOption {
 	}
 }
 
-func WithEstimatedGasFeeCap() TxBuildOption {
+func WithEstimatedGasFeeCap(minGasTipCap *big.Int) TxBuildOption {
 	return func(ctx context.Context, b TxBuilder, tx *types.DynamicFeeTx) error {
 		if tx.GasTipCap == nil {
-			if err := WithEstimatedGasTipCap()(ctx, b, tx); err != nil {
+			if err := WithEstimatedGasTipCap(minGasTipCap)(ctx, b, tx); err != nil {
 				return fmt.Errorf("getting estimated gas tip cap: %w", err)
 			}
 		}
