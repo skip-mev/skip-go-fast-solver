@@ -104,7 +104,6 @@ func (r *TxVerifier) VerifyTx(ctx context.Context, submittedTx db.SubmittedTx) e
 			ChainID:         submittedTx.ChainID,
 			TxStatusMessage: sql.NullString{String: failure.String(), Valid: true},
 		}); err != nil {
-
 			return fmt.Errorf("failed to set tx status to failed: %w", err)
 		}
 		return fmt.Errorf("tx failed: %s", failure.String())
@@ -115,7 +114,6 @@ func (r *TxVerifier) VerifyTx(ctx context.Context, submittedTx db.SubmittedTx) e
 			TxHash:   submittedTx.TxHash,
 			ChainID:  submittedTx.ChainID,
 		}); err != nil {
-
 			return fmt.Errorf("failed to set tx status to success: %w", err)
 		}
 	}

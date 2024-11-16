@@ -83,7 +83,6 @@ func (r *orderFulfillmentHandler) UpdateFulfillmentStatus(ctx context.Context, o
 			SourceChainGatewayContractAddress: order.SourceChainGatewayContractAddress,
 			OrderStatus:                       dbtypes.OrderStatusFilled,
 		}); err != nil {
-
 			return "", err
 		}
 		return dbtypes.OrderStatusFilled, nil
@@ -112,7 +111,6 @@ func (r *orderFulfillmentHandler) UpdateFulfillmentStatus(ctx context.Context, o
 				OrderStatus:                       dbtypes.OrderStatusRefunded,
 			})
 			if err != nil {
-
 				return "", fmt.Errorf("setting refund tx for orderID %s: %w", order.OrderID, err)
 			}
 
@@ -251,11 +249,14 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 	}
 
 	var abandonmentReason string
+	var amountOutOfRange int64
 	switch {
 	case transferAmount.Cmp(&destinationChainConfig.MinFillSize) < 0:
 		abandonmentReason = "transfer amount is below configured min fill size for chain " + orderFill.DestinationChainID
+		amountOutOfRange = transferAmount.Sub(transferAmount, &destinationChainConfig.MinFillSize).Int64()
 	case transferAmount.Cmp(&destinationChainConfig.MaxFillSize) > 0:
 		abandonmentReason = "transfer amount exceeds configured max fill size for chain" + orderFill.DestinationChainID
+		amountOutOfRange = transferAmount.Sub(transferAmount, &destinationChainConfig.MaxFillSize).Int64()
 	default:
 		return true, nil
 	}
@@ -283,21 +284,11 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 	metrics.FromContext(ctx).IncFillOrders(orderFill.SourceChainID, destinationChainConfig.ChainID, dbtypes.OrderStatusAbandoned)
 	metrics.FromContext(ctx).DecFillOrders(orderFill.SourceChainID, destinationChainConfig.ChainID, dbtypes.OrderStatusPending)
 	metrics.FromContext(ctx).ObserveFillLatency(orderFill.SourceChainID, orderFill.DestinationChainID, dbtypes.OrderStatusAbandoned, time.Since(orderFill.CreatedAt))
-
-	switch {
-	case transferAmount.Cmp(&destinationChainConfig.MinFillSize) < 0:
-		metrics.FromContext(ctx).ObserveTransferSizeOutOfRange(
-			orderFill.SourceChainID,
-			destinationChainConfig.ChainID,
-			transferAmount.Sub(transferAmount, &destinationChainConfig.MinFillSize).Int64(),
-		)
-	case transferAmount.Cmp(&destinationChainConfig.MaxFillSize) > 0:
-		metrics.FromContext(ctx).ObserveTransferSizeOutOfRange(
-			orderFill.SourceChainID,
-			destinationChainConfig.ChainID,
-			transferAmount.Sub(transferAmount, &destinationChainConfig.MaxFillSize).Int64(),
-		)
-	}
+	metrics.FromContext(ctx).ObserveTransferSizeOutOfRange(
+		orderFill.SourceChainID,
+		destinationChainConfig.ChainID,
+		amountOutOfRange,
+	)
 	return false, nil
 }
 
@@ -330,7 +321,6 @@ func (r *orderFulfillmentHandler) checkFeeAmount(ctx context.Context, orderFill 
 		OrderStatusMessage:                sql.NullString{String: fmt.Sprintf("solver fee for order below configured min fee bps of %d", sourceChainID.MinFeeBps), Valid: true},
 	})
 	if err != nil {
-
 		return false, fmt.Errorf("failed to set fill status to abandoned: %w", err)
 	}
 
@@ -396,7 +386,6 @@ func (r *orderFulfillmentHandler) checkBlockConfirmations(ctx context.Context, s
 				OrderStatus:                       dbtypes.OrderStatusAbandoned,
 				OrderStatusMessage:                sql.NullString{String: "reorged", Valid: true},
 			}); err != nil {
-
 				return false, fmt.Errorf("failed to set fill status to abandoned: %w", err)
 			}
 			lmt.Logger(ctx).Info("abandoning transaction due to reorg", zap.String("orderId", order.OrderID), zap.String("sourceChainID", order.SourceChainID))

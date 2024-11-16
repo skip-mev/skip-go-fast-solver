@@ -4,12 +4,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-<<<<<<< HEAD
+	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"math/big"
-=======
-	dbtypes "github.com/skip-mev/go-fast-solver/db"
->>>>>>> 42dca9e (add metric to track insufficient balance errors)
 
 	"strings"
 

@@ -75,7 +75,6 @@ func (r *OrderFulfiller) dispatchOrderFills(ctx context.Context) {
 		case <-ticker.C:
 			orders, err := r.db.GetAllOrdersWithOrderStatus(ctx, dbtypes.OrderStatusPending)
 			if err != nil {
-
 				lmt.Logger(ctx).Error("error getting pending orders", zap.Error(err))
 				continue
 			}
@@ -97,7 +96,6 @@ func (r *OrderFulfiller) startOrderTimeoutWorker(ctx context.Context) {
 		case <-ticker.C:
 			orders, err := r.db.GetAllOrdersWithOrderStatus(ctx, dbtypes.OrderStatusExpiredPendingRefund)
 			if err != nil {
-
 				lmt.Logger(ctx).Error("error getting expired orders", zap.Error(err))
 				continue
 			}

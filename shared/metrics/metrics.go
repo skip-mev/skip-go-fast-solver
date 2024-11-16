@@ -245,10 +245,10 @@ func (m *PromMetrics) ObserveFeeBpsRejection(sourceChainID, destinationChainID s
 	).Observe(float64(feeBps))
 }
 
-func (m *PromMetrics) ObserveInsufficientBalanceError(chainID string, amountInsufficientBy uint64) {
-	m.amountTransferSizeExceeded.With(
+func (m *PromMetrics) ObserveInsufficientBalanceError(chainID string, transferSizeOutOfRangeBy uint64) {
+	m.transferSizeOutOfRange.With(
 		chainIDLabel, chainID,
-	).Observe(float64(amountInsufficientBy))
+	).Observe(float64(transferSizeOutOfRangeBy))
 }
 
 type NoOpMetrics struct{}

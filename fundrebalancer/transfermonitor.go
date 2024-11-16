@@ -54,7 +54,6 @@ func (t *TransferTracker) TrackPendingTransfers(ctx context.Context) {
 func (t *TransferTracker) UpdateTransfers(ctx context.Context) error {
 	pendingTransfers, err := t.database.GetAllPendingRebalanceTransfers(ctx)
 	if err != nil {
-
 		return fmt.Errorf("getting all pending rebalance transfers: %w", err)
 	}
 
@@ -134,7 +133,6 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 			ID:     transferID,
 		})
 		if err != nil {
-
 			return fmt.Errorf("updating transfer status to failed for hash %s on chain %s: %w", hash, sourceChainID, err)
 		}
 
@@ -154,7 +152,6 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 		ID:     transferID,
 	})
 	if err != nil {
-
 		return fmt.Errorf("updating transfer status to completed for hash %s on chain %s: %w", hash, sourceChainID, err)
 	}
 
