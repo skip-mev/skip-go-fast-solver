@@ -34,7 +34,8 @@ Example:
   --config ./config/local/config.yml \
   --token 0xaf88d065e77c8cC2239327C5EDb3A432268e5831 \
   --recipient osmo13c9seh3vgvtfvdufz4eh2zhp0cepq4wj0egc02 \
-  --amount 1000000 \
+  --amount-in 1000000 \
+  --amount-out 900000 \
   --source-chain-id 42161 \
   --destination-chain-id osmosis-1 \
   --gateway 0x23cb6147e5600c23d1fb5543916d3d5457c9b54c \
@@ -96,10 +97,10 @@ func submitTransfer(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	amountBig := new(big.Int)
-	amountBig.SetString(flags.amount, 10)
+	amountInBig := new(big.Int)
+	amountInBig.SetString(flags.amountIn, 10)
 
-	tx, err := usdc.Approve(auth, common.HexToAddress(flags.gatewayAddr), amountBig)
+	tx, err := usdc.Approve(auth, common.HexToAddress(flags.gatewayAddr), amountInBig)
 	if err != nil {
 		lmt.Logger(ctx).Error("Failed to approve USDC spending", zap.Error(err))
 		return
@@ -107,7 +108,7 @@ func submitTransfer(cmd *cobra.Command, args []string) {
 
 	lmt.Logger(ctx).Info("USDC approval submitted",
 		zap.String("tx_hash", tx.Hash().Hex()),
-		zap.String("amount", flags.amount),
+		zap.String("amount_in", flags.amountIn),
 	)
 
 	// Wait for approval transaction to be mined
@@ -139,7 +140,8 @@ func submitTransfer(cmd *cobra.Command, args []string) {
 		zap.String("tx_hash", tx.Hash().Hex()),
 		zap.String("token", flags.token),
 		zap.String("recipient", flags.recipient),
-		zap.String("amount", flags.amount),
+		zap.String("amount_in", flags.amountIn),
+		zap.String("amount_out", flags.amountOut),
 		zap.String("source_chain_id", flags.sourceChainID),
 		zap.String("destination_chain_id", flags.destinationChainId),
 		zap.Uint32("destination_domain", uint32(destDomain)),
@@ -150,7 +152,8 @@ func submitTransfer(cmd *cobra.Command, args []string) {
 type submitFlags struct {
 	token              string
 	recipient          string
-	amount             string
+	amountIn           string
+	amountOut          string
 	destinationChainId string
 	deadlineHours      uint32
 	gatewayAddr        string
@@ -169,8 +172,13 @@ func parseFlags(cmd *cobra.Command) (*submitFlags, error) {
 	if flags.recipient, err = cmd.Flags().GetString("recipient"); err != nil {
 		return nil, err
 	}
-	if flags.amount, err = cmd.Flags().GetString("amount"); err != nil {
+	if flags.amountIn, err = cmd.Flags().GetString("amount-in"); err != nil {
 		return nil, err
+	}
+	if flags.amountOut, err = cmd.Flags().GetString("amount-out"); err != nil {
+		return nil, err
+	} else if flags.amountOut == "" {
+		flags.amountOut = flags.amountIn
 	}
 	if flags.destinationChainId, err = cmd.Flags().GetString("destination-chain-id"); err != nil {
 		return nil, err
@@ -224,8 +232,12 @@ func setupGatewayAndAuth(ctx context.Context, client *ethclient.Client, flags *s
 }
 
 func submitTransferOrder(gateway *fast_transfer_gateway.FastTransferGateway, auth *bind.TransactOpts, flags *submitFlags, destDomain uint32) (*types.Transaction, error) {
-	amountBig := new(big.Int)
-	amountBig.SetString(flags.amount, 10)
+	amountInBig := new(big.Int)
+	amountInBig.SetString(flags.amountIn, 10)
+
+	amountOutBig := new(big.Int)
+	amountOutBig.SetString(flags.amountOut, 10)
+
 	deadline := time.Now().Add(time.Duration(flags.deadlineHours) * time.Hour)
 
 	senderBytes, err := addressTo32Bytes(auth.From.Hex())
@@ -242,8 +254,8 @@ func submitTransferOrder(gateway *fast_transfer_gateway.FastTransferGateway, aut
 		auth,
 		senderBytes,
 		recipientBytes,
-		amountBig,
-		amountBig,
+		amountInBig,
+		amountOutBig,
 		destDomain,
 		uint64(deadline.Unix()),
 		[]byte{},
@@ -255,7 +267,8 @@ func init() {
 
 	submitCmd.Flags().String("token", "", "Token address to transfer")
 	submitCmd.Flags().String("recipient", "", "Recipient address")
-	submitCmd.Flags().String("amount", "", "Amount to transfer (in token decimals)")
+	submitCmd.Flags().String("amount-in", "", "Amount in (in token decimals)")
+	submitCmd.Flags().String("amount-out", "", "Amount out (in token decimals). Defaults to amount in if not set")
 	submitCmd.Flags().String("source-chain-id", "", "Source chain ID")
 	submitCmd.Flags().String("destination-chain-id", "", "Destination chain ID")
 	submitCmd.Flags().Uint32("deadline-hours", 24, "Deadline in hours (default of 24 hours, after which the order expires)")
@@ -265,7 +278,7 @@ func init() {
 	requiredFlags := []string{
 		"token",
 		"recipient",
-		"amount",
+		"amount-in",
 		"source-chain-id",
 		"destination-chain-id",
 		"gateway",
