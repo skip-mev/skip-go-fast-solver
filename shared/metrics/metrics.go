@@ -106,7 +106,7 @@ func NewPromMetrics() Metrics {
 			Namespace: "solver",
 			Name:      "total_transactions_submitted_counter",
 			Help:      "number of transactions submitted, paginated by success status and source and destination chain id",
-		}, []string{successLabel, sourceChainIDLabel, destinationChainIDLabel}),
+		}, []string{successLabel, chainIDLabel, transactionTypeLabel}),
 		totalTransactionsVerified: prom.NewCounterFrom(stdprom.CounterOpts{
 			Namespace: "solver",
 			Name:      "total_transactions_verified_counter",
@@ -225,10 +225,10 @@ func (m *PromMetrics) IncHyperlaneCheckpointingErrors() {
 	m.hplCheckpointingErrors.Add(1)
 }
 func (m *PromMetrics) IncHyperlaneMessages(sourceChainID, destinationChainID, messageStatus string) {
-	m.hplMessages.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, messageStatus).Add(1)
+	m.hplMessages.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, transferStatusLabel, messageStatus).Add(1)
 }
 func (m *PromMetrics) DecHyperlaneMessages(sourceChainID, destinationChainID, messageStatus string) {
-	m.hplMessages.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, messageStatus).Add(-1)
+	m.hplMessages.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, transferStatusLabel, messageStatus).Add(-1)
 }
 
 func (m *PromMetrics) ObserveTransferSizeOutOfRange(sourceChainID, destinationChainID string, transferSize int64) {
@@ -246,7 +246,7 @@ func (m *PromMetrics) ObserveFeeBpsRejection(sourceChainID, destinationChainID s
 }
 
 func (m *PromMetrics) ObserveInsufficientBalanceError(chainID string, transferSizeOutOfRangeBy uint64) {
-	m.transferSizeOutOfRange.With(
+	m.insufficientBalanceErrors.With(
 		chainIDLabel, chainID,
 	).Observe(float64(transferSizeOutOfRangeBy))
 }

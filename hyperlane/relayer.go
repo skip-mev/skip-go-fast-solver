@@ -148,10 +148,10 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 	}
 
 	hash, err := r.hyperlane.Process(ctx, dispatch.DestinationDomain, message, metadata)
+	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, destinationChainID, dbtypes.TxTypeHyperlaneMessageDelivery)
 	if err != nil {
 		return "", "", fmt.Errorf("processing message on domain %s: %w", dispatch.DestinationDomain, err)
 	}
-	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, destinationChainID, dbtypes.TxTypeHyperlaneMessageDelivery)
 
 	destinationChainID, err = config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(dispatch.DestinationDomain)
 	if err != nil {
