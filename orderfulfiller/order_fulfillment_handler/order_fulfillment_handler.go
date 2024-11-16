@@ -205,7 +205,7 @@ func (r *orderFulfillmentHandler) FillOrder(
 	}
 
 	txHash, rawTx, _, err := destinationChainBridgeClient.FillOrder(ctx, order, destinationChainGatewayContractAddress)
-	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, order.SourceChainID, order.DestinationChainID)
+	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, order.DestinationChainID, dbtypes.TxTypeOrderFill)
 	if err != nil {
 		return "", fmt.Errorf("filling order on destination chain at address %s: %w", destinationChainGatewayContractAddress, err)
 	}
@@ -235,6 +235,10 @@ func (r *orderFulfillmentHandler) checkOrderAssetBalance(ctx context.Context, de
 	}
 	if balance.Cmp(new(big.Int).SetUint64(transferAmount)) < 0 {
 		lmt.Logger(ctx).Warn("insufficient balance", zap.String("balance", balance.String()), zap.Uint64("transferAmount", transferAmount))
+		metrics.FromContext(ctx).ObserveInsufficientBalanceError(
+			destinationChainConfig.ChainID,
+			new(big.Int).Sub(new(big.Int).SetUint64(transferAmount), balance).Uint64(),
+		)
 		return false, nil
 	}
 	return true, nil
@@ -429,7 +433,7 @@ func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.
 	}
 
 	txHash, rawTx, _, err := destinationChainBridgeClient.InitiateTimeout(ctx, order, destinationChainGatewayContractAddress)
-	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, order.SourceChainID, order.DestinationChainID)
+	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, order.DestinationChainID, dbtypes.TxTypeInitiateTimeout)
 	if err != nil {
 		return "", fmt.Errorf("initiating timeout: %w", err)
 	}

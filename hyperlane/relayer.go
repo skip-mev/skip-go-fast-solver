@@ -4,8 +4,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+<<<<<<< HEAD
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"math/big"
+=======
+	dbtypes "github.com/skip-mev/go-fast-solver/db"
+>>>>>>> 42dca9e (add metric to track insufficient balance errors)
 
 	"strings"
 
@@ -150,6 +154,7 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 	if err != nil {
 		return "", "", fmt.Errorf("processing message on domain %s: %w", dispatch.DestinationDomain, err)
 	}
+	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, destinationChainID, dbtypes.TxTypeHyperlaneMessageDelivery)
 
 	destinationChainID, err = config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(dispatch.DestinationDomain)
 	if err != nil {

@@ -18,11 +18,11 @@ const (
 	orderStatusLabel        = "order_status"
 	transferStatusLabel     = "transfer_status"
 	settlementStatusLabel   = "settlement_status"
-	operationLabel          = "operation"
+	transactionTypeLabel    = "transaction_type"
 )
 
 type Metrics interface {
-	IncTransactionSubmitted(success bool, sourceChainID, destinationChainID string)
+	IncTransactionSubmitted(success bool, chainID, transactionType string)
 	IncTransactionVerified(success bool, chainID string)
 
 	IncFillOrders(sourceChainID, destinationChainID, orderStatus string)
@@ -43,6 +43,7 @@ type Metrics interface {
 
 	ObserveTransferSizeOutOfRange(sourceChainID, destinationChainID string, amountExceededBy int64)
 	ObserveFeeBpsRejection(sourceChainID, destinationChainID string, feeBpsExceededBy int64)
+	ObserveInsufficientBalanceError(chainID string, amountInsufficientBy uint64)
 }
 
 type metricsContextKey struct{}
@@ -78,10 +79,9 @@ type PromMetrics struct {
 	hplCheckpointingErrors metrics.Counter
 	hplLatency             metrics.Histogram
 
-	transferSizeOutOfRange metrics.Histogram
-	feeBpsRejections       metrics.Histogram
-
-	databaseErrors metrics.Counter
+	transferSizeOutOfRange    metrics.Histogram
+	feeBpsRejections          metrics.Histogram
+	insufficientBalanceErrors metrics.Histogram
 }
 
 func NewPromMetrics() Metrics {
@@ -162,16 +162,23 @@ func NewPromMetrics() Metrics {
 			Help:      "histogram of fee bps that were rejected for being too low",
 			Buckets:   []float64{1, 5, 10, 25, 50, 100, 200, 500, 1000},
 		}, []string{sourceChainIDLabel, destinationChainIDLabel}),
-		databaseErrors: prom.NewCounterFrom(stdprom.CounterOpts{
+		insufficientBalanceErrors: prom.NewHistogramFrom(stdprom.HistogramOpts{
 			Namespace: "solver",
-			Name:      "database_errors_total",
-			Help:      "number of errors encountered when making database calls",
-		}, []string{}),
+			Name:      "insufficient_balance_errors",
+			Help:      "histogram of fill orders that exceeded available balance",
+			Buckets: []float64{
+				100000000,     // 100 USDC
+				1000000000,    // 1,000 USDC
+				10000000000,   // 10,000 USDC
+				100000000000,  // 100,000 USDC
+				1000000000000, // 1,000,000 USDC
+			},
+		}, []string{chainIDLabel}),
 	}
 }
 
-func (m *PromMetrics) IncTransactionSubmitted(success bool, sourceChainID, destinationChainID string) {
-	m.totalTransactionSubmitted.With(successLabel, fmt.Sprint(success), sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID).Add(1)
+func (m *PromMetrics) IncTransactionSubmitted(success bool, chainID, transactionType string) {
+	m.totalTransactionSubmitted.With(successLabel, fmt.Sprint(success), chainIDLabel, chainID, transactionTypeLabel, transactionType).Add(1)
 }
 
 func (m *PromMetrics) IncTransactionVerified(success bool, chainID string) {
@@ -238,9 +245,18 @@ func (m *PromMetrics) ObserveFeeBpsRejection(sourceChainID, destinationChainID s
 	).Observe(float64(feeBps))
 }
 
+func (m *PromMetrics) ObserveInsufficientBalanceError(chainID string, amountInsufficientBy uint64) {
+	m.amountTransferSizeExceeded.With(
+		chainIDLabel, chainID,
+	).Observe(float64(amountInsufficientBy))
+}
+
 type NoOpMetrics struct{}
 
-func (n NoOpMetrics) IncTransactionSubmitted(success bool, sourceChainID, destinationChainID string) {
+func (n NoOpMetrics) ObserveInsufficientBalanceError(chainID string, amountInsufficientBy uint64) {
+}
+
+func (n NoOpMetrics) IncTransactionSubmitted(success bool, chainID, transactionType string) {
 }
 func (n NoOpMetrics) IncTransactionVerified(success bool, chainID string) {
 }

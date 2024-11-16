@@ -500,11 +500,7 @@ func (r *OrderSettler) SettleBatch(ctx context.Context, batch types.SettlementBa
 		return "", fmt.Errorf("getting destination bridge client: %w", err)
 	}
 	txHash, rawTx, err := destinationBridgeClient.InitiateBatchSettlement(ctx, batch)
-	metrics.FromContext(ctx).IncTransactionSubmitted(
-		err == nil,
-		batch.SourceChainID(),
-		batch.DestinationChainID(),
-	)
+	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, batch.DestinationChainID(), dbtypes.TxTypeSettlement)
 	if err != nil {
 		return "", fmt.Errorf("initiating batch settlement on chain %s: %w", batch.DestinationChainID(), err)
 	}
