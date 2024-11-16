@@ -218,6 +218,24 @@ type RelayerConfig struct {
 	// MailboxAddress is the address of the Hyperlane mailbox contract used
 	// for sending and receiving cross-chain messages
 	MailboxAddress string `yaml:"mailbox_address"`
+
+	// ProfitableRelayTimeout is the maximum amount of time delay relaying a
+	// transaction waiting for it to be profitable. Currently this only applies
+	// to settlement relays. For example, if you have your MinProfitMarginBPS
+	// set too high relative to current gas fees on the settle up chain, then
+	// the relay will be delayed indefinitely until the gas fees reach a
+	// certain level (which they may never reach). Once a tx has been attempted
+	// to be relayed for ProfitableRelayTimeout duration, but it hasnt been
+	// sent because it is not profitable, then it will be sent regardless of
+	// profitability. This can be set to -1 for no timeout.
+	ProfitableRelayTimeout time.Duration `yaml:"relay_timeout"`
+
+	// MaxRelayTxFeeUUSDC is the maximum amount of uusdc to pay to relay a tx,
+	// regardless of profitability checking, i.e. if the ProfitableRelayTimeout
+	// expires for a tx and it is going to be sent without ensuring it is
+	// profitable for the solver to do so, this is a final check to ensure that
+	// the tx is not relayed in an extremely expensive block.
+	MaxRelayTxFeeUUSDC string `yaml:"max_relay_tx_fee_uusdc"`
 }
 
 // Used to monitor gas balance prometheus metric per chain for the solver addresses
