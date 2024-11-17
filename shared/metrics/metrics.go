@@ -37,8 +37,9 @@ type Metrics interface {
 	IncHyperlaneMessages(sourceChainID, destinationChainID string, messageStatus string)
 	DecHyperlaneMessages(sourceChainID, destinationChainID string, messageStatus string)
 	ObserveHyperlaneLatency(sourceChainID, destinationChainID, transferStatus string, latency time.Duration)
+	IncHyperlaneRelayTooExpensive(sourceChainID, destinationChainID string)
 
-	ObserveTransferSizeOutOfRange(sourceChainID, destinationChainID string, amountExceededBy int64)
+	ObserveTransferSizeOutOfRange(sourceChainID, destinationChainID string, amountOutOfRange int64)
 	ObserveFeeBpsRejection(sourceChainID, destinationChainID string, feeBpsExceededBy int64)
 	ObserveInsufficientBalanceError(chainID string, amountInsufficientBy uint64)
 }
@@ -79,6 +80,8 @@ type PromMetrics struct {
 	transferSizeOutOfRange    metrics.Histogram
 	feeBpsRejections          metrics.Histogram
 	insufficientBalanceErrors metrics.Histogram
+
+	hyperlaneRelayTooExpensive metrics.Counter
 }
 
 func NewPromMetrics() Metrics {
@@ -137,6 +140,12 @@ func NewPromMetrics() Metrics {
 			Help:      "latency for hyperlane message relaying, paginated by status, source and destination chain id (in seconds)",
 			Buckets:   []float64{30, 60, 300, 600, 900, 1200, 1500, 1800, 2400, 3000, 3600},
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, transferStatusLabel}),
+		hyperlaneRelayTooExpensive: prom.NewCounterFrom(stdprom.CounterOpts{
+			Namespace: "solver",
+			Name:      "hyperlane_relay_too_expensive_counter",
+			Help:      "counter of relay attempts that were aborted due to being too expensive",
+		}, []string{sourceChainIDLabel, destinationChainIDLabel}),
+
 		transferSizeOutOfRange: prom.NewHistogramFrom(stdprom.HistogramOpts{
 			Namespace: "solver",
 			Name:      "transfer_size_out_of_range",
@@ -214,12 +223,18 @@ func (m *PromMetrics) IncHyperlaneMessages(sourceChainID, destinationChainID, me
 func (m *PromMetrics) DecHyperlaneMessages(sourceChainID, destinationChainID, messageStatus string) {
 	m.hplMessages.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, transferStatusLabel, messageStatus).Add(-1)
 }
+func (m *PromMetrics) IncHyperlaneRelayTooExpensive(sourceChainID, destinationChainID string) {
+	m.hyperlaneRelayTooExpensive.With(
+		sourceChainIDLabel, sourceChainID,
+		destinationChainIDLabel, destinationChainID,
+	).Add(1)
+}
 
-func (m *PromMetrics) ObserveTransferSizeOutOfRange(sourceChainID, destinationChainID string, transferSize int64) {
+func (m *PromMetrics) ObserveTransferSizeOutOfRange(sourceChainID, destinationChainID string, amountOutOfRange int64) {
 	m.transferSizeOutOfRange.With(
 		sourceChainIDLabel, sourceChainID,
 		destinationChainIDLabel, destinationChainID,
-	).Observe(float64(transferSize))
+	).Observe(float64(amountOutOfRange))
 }
 
 func (m *PromMetrics) ObserveFeeBpsRejection(sourceChainID, destinationChainID string, feeBps int64) {
@@ -229,17 +244,18 @@ func (m *PromMetrics) ObserveFeeBpsRejection(sourceChainID, destinationChainID s
 	).Observe(float64(feeBps))
 }
 
-func (m *PromMetrics) ObserveInsufficientBalanceError(chainID string, transferSizeOutOfRangeBy uint64) {
+func (m *PromMetrics) ObserveInsufficientBalanceError(chainID string, difference uint64) {
 	m.insufficientBalanceErrors.With(
 		chainIDLabel, chainID,
-	).Observe(float64(transferSizeOutOfRangeBy))
+	).Observe(float64(difference))
 }
 
 type NoOpMetrics struct{}
 
+func (n NoOpMetrics) IncHyperlaneRelayTooExpensive(sourceChainID, destinationChainID string) {
+}
 func (n NoOpMetrics) ObserveInsufficientBalanceError(chainID string, amountInsufficientBy uint64) {
 }
-
 func (n NoOpMetrics) IncTransactionSubmitted(success bool, chainID, transactionType string) {
 }
 func (n NoOpMetrics) IncTransactionVerified(success bool, chainID string) {

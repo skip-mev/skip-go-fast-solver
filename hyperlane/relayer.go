@@ -50,6 +50,14 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 	if err != nil {
 		return "", "", fmt.Errorf("parsing tx results: %w", err)
 	}
+	destinationChainID, err = config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(dispatch.DestinationDomain)
+	if err != nil {
+		return "", "", fmt.Errorf("getting destination chainID by hyperlane domain %s: %w", dispatch.DestinationDomain, err)
+	}
+	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(destinationChainID)
+	if err != nil {
+		return "", "", fmt.Errorf("getting destination chain config for chainID %s: %w", destinationChainID, err)
+	}
 
 	delivered, err := r.hyperlane.HasBeenDelivered(ctx, dispatch.DestinationDomain, dispatch.MessageID)
 	if err != nil {
@@ -143,6 +151,7 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 			return "", "", fmt.Errorf("checking if relay to domain %s is profitable: %w", dispatch.DestinationDomain, err)
 		}
 		if !isFeeLessThanMax {
+			metrics.FromContext(ctx).IncHyperlaneRelayTooExpensive(originChainID, destinationChainID)
 			return "", "", ErrRelayTooExpensive
 		}
 	}
@@ -151,15 +160,6 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, destinationChainID, dbtypes.TxTypeHyperlaneMessageDelivery)
 	if err != nil {
 		return "", "", fmt.Errorf("processing message on domain %s: %w", dispatch.DestinationDomain, err)
-	}
-
-	destinationChainID, err = config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(dispatch.DestinationDomain)
-	if err != nil {
-		return "", "", fmt.Errorf("getting destination chainID by hyperlane domain %s: %w", dispatch.DestinationDomain, err)
-	}
-	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(destinationChainID)
-	if err != nil {
-		return "", "", fmt.Errorf("getting destination chain config for chainID %s: %w", destinationChainID, err)
 	}
 
 	lmt.Logger(ctx).Info(
