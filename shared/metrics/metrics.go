@@ -35,7 +35,6 @@ type Metrics interface {
 
 	IncHyperlaneCheckpointingErrors()
 	IncHyperlaneMessages(sourceChainID, destinationChainID string, messageStatus string)
-	DecHyperlaneMessages(sourceChainID, destinationChainID string, messageStatus string)
 	ObserveHyperlaneLatency(sourceChainID, destinationChainID, transferStatus string, latency time.Duration)
 	IncHyperlaneRelayTooExpensive(sourceChainID, destinationChainID string)
 
@@ -73,15 +72,14 @@ type PromMetrics struct {
 
 	fundRebalanceTransferStatusChange metrics.Counter
 
-	hplMessages            metrics.Gauge
+	hplMessageStatusChange metrics.Counter
 	hplCheckpointingErrors metrics.Counter
 	hplLatency             metrics.Histogram
+	hplRelayTooExpensive   metrics.Counter
 
 	transferSizeOutOfRange    metrics.Histogram
 	feeBpsRejections          metrics.Histogram
 	insufficientBalanceErrors metrics.Histogram
-
-	hyperlaneRelayTooExpensive metrics.Counter
 }
 
 func NewPromMetrics() Metrics {
@@ -123,10 +121,10 @@ func NewPromMetrics() Metrics {
 			Help:      "latency from source transaction to fill completion, paginated by source and destination chain id (in minutes)",
 			Buckets:   []float64{5, 15, 30, 60, 120, 180},
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, settlementStatusLabel}),
-		hplMessages: prom.NewGaugeFrom(stdprom.GaugeOpts{
+		hplMessageStatusChange: prom.NewCounterFrom(stdprom.CounterOpts{
 			Namespace: "solver",
-			Name:      "hyperlane_messages",
-			Help:      "number of hyperlane messages, paginated by source and destination chain, and message status",
+			Name:      "hyperlane_message_status_change_counter",
+			Help:      "number of hyperlane messages status changes, paginated by source and destination chain, and message status",
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, transferStatusLabel}),
 
 		hplCheckpointingErrors: prom.NewCounterFrom(stdprom.CounterOpts{
@@ -136,11 +134,11 @@ func NewPromMetrics() Metrics {
 		}, []string{}),
 		hplLatency: prom.NewHistogramFrom(stdprom.HistogramOpts{
 			Namespace: "solver",
-			Name:      "latency_per_hpl_message_seconds",
+			Name:      "latency_per_hyperlane_message_seconds",
 			Help:      "latency for hyperlane message relaying, paginated by status, source and destination chain id (in seconds)",
 			Buckets:   []float64{30, 60, 300, 600, 900, 1200, 1500, 1800, 2400, 3000, 3600},
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, transferStatusLabel}),
-		hyperlaneRelayTooExpensive: prom.NewCounterFrom(stdprom.CounterOpts{
+		hplRelayTooExpensive: prom.NewCounterFrom(stdprom.CounterOpts{
 			Namespace: "solver",
 			Name:      "hyperlane_relay_too_expensive_counter",
 			Help:      "counter of relay attempts that were aborted due to being too expensive",
@@ -217,14 +215,13 @@ func (m *PromMetrics) IncFundsRebalanceTransferStatusChange(sourceChainID, desti
 func (m *PromMetrics) IncHyperlaneCheckpointingErrors() {
 	m.hplCheckpointingErrors.Add(1)
 }
+
 func (m *PromMetrics) IncHyperlaneMessages(sourceChainID, destinationChainID, messageStatus string) {
-	m.hplMessages.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, transferStatusLabel, messageStatus).Add(1)
+	m.hplMessageStatusChange.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, transferStatusLabel, messageStatus).Add(1)
 }
-func (m *PromMetrics) DecHyperlaneMessages(sourceChainID, destinationChainID, messageStatus string) {
-	m.hplMessages.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, transferStatusLabel, messageStatus).Add(-1)
-}
+
 func (m *PromMetrics) IncHyperlaneRelayTooExpensive(sourceChainID, destinationChainID string) {
-	m.hyperlaneRelayTooExpensive.With(
+	m.hplRelayTooExpensive.With(
 		sourceChainIDLabel, sourceChainID,
 		destinationChainIDLabel, destinationChainID,
 	).Add(1)
@@ -274,7 +271,6 @@ func (n NoOpMetrics) IncFundsRebalanceTransferStatusChange(sourceChainID, destin
 }
 func (n NoOpMetrics) IncHyperlaneCheckpointingErrors()                                             {}
 func (n NoOpMetrics) IncHyperlaneMessages(sourceChainID, destinationChainID, messageStatus string) {}
-func (n NoOpMetrics) DecHyperlaneMessages(sourceChainID, destinationChainID, messageStatus string) {}
 func (n NoOpMetrics) ObserveTransferSizeOutOfRange(sourceChainID, destinationChainID string, amountExceededBy int64) {
 }
 func (n NoOpMetrics) ObserveFeeBpsRejection(sourceChainID, destinationChainID string, feeBps int64) {}
