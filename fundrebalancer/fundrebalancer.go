@@ -291,7 +291,7 @@ func (r *FundRebalancer) MoveFundsToChain(
 		if err != nil {
 			return nil, nil, fmt.Errorf("signing and submitting transaction: %w", err)
 		}
-		metrics.FromContext(ctx).IncFundsRebalanceTransfers(rebalanceFromChainID, rebalanceToChain, dbtypes.RebalanceTransactionStatusPending)
+		metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(rebalanceFromChainID, rebalanceToChain, dbtypes.RebalanceTransactionStatusPending)
 
 		totalUSDCcMoved = new(big.Int).Add(totalUSDCcMoved, usdcToRebalance)
 		hashes = append(hashes, txHash)

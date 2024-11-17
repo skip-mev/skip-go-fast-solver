@@ -108,7 +108,6 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 		return nil
 	}
 
-	defer metrics.FromContext(ctx).DecFundsRebalanceTransfers(sourceChainID, destinationChainID, db.RebalanceTransactionStatusPending)
 	// all transfers have finished, grab the first error if any
 	var transferError string
 	for _, transfer := range currentStatus.Transfers {
@@ -126,7 +125,7 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 			zap.String("destinationChainID", destinationChainID),
 			zap.String("error", transferError),
 		)
-		metrics.FromContext(ctx).IncFundsRebalanceTransfers(sourceChainID, destinationChainID, db.RebalanceTransactionStatusFailed)
+		metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(sourceChainID, destinationChainID, db.RebalanceTransactionStatusFailed)
 
 		err = t.database.UpdateTransferStatus(ctx, genDB.UpdateTransferStatusParams{
 			Status: db.RebalanceTransactionStatusFailed,
@@ -145,7 +144,7 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 		zap.String("sourceChainID", sourceChainID),
 		zap.String("destinationChainID", destinationChainID),
 	)
-	metrics.FromContext(ctx).IncFundsRebalanceTransfers(sourceChainID, destinationChainID, db.RebalanceTransactionStatusSuccess)
+	metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(sourceChainID, destinationChainID, db.RebalanceTransactionStatusSuccess)
 
 	err = t.database.UpdateTransferStatus(ctx, genDB.UpdateTransferStatusParams{
 		Status: db.RebalanceTransactionStatusSuccess,

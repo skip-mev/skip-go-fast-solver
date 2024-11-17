@@ -71,8 +71,7 @@ func (r *orderFulfillmentHandler) UpdateFulfillmentStatus(ctx context.Context, o
 	if err != nil {
 		return "", fmt.Errorf("querying for order fill event on chainID %s at contract %s for order %s: %w", order.DestinationChainID, destinationChainGatewayContractAddress, order.OrderID, err)
 	} else if fillTx != nil && filler != nil {
-		metrics.FromContext(ctx).IncFillOrders(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusFilled)
-		metrics.FromContext(ctx).DecFillOrders(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusPending)
+		metrics.FromContext(ctx).IncFillOrderStatusChange(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusFilled)
 		metrics.FromContext(ctx).ObserveFillLatency(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusFilled, time.Since(order.CreatedAt))
 
 		if _, err := r.db.SetFillTx(ctx, db.SetFillTxParams{
@@ -96,8 +95,7 @@ func (r *orderFulfillmentHandler) UpdateFulfillmentStatus(ctx context.Context, o
 			return "", fmt.Errorf("querying orderID %s has been refunded on chainID %s: %w", order.OrderID, order.SourceChainID, err)
 		}
 		if isRefunded {
-			metrics.FromContext(ctx).IncFillOrders(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusRefunded)
-			metrics.FromContext(ctx).DecFillOrders(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusExpiredPendingRefund)
+			metrics.FromContext(ctx).IncFillOrderStatusChange(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusRefunded)
 			metrics.FromContext(ctx).ObserveFillLatency(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusRefunded, time.Since(order.CreatedAt))
 
 			_, err = r.db.SetRefundTx(ctx, db.SetRefundTxParams{
@@ -117,8 +115,7 @@ func (r *orderFulfillmentHandler) UpdateFulfillmentStatus(ctx context.Context, o
 			return dbtypes.OrderStatusRefunded, nil
 		}
 
-		metrics.FromContext(ctx).IncFillOrders(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusExpiredPendingRefund)
-		metrics.FromContext(ctx).DecFillOrders(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusPending)
+		metrics.FromContext(ctx).IncFillOrderStatusChange(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusExpiredPendingRefund)
 
 		if _, err := r.db.SetOrderStatus(ctx, db.SetOrderStatusParams{
 			SourceChainID:                     order.SourceChainID,
@@ -281,8 +278,7 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 		return false, fmt.Errorf("failed to set fill status to abandoned: %w", err)
 	}
 
-	metrics.FromContext(ctx).IncFillOrders(orderFill.SourceChainID, destinationChainConfig.ChainID, dbtypes.OrderStatusAbandoned)
-	metrics.FromContext(ctx).DecFillOrders(orderFill.SourceChainID, destinationChainConfig.ChainID, dbtypes.OrderStatusPending)
+	metrics.FromContext(ctx).IncFillOrderStatusChange(orderFill.SourceChainID, destinationChainConfig.ChainID, dbtypes.OrderStatusAbandoned)
 	metrics.FromContext(ctx).ObserveFillLatency(orderFill.SourceChainID, orderFill.DestinationChainID, dbtypes.OrderStatusAbandoned, time.Since(orderFill.CreatedAt))
 	metrics.FromContext(ctx).ObserveTransferSizeOutOfRange(
 		orderFill.SourceChainID,
@@ -309,8 +305,7 @@ func (r *orderFulfillmentHandler) checkFeeAmount(ctx context.Context, orderFill 
 		return true, nil
 	}
 
-	metrics.FromContext(ctx).IncFillOrders(orderFill.SourceChainID, orderFill.DestinationChainID, dbtypes.OrderStatusAbandoned)
-	metrics.FromContext(ctx).DecFillOrders(orderFill.SourceChainID, orderFill.DestinationChainID, dbtypes.OrderStatusPending)
+	metrics.FromContext(ctx).IncFillOrderStatusChange(orderFill.SourceChainID, orderFill.DestinationChainID, dbtypes.OrderStatusAbandoned)
 	metrics.FromContext(ctx).ObserveFillLatency(orderFill.SourceChainID, orderFill.DestinationChainID, dbtypes.OrderStatusAbandoned, time.Since(orderFill.CreatedAt))
 
 	_, err = r.db.SetOrderStatus(ctx, db.SetOrderStatusParams{
@@ -375,8 +370,7 @@ func (r *orderFulfillmentHandler) checkBlockConfirmations(ctx context.Context, s
 			return false, err
 		}
 		if !exists {
-			metrics.FromContext(ctx).IncFillOrders(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusAbandoned)
-			metrics.FromContext(ctx).DecFillOrders(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusPending)
+			metrics.FromContext(ctx).IncFillOrderStatusChange(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusAbandoned)
 			metrics.FromContext(ctx).ObserveFillLatency(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusAbandoned, time.Since(order.CreatedAt))
 
 			if _, err := r.db.SetOrderStatus(ctx, db.SetOrderStatusParams{

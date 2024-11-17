@@ -25,16 +25,13 @@ type Metrics interface {
 	IncTransactionSubmitted(success bool, chainID, transactionType string)
 	IncTransactionVerified(success bool, chainID string)
 
-	IncFillOrders(sourceChainID, destinationChainID, orderStatus string)
-	DecFillOrders(sourceChainID, destinationChainID, orderStatus string)
+	IncFillOrderStatusChange(sourceChainID, destinationChainID, orderStatus string)
 	ObserveFillLatency(sourceChainID, destinationChainID string, orderStatus string, latency time.Duration)
 
-	IncOrderSettlements(sourceChainID, destinationChainID, settlementStatus string)
-	DecOrderSettlements(sourceChainID, destinationChainID, settlementStatus string)
+	IncOrderSettlementStatusChange(sourceChainID, destinationChainID, settlementStatus string)
 	ObserveSettlementLatency(sourceChainID, destinationChainID string, settlementStatus string, latency time.Duration)
 
-	IncFundsRebalanceTransfers(sourceChainID, destinationChainID string, transferStatus string)
-	DecFundsRebalanceTransfers(sourceChainID, destinationChainID string, transferStatus string)
+	IncFundsRebalanceTransferStatusChange(sourceChainID, destinationChainID string, transferStatus string)
 
 	IncHyperlaneCheckpointingErrors()
 	IncHyperlaneMessages(sourceChainID, destinationChainID string, messageStatus string)
@@ -67,13 +64,13 @@ type PromMetrics struct {
 	totalTransactionSubmitted metrics.Counter
 	totalTransactionsVerified metrics.Counter
 
-	fillOrders  metrics.Gauge
-	fillLatency metrics.Histogram
+	fillOrderStatusChange metrics.Counter
+	fillLatency           metrics.Histogram
 
-	settlements       metrics.Gauge
-	settlementLatency metrics.Histogram
+	orderSettlementStatusChange metrics.Counter
+	settlementLatency           metrics.Histogram
 
-	fundsRebalanceTransfers metrics.Gauge
+	fundRebalanceTransferStatusChange metrics.Counter
 
 	hplMessages            metrics.Gauge
 	hplCheckpointingErrors metrics.Counter
@@ -86,22 +83,21 @@ type PromMetrics struct {
 
 func NewPromMetrics() Metrics {
 	return &PromMetrics{
-		fillOrders: prom.NewGaugeFrom(stdprom.GaugeOpts{
+		fillOrderStatusChange: prom.NewCounterFrom(stdprom.CounterOpts{
 			Namespace: "solver",
-			Name:      "fill_orders",
-			Help:      "numbers of fill orders, paginated by source and destination chain, and status",
+			Name:      "fill_order_status_change_counter",
+			Help:      "numbers of fill order status changes, paginated by source and destination chain, and status",
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, orderStatusLabel}),
-		settlements: prom.NewGaugeFrom(stdprom.GaugeOpts{
+		orderSettlementStatusChange: prom.NewCounterFrom(stdprom.CounterOpts{
 			Namespace: "solver",
-			Name:      "settlements",
-			Help:      "numbers of settlements intitiated, paginated by source and destination chain, and status",
+			Name:      "order_settlement_status_change_counter",
+			Help:      "numbers of order settlement status changes, paginated by source and destination chain, and status",
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, settlementStatusLabel}),
-		fundsRebalanceTransfers: prom.NewGaugeFrom(stdprom.GaugeOpts{
+		fundRebalanceTransferStatusChange: prom.NewCounterFrom(stdprom.CounterOpts{
 			Namespace: "solver",
-			Name:      "funds_rebalance_transfers",
-			Help:      "numbers of funds rebalance transfers, paginated by source and destination chain, and status",
+			Name:      "funds_rebalance_transfer_status_change_counter",
+			Help:      "numbers of funds rebalance transfer status changes, paginated by source and destination chain, and status",
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, transferStatusLabel}),
-
 		totalTransactionSubmitted: prom.NewCounterFrom(stdprom.CounterOpts{
 			Namespace: "solver",
 			Name:      "total_transactions_submitted_counter",
@@ -197,28 +193,16 @@ func (m *PromMetrics) ObserveHyperlaneLatency(sourceChainID, destinationChainID,
 	m.hplLatency.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, transferStatusLabel, transferStatus).Observe(latency.Seconds())
 }
 
-func (m *PromMetrics) IncFillOrders(sourceChainID, destinationChainID, orderStatus string) {
-	m.fillOrders.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, orderStatusLabel, orderStatus).Add(1)
+func (m *PromMetrics) IncFillOrderStatusChange(sourceChainID, destinationChainID, orderStatus string) {
+	m.fillOrderStatusChange.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, orderStatusLabel, orderStatus).Add(1)
 }
 
-func (m *PromMetrics) DecFillOrders(sourceChainID, destinationChainID, orderStatus string) {
-	m.fillOrders.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, orderStatusLabel, orderStatus).Add(-1)
+func (m *PromMetrics) IncOrderSettlementStatusChange(sourceChainID, destinationChainID, settlementStatus string) {
+	m.orderSettlementStatusChange.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, settlementStatusLabel, settlementStatus).Add(1)
 }
 
-func (m *PromMetrics) IncOrderSettlements(sourceChainID, destinationChainID, settlementStatus string) {
-	m.settlements.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, settlementStatusLabel, settlementStatus).Add(1)
-}
-
-func (m *PromMetrics) DecOrderSettlements(sourceChainID, destinationChainID, settlementStatus string) {
-	m.settlements.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, settlementStatusLabel, settlementStatus).Add(-1)
-}
-
-func (m *PromMetrics) IncFundsRebalanceTransfers(sourceChainID, destinationChainID, transferStatus string) {
-	m.fundsRebalanceTransfers.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, transferStatusLabel, transferStatus).Add(1)
-}
-
-func (m *PromMetrics) DecFundsRebalanceTransfers(sourceChainID, destinationChainID, transferStatus string) {
-	m.fundsRebalanceTransfers.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, transferStatusLabel, transferStatus).Add(-1)
+func (m *PromMetrics) IncFundsRebalanceTransferStatusChange(sourceChainID, destinationChainID, transferStatus string) {
+	m.fundRebalanceTransferStatusChange.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, transferStatusLabel, transferStatus).Add(1)
 }
 
 func (m *PromMetrics) IncHyperlaneCheckpointingErrors() {
@@ -266,15 +250,11 @@ func (n NoOpMetrics) ObserveSettlementLatency(sourceChainID, destinationChainID,
 }
 func (n NoOpMetrics) ObserveHyperlaneLatency(sourceChainID, destinationChainID, orderstatus string, latency time.Duration) {
 }
-func (n NoOpMetrics) IncFillOrders(sourceChainID, destinationChainID, orderStatus string) {}
-func (n NoOpMetrics) DecFillOrders(sourceChainID, destinationChainID, orderStatus string) {}
-func (n NoOpMetrics) IncOrderSettlements(sourceChainID, destinationChainID, settlementStatus string) {
+func (n NoOpMetrics) IncFillOrderStatusChange(sourceChainID, destinationChainID, orderStatus string) {
 }
-func (n NoOpMetrics) DecOrderSettlements(sourceChainID, destinationChainID, settlementStatus string) {
+func (n NoOpMetrics) IncOrderSettlementStatusChange(sourceChainID, destinationChainID, settlementStatus string) {
 }
-func (n NoOpMetrics) IncFundsRebalanceTransfers(sourceChainID, destinationChainID, transferStatus string) {
-}
-func (n NoOpMetrics) DecFundsRebalanceTransfers(sourceChainID, destinationChainID, transferStatus string) {
+func (n NoOpMetrics) IncFundsRebalanceTransferStatusChange(sourceChainID, destinationChainID, transferStatus string) {
 }
 func (n NoOpMetrics) IncHyperlaneCheckpointingErrors()                                             {}
 func (n NoOpMetrics) IncHyperlaneMessages(sourceChainID, destinationChainID, messageStatus string) {}

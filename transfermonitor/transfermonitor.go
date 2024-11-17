@@ -151,7 +151,7 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 							errorInsertingOrder = true
 							break
 						}
-						metrics.FromContext(ctx).IncFillOrders(order.ChainID, order.DestinationChainID, dbtypes.OrderStatusPending)
+						metrics.FromContext(ctx).IncFillOrderStatusChange(order.ChainID, order.DestinationChainID, dbtypes.OrderStatusPending)
 					}
 				}
 				lmt.Logger(ctx).Debug("num orders found while processing blocks", zap.Int("numOrders", len(orders)))

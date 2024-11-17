@@ -192,7 +192,7 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 				return fmt.Errorf("failed to insert settlement: %w", err)
 			}
 			r.ordersSeen[fill.OrderID] = true
-			metrics.FromContext(ctx).IncOrderSettlements(sourceChainID, chain.ChainID, dbtypes.SettlementStatusPending)
+			metrics.FromContext(ctx).IncOrderSettlementStatusChange(sourceChainID, chain.ChainID, dbtypes.SettlementStatusPending)
 		}
 	}
 	return nil
@@ -576,8 +576,7 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 			return fmt.Errorf("failed to fetch message received event: %w", err)
 		} else if failure != nil {
 			lmt.Logger(ctx).Error("tx failed", zap.String("failure", failure.String()))
-			metrics.FromContext(ctx).IncOrderSettlements(settlement.SourceChainID, settlement.DestinationChainID, dbtypes.SettlementStatusFailed)
-			metrics.FromContext(ctx).DecOrderSettlements(settlement.SourceChainID, settlement.DestinationChainID, dbtypes.SettlementStatusPending)
+			metrics.FromContext(ctx).IncOrderSettlementStatusChange(settlement.SourceChainID, settlement.DestinationChainID, dbtypes.SettlementStatusFailed)
 			metrics.FromContext(ctx).ObserveSettlementLatency(settlement.SourceChainID, settlement.DestinationChainID, dbtypes.SettlementStatusFailed, time.Since(settlement.CreatedAt))
 
 			if _, err := r.db.SetSettlementStatus(ctx, db.SetSettlementStatusParams{
@@ -609,8 +608,7 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 		return fmt.Errorf("failed to check if settlement is complete: %w", err)
 	} else if settlementIsComplete {
 		metrics.FromContext(ctx).ObserveSettlementLatency(settlement.SourceChainID, settlement.DestinationChainID, settlement.SettlementStatus, time.Since(settlement.CreatedAt))
-		metrics.FromContext(ctx).IncOrderSettlements(settlement.SourceChainID, settlement.DestinationChainID, dbtypes.SettlementStatusComplete)
-		metrics.FromContext(ctx).DecOrderSettlements(settlement.SourceChainID, settlement.DestinationChainID, dbtypes.SettlementStatusPending)
+		metrics.FromContext(ctx).IncOrderSettlementStatusChange(settlement.SourceChainID, settlement.DestinationChainID, dbtypes.SettlementStatusComplete)
 
 		if _, err := r.db.SetSettlementStatus(ctx, db.SetSettlementStatusParams{
 			SourceChainID:                     settlement.SourceChainID,
