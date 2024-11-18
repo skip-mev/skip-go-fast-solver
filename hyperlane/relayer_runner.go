@@ -300,43 +300,6 @@ func (r *RelayerRunner) TxAlreadySubmitted(ctx context.Context, txHash string, s
 	return true, nil
 }
 
-// // isRelayProfitabilityTimedOut returns true if a relay has past its window
-// // where it should be relayed only if it is profitable.
-// func (r *RelayerRunner) isRelayProfitabilityTimedOut(
-// 	ctx context.Context,
-// 	sourceChainID string,
-// 	destinationChainID string,
-// 	initiateTxHash string,
-// ) (bool, error) {
-// 	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(destinationChainID)
-// 	if err != nil {
-// 		return false, fmt.Errorf("getting source chain config: %w", err)
-// 	}
-//
-// 	timeoutDuration := destinationChainConfig.Relayer.ProfitableRelayTimeout
-// 	if timeoutDuration == -1 {
-// 		// specified no timeout
-// 		return false, nil
-// 	}
-//
-// 	query := db.GetHyperlaneTransferByMessageSentTxParams{
-// 		MessageSentTx: initiateTxHash,
-// 		SourceChainID: sourceChainID,
-// 	}
-// 	transfer, err := r.db.GetHyperlaneTransferByMessageSentTx(ctx, query)
-// 	if err != nil {
-// 		switch {
-// 		case errors.Is(err, sql.ErrNoRows):
-// 			return false, fmt.Errorf("hyperlane transfer with initiate tx hash %s from source chain %s not found in db", initiateTxHash, sourceChainID)
-// 		default:
-// 			return false, fmt.Errorf("getting hyperlane transfers by initiate tx hash %s on chain %s: %w", initiateTxHash, sourceChainID, err)
-// 		}
-// 	}
-//
-// 	timeoutAt := transfer.CreatedAt.Add(timeoutDuration)
-// 	return timeoutAt.After(time.Now()), nil
-// }
-
 func (r *RelayerRunner) getRelayCostCap(ctx context.Context, destinationChainID string, maxTxFeeUUSDC *big.Int, createdAt time.Time) (*big.Int, error) {
 	if maxTxFeeUUSDC == nil {
 		// if there is not max tx fee specified, there is no relay cost cap
@@ -357,6 +320,12 @@ func (r *RelayerRunner) getRelayCostCap(ctx context.Context, destinationChainID 
 		// if there is a timeout specified, check if the relay is timed out
 		timeout := createdAt.Add(*destinationChainConfig.Relayer.ProfitableRelayTimeout)
 		if time.Now().After(timeout) {
+			lmt.Logger(ctx).Debug(
+				"relay has timed out, setting max tx fee for relay to the relay cost cap",
+				zap.String("originialMaxTxFeeUUSDC", maxTxFeeUUSDC.String()),
+				zap.String("relayCostCapUUSDC", relayCostCapUUSDC.String()),
+				zap.String("timedOutAt", timeout.UTC().Format(time.RFC3339)),
+			)
 			// if the relay is timed out, always use the relay cost cap
 			return relayCostCapUUSDC, nil
 		}
