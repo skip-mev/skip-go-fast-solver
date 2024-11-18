@@ -145,7 +145,7 @@ func submitTransfer(cmd *cobra.Command, args []string) {
 		zap.String("source_chain_id", flags.sourceChainID),
 		zap.String("destination_chain_id", flags.destinationChainId),
 		zap.Uint32("destination_domain", uint32(destDomain)),
-		zap.Uint32("deadline_hours", flags.deadlineHours),
+		zap.Int32("deadline_hours", flags.deadlineHours),
 	)
 }
 
@@ -155,7 +155,7 @@ type submitFlags struct {
 	amountIn           string
 	amountOut          string
 	destinationChainId string
-	deadlineHours      uint32
+	deadlineHours      int32
 	gatewayAddr        string
 	configPath         string
 	sourceChainID      string
@@ -183,7 +183,7 @@ func parseFlags(cmd *cobra.Command) (*submitFlags, error) {
 	if flags.destinationChainId, err = cmd.Flags().GetString("destination-chain-id"); err != nil {
 		return nil, err
 	}
-	if flags.deadlineHours, err = cmd.Flags().GetUint32("deadline-hours"); err != nil {
+	if flags.deadlineHours, err = cmd.Flags().GetInt32("deadline-hours"); err != nil {
 		return nil, err
 	}
 	if flags.gatewayAddr, err = cmd.Flags().GetString("gateway"); err != nil {
@@ -271,7 +271,7 @@ func init() {
 	submitCmd.Flags().String("amount-out", "", "Amount out (in token decimals). Defaults to amount in if not set")
 	submitCmd.Flags().String("source-chain-id", "", "Source chain ID")
 	submitCmd.Flags().String("destination-chain-id", "", "Destination chain ID")
-	submitCmd.Flags().Uint32("deadline-hours", 24, "Deadline in hours (default of 24 hours, after which the order expires)")
+	submitCmd.Flags().Int32("deadline-hours", 24, "Deadline in hours (default of 24 hours, after which the order expires)")
 	submitCmd.Flags().String("gateway", "", "Gateway contract address")
 	submitCmd.Flags().String("private-key", "", "Private key to sign the transaction")
 
