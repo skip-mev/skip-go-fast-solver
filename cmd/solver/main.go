@@ -111,7 +111,7 @@ func main() {
 
 	eg.Go(func() error {
 		lmt.Logger(ctx).Info("Starting Prometheus")
-		if err := metrics.StartPrometheus(ctx, fmt.Sprintf(cfg.Metrics.PrometheusAddress)); err != nil {
+		if err := metrics.StartPrometheus(ctx, cfg.Metrics.PrometheusAddress); err != nil {
 			return err
 		}
 		return nil
