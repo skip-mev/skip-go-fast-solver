@@ -3,6 +3,8 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"math"
+	"math/big"
 	"time"
 
 	"github.com/go-kit/kit/metrics"
@@ -19,6 +21,9 @@ const (
 	transferStatusLabel     = "transfer_status"
 	settlementStatusLabel   = "settlement_status"
 	transactionTypeLabel    = "transaction_type"
+	gasBalanceLevelLabel    = "gas_balance_level"
+	gasTokenSymbolLabel     = "gas_token_symbol"
+	chainNameLabel          = "chain_name"
 )
 
 type Metrics interface {
@@ -41,6 +46,8 @@ type Metrics interface {
 	ObserveTransferSizeOutOfRange(sourceChainID, destinationChainID string, amountOutOfRange int64)
 	ObserveFeeBpsRejection(sourceChainID, destinationChainID string, feeBpsExceededBy int64)
 	ObserveInsufficientBalanceError(chainID string, amountInsufficientBy uint64)
+
+	SetGasBalance(chainID, chainName, gasTokenSymbol string, gasBalance, warningThreshold, criticalThreshold big.Int, gasTokenDecimals uint8)
 }
 
 type metricsContextKey struct{}
@@ -80,6 +87,9 @@ type PromMetrics struct {
 	transferSizeOutOfRange    metrics.Histogram
 	feeBpsRejections          metrics.Histogram
 	insufficientBalanceErrors metrics.Histogram
+
+	gasBalance      metrics.Gauge
+	gasBalanceState metrics.Gauge
 }
 
 func NewPromMetrics() Metrics {
@@ -177,6 +187,16 @@ func NewPromMetrics() Metrics {
 				1000000000000, // 1,000,000 USDC
 			},
 		}, []string{chainIDLabel}),
+		gasBalance: prom.NewGaugeFrom(stdprom.GaugeOpts{
+			Namespace: "solver",
+			Name:      "gas_balance_gauge",
+			Help:      "gas balances, paginated by chain id",
+		}, []string{chainIDLabel, chainNameLabel, gasTokenSymbolLabel}),
+		gasBalanceState: prom.NewGaugeFrom(stdprom.GaugeOpts{
+			Namespace: "relayerapi",
+			Name:      "gas_balance_state_gauge",
+			Help:      "gas balance states (0=ok 1=warning 2=critical), paginated by chain id",
+		}, []string{chainIDLabel, chainNameLabel}),
 	}
 }
 
@@ -247,6 +267,21 @@ func (m *PromMetrics) ObserveInsufficientBalanceError(chainID string, difference
 	).Observe(float64(difference))
 }
 
+func (m *PromMetrics) SetGasBalance(chainID, chainName, gasTokenSymbol string, gasBalance, warningThreshold, criticalThreshold big.Int, gasTokenDecimals uint8) {
+	// We compare the gas balance against thresholds locally rather than in the grafana alert definition since
+	// the prometheus metric is exported as a float64 and the thresholds reach Wei amounts where precision is lost.
+	gasBalanceFloat, _ := gasBalance.Float64()
+	gasTokenAmount := gasBalanceFloat / (math.Pow10(int(gasTokenDecimals)))
+	gasBalanceState := 0
+	if gasBalance.Cmp(&criticalThreshold) < 0 {
+		gasBalanceState = 2
+	} else if gasBalance.Cmp(&warningThreshold) < 0 {
+		gasBalanceState = 1
+	}
+	m.gasBalanceState.With(chainIDLabel, chainID, chainNameLabel, chainName).Set(float64(gasBalanceState))
+	m.gasBalance.With(chainIDLabel, chainID, chainNameLabel, chainName, gasTokenSymbolLabel, gasTokenSymbol).Set(gasTokenAmount)
+}
+
 type NoOpMetrics struct{}
 
 func (n NoOpMetrics) IncHyperlaneRelayTooExpensive(sourceChainID, destinationChainID string) {
@@ -272,6 +307,8 @@ func (n NoOpMetrics) IncFundsRebalanceTransferStatusChange(sourceChainID, destin
 func (n NoOpMetrics) IncHyperlaneCheckpointingErrors()                                             {}
 func (n NoOpMetrics) IncHyperlaneMessages(sourceChainID, destinationChainID, messageStatus string) {}
 func (n NoOpMetrics) ObserveTransferSizeOutOfRange(sourceChainID, destinationChainID string, amountExceededBy int64) {
+}
+func (n *NoOpMetrics) SetGasBalance(chainID, chainName, gasTokenSymbol string, gasBalance, warningThreshold, criticalThreshold big.Int, gasTokenDecimals uint8) {
 }
 func (n NoOpMetrics) ObserveFeeBpsRejection(sourceChainID, destinationChainID string, feeBps int64) {}
 func NewNoOpMetrics() Metrics {

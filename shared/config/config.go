@@ -353,6 +353,8 @@ type ConfigReader interface {
 	GetChainIDByHyperlaneDomain(domain string) (string, error)
 
 	GetUSDCDenom(chainID string) (string, error)
+
+	GetGasAlertThresholds(chainID string) (warningThreshold, criticalThreshold *big.Int, err error)
 }
 
 type configReader struct {
@@ -528,4 +530,34 @@ func (r configReader) GetUSDCDenom(chainID string) (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported chain type %s for chain %s", chainConfig.Type, chainID)
 	}
+}
+
+func (r configReader) GetGasAlertThresholds(chainID string) (warningThreshold, criticalThreshold *big.Int, err error) {
+	var warningThresholdString, criticalThresholdString string
+
+	chain, err := r.GetChainConfig(chainID)
+	if err != nil {
+		return nil, nil, err
+	}
+	switch chain.Type {
+	case ChainType_COSMOS:
+		warningThresholdString = chain.Cosmos.SignerGasBalance.WarningThresholdWei
+		criticalThresholdString = chain.Cosmos.SignerGasBalance.CriticalThresholdWei
+	case ChainType_EVM:
+		warningThresholdString = chain.EVM.SignerGasBalance.WarningThresholdWei
+		criticalThresholdString = chain.EVM.SignerGasBalance.CriticalThresholdWei
+	default:
+		return nil, nil, fmt.Errorf("unknown chain type")
+	}
+
+	warningThreshold, ok := new(big.Int).SetString(warningThresholdString, 10)
+	if !ok {
+		return nil, nil, fmt.Errorf("failed to parse gas balance threshold amount")
+	}
+	criticalThreshold, ok = new(big.Int).SetString(criticalThresholdString, 10)
+	if !ok {
+		return nil, nil, fmt.Errorf("failed to parse gas balance threshold amount")
+	}
+
+	return warningThreshold, criticalThreshold, nil
 }

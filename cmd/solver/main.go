@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/gasmonitor"
 	"os/signal"
 	"syscall"
 	"time"
@@ -166,6 +167,15 @@ func main() {
 		err := transferMonitor.Start(ctx)
 		if err != nil {
 			return fmt.Errorf("creating transfer monitor: %w", err)
+		}
+		return nil
+	})
+
+	eg.Go(func() error {
+		gasMonitor := gasmonitor.NewGasMonitor(clientManager)
+		err := gasMonitor.Start(ctx)
+		if err != nil {
+			return fmt.Errorf("creating gas monitor: %w", err)
 		}
 		return nil
 	})
