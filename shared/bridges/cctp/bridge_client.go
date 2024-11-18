@@ -3,6 +3,7 @@ package cctp
 import (
 	"context"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"math/big"
 	"time"
 
@@ -62,4 +63,5 @@ type BridgeClient interface {
 	IsOrderRefunded(ctx context.Context, gatewayContractAddress, orderID string) (bool, string, error)
 	InitiateTimeout(ctx context.Context, order db.Order, gatewayContractAddress string) (string, string, *uint64, error)
 	OrderStatus(ctx context.Context, gatewayContractAddress, orderID string) (uint8, error)
+	QueryOrderSubmittedEvent(ctx context.Context, gatewayContractAddress, orderID string) (*fast_transfer_gateway.FastTransferOrder, error)
 }

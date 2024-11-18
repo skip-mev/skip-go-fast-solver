@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
 	"math/big"
 	"strconv"
@@ -578,4 +579,8 @@ func (c *CosmosBridgeClient) BlockHeight(ctx context.Context) (uint64, error) {
 		return 0, err
 	}
 	return uint64(resp.Header.Height), nil
+}
+
+func (c *CosmosBridgeClient) QueryOrderSubmittedEvent(ctx context.Context, gatewayContractAddress, orderID string) (*fast_transfer_gateway.FastTransferOrder, error) {
+	return nil, errors.New("not implemented")
 }

@@ -4,9 +4,10 @@ INSERT INTO order_settlements (
     destination_chain_id,
     source_chain_gateway_contract_address,
     amount,
+    fee,
     order_id,
     settlement_status
-) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING *;
+) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING *;
 
 -- name: GetAllOrderSettlementsWithSettlementStatus :many
 SELECT * FROM order_settlements WHERE settlement_status = ?;

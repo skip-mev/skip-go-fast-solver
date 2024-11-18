@@ -37,8 +37,6 @@ var params = Config{
 type Database interface {
 	GetAllOrderSettlementsWithSettlementStatus(ctx context.Context, settlementStatus string) ([]db.OrderSettlement, error)
 
-	GetOrderByOrderID(ctx context.Context, orderID string) (db.Order, error)
-
 	SetSettlementStatus(ctx context.Context, arg db.SetSettlementStatusParams) (db.OrderSettlement, error)
 
 	SetInitiateSettlementTx(ctx context.Context, arg db.SetInitiateSettlementTxParams) (db.OrderSettlement, error)
@@ -179,6 +177,14 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 				continue
 			}
 
+			orderDetails, err := sourceBridgeClient.QueryOrderSubmittedEvent(ctx, sourceGatewayAddress, fill.OrderID)
+			if err != nil {
+				return fmt.Errorf("getting order submitted event on chain %s for order %s: %w", sourceChainID, fill.OrderID, err)
+			} else if orderDetails == nil {
+				return fmt.Errorf("could not find order submitted event on chain %s for order %s", sourceChainID, fill.OrderID)
+			}
+			fee := big.NewInt(0).Sub(orderDetails.AmountIn, orderDetails.AmountOut)
+
 			_, err = r.db.InsertOrderSettlement(ctx, db.InsertOrderSettlementParams{
 				SourceChainID:                     sourceChainID,
 				DestinationChainID:                chain.ChainID,
@@ -186,6 +192,7 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 				OrderID:                           fill.OrderID,
 				SettlementStatus:                  dbtypes.SettlementStatusPending,
 				Amount:                            amount.String(),
+				Fee:                               fee.String(),
 			})
 
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -335,7 +342,7 @@ func (r *OrderSettler) relaySettlement(
 }
 
 func (r *OrderSettler) maxBatchTxFeeUUSDC(ctx context.Context, batch types.SettlementBatch) (*big.Int, error) {
-	profit, err := r.totalBatchProfit(ctx, batch)
+	profit, err := batch.TotalFee()
 	if err != nil {
 		return nil, fmt.Errorf("calculating profit for batch: %w", err)
 	}
@@ -356,32 +363,6 @@ func (r *OrderSettler) maxBatchTxFeeUUSDC(ctx context.Context, batch types.Settl
 	valueMarginInt, _ := valueMargin.Int(nil)
 
 	return profit.Sub(profit, valueMarginInt), nil
-}
-
-func (r *OrderSettler) totalBatchProfit(ctx context.Context, batch types.SettlementBatch) (*big.Int, error) {
-	totalAmountIn, err := batch.TotalValue()
-	if err != nil {
-		return nil, fmt.Errorf("getting batches total value: %w", err)
-	}
-
-	totalAmountOut := big.NewInt(0)
-	for _, settlement := range batch {
-		// settlements dont store the amount out of the order, in order to
-		// calculate the profit, we have to look that up from the db
-		order, err := r.db.GetOrderByOrderID(ctx, settlement.OrderID)
-		if err != nil {
-			return nil, fmt.Errorf("getting order %s for settlement: %w", settlement.OrderID, err)
-		}
-
-		amountOut, ok := new(big.Int).SetString(order.AmountOut, 10)
-		if !ok {
-			return nil, fmt.Errorf("converting order %s's amount out %s to *big.Int", order.OrderID, order.AmountOut)
-		}
-
-		totalAmountOut.Add(totalAmountOut, amountOut)
-	}
-
-	return totalAmountIn.Sub(totalAmountIn, totalAmountOut), nil
 }
 
 // verifyOrderSettlements checks on all instated settlements and updates their

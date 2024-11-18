@@ -54,6 +54,7 @@ type OrderSettlement struct {
 	DestinationChainID                string
 	SourceChainGatewayContractAddress string
 	Amount                            string
+	Fee                               string
 	OrderID                           string
 	InitiateSettlementTx              sql.NullString
 	CompleteSettlementTx              sql.NullString
