@@ -4,7 +4,7 @@ INSERT INTO order_settlements (
     destination_chain_id,
     source_chain_gateway_contract_address,
     amount,
-    fee,
+    profit,
     order_id,
     settlement_status
 ) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING *;

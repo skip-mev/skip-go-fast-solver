@@ -183,7 +183,7 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 			} else if orderDetails == nil {
 				return fmt.Errorf("could not find order submitted event on chain %s for order %s", sourceChainID, fill.OrderID)
 			}
-			fee := big.NewInt(0).Sub(orderDetails.AmountIn, orderDetails.AmountOut)
+			profit := big.NewInt(0).Sub(orderDetails.AmountIn, orderDetails.AmountOut)
 
 			_, err = r.db.InsertOrderSettlement(ctx, db.InsertOrderSettlementParams{
 				SourceChainID:                     sourceChainID,
@@ -192,7 +192,7 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 				OrderID:                           fill.OrderID,
 				SettlementStatus:                  dbtypes.SettlementStatusPending,
 				Amount:                            amount.String(),
-				Fee:                               fee.String(),
+				Profit:                            profit.String(),
 			})
 
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -342,7 +342,7 @@ func (r *OrderSettler) relaySettlement(
 }
 
 func (r *OrderSettler) maxBatchTxFeeUUSDC(ctx context.Context, batch types.SettlementBatch) (*big.Int, error) {
-	profit, err := batch.TotalFee()
+	profit, err := batch.TotalProfit()
 	if err != nil {
 		return nil, fmt.Errorf("calculating profit for batch: %w", err)
 	}

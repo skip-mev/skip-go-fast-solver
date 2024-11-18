@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"math/big"
 	"strings"
 	"sync"
 	"time"
@@ -309,7 +308,7 @@ OuterLoop:
 
 				for iter.Next() {
 					m.Lock()
-					orderData := decodeOrder(iter.Event.Order)
+					orderData := fast_transfer_gateway.DecodeOrder(iter.Event.Order)
 					orders = append(orders, Order{
 						TxHash:             iter.Event.Raw.TxHash.Hex(),
 						TxBlockHeight:      iter.Event.Raw.BlockNumber,
@@ -338,20 +337,6 @@ OuterLoop:
 		return nil, err
 	}
 	return orders, nil
-}
-
-func decodeOrder(bytes []byte) fast_transfer_gateway.FastTransferOrder {
-	var order fast_transfer_gateway.FastTransferOrder
-	order.Sender = [32]byte(bytes[0:32])
-	order.Recipient = [32]byte(bytes[32:64])
-	order.AmountIn = new(big.Int).SetBytes(bytes[64:96])
-	order.AmountOut = new(big.Int).SetBytes(bytes[96:128])
-	order.Nonce = uint32(new(big.Int).SetBytes(bytes[128:132]).Uint64())
-	order.SourceDomain = uint32(new(big.Int).SetBytes(bytes[132:136]).Uint64())
-	order.DestinationDomain = uint32(new(big.Int).SetBytes(bytes[136:140]).Uint64())
-	order.TimeoutTimestamp = new(big.Int).SetBytes(bytes[140:148]).Uint64()
-	order.Data = bytes[148:]
-	return order
 }
 
 func getChainID(chain config.ChainConfig) (string, error) {

@@ -136,12 +136,12 @@ func (b SettlementBatch) TotalValue() (*big.Int, error) {
 	return sum, nil
 }
 
-func (b SettlementBatch) TotalFee() (*big.Int, error) {
+func (b SettlementBatch) TotalProfit() (*big.Int, error) {
 	sum := big.NewInt(0)
 	for _, settlement := range b {
-		value, ok := new(big.Int).SetString(settlement.Fee, 10)
+		value, ok := new(big.Int).SetString(settlement.Profit, 10)
 		if !ok {
-			return nil, fmt.Errorf("converting settlement fee %s to *big.Int", settlement.Fee)
+			return nil, fmt.Errorf("converting settlement profit %s to *big.Int", settlement.Profit)
 		}
 		sum = sum.Add(sum, value)
 	}
