@@ -44,7 +44,7 @@ var aesKeyHex = flag.String("aes-key-hex", "", "hex-encoded AES key used to decr
 var sqliteDBPath = flag.String("sqlite-db-path", "./solver.db", "path to sqlite db file")
 var migrationsPath = flag.String("migrations-path", "./db/migrations", "path to db migrations directory")
 var quickStart = flag.Bool("quickstart", true, "run quick start mode")
-var refundOrders = flag.Bool("refund-orders", true, "if the solver should refund timed out order")
+var refundOrders = flag.Bool("refund-orders", false, "if the solver should refund timed out order")
 var fillOrders = flag.Bool("fill-orders", true, "if the solver should fill orders")
 
 func main() {
