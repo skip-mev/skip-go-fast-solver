@@ -20,6 +20,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	excessiveOrderFillLatencyDuration = 30 * time.Minute
+)
+
 type Relayer interface {
 	SubmitTxToRelay(ctx context.Context, txHash string, sourceChainID string, maxTxFeeUUSDC *big.Int) error
 }
@@ -64,6 +68,9 @@ func (r *orderFulfillmentHandler) UpdateFulfillmentStatus(ctx context.Context, o
 	destinationChainGatewayContractAddress, err := config.GetConfigReader(ctx).GetGatewayContractAddress(order.DestinationChainID)
 	if err != nil {
 		return "", fmt.Errorf("getting gateway contract address for destination chainID %s: %w", order.DestinationChainID, err)
+	}
+	if order.CreatedAt.Add(excessiveOrderFillLatencyDuration).Before(time.Now()) {
+		metrics.FromContext(ctx).IncExcessiveOrderFulfillmentLatency(order.SourceChainID, order.DestinationChainID, order.OrderStatus)
 	}
 
 	// if the order is already filled, set the status to filled
