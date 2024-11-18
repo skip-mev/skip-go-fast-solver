@@ -54,6 +54,9 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 4290000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 1430000000000000000
+    relayer:
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
 
   ethereum-testnet:
     chain_name: "ethereum"
@@ -80,6 +83,9 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: 250000000000000000
         critical_threshold_wei: 0
+    relayer:
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
 
   avalanche:
     chain_name: "avalanche"
@@ -106,6 +112,9 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 1720000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 580000000000000000
+    relayer:
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
 
   optimism:
     chain_name: "optimism"
@@ -132,6 +141,9 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 180000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 60000000000000000
+    relayer:
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
 
   arbitrum:
     chain_name: "arbitrum"
@@ -164,6 +176,9 @@ chains:
       validator_announce_contract_address: "0x1df063280C4166AF9a725e3828b4dAC6c7113B08"
       merkle_hook_contract_address: "0xb49a14568f9CC440f2c7DCf7FC6766040a5eb860"
       mailbox_address: "0x979Ca5202784112f4738403dBec5D0F3B9daabB9"
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
+
   arbitrum-testnet:
     chain_name: "arbitrum"
     chain_id: "421614"
@@ -183,6 +198,10 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: 250000000000000000
         critical_threshold_wei: 0
+    relayer:
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
+
   osmosis:
     chain_name: "osmosis"
     chain_id: "osmosis-1"
@@ -244,6 +263,9 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 180000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 60000000000000000
+    relayer:
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
 
   polygon:
     chain_name: "polygon"
@@ -270,4 +292,8 @@ chains:
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 15000000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 5000000000000000000
-      min_gas_tip_cap: 30000000000
+      gas_price: <gas_price> # e.g. "30000000000"
+      min_gas_tip_cap: <min_gas_tip_cap> # e.g. 30000000000
+    relayer:
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
