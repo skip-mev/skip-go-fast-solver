@@ -293,7 +293,6 @@ chains:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 15000000000000000000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 5000000000000000000
       min_gas_tip_cap: 30000000000
-      gas_price: <gas_price> # e.g. "30000000000"
     relayer:
       profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
       relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
