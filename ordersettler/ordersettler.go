@@ -290,9 +290,11 @@ func (r *OrderSettler) relayBatch(
 		return fmt.Errorf("calculating max batch (hash: %s) tx fee in uusdc: %w", txHash, err)
 	}
 	if maxTxFeeUUSDC.Cmp(big.NewInt(0)) <= 0 {
-		return fmt.Errorf(
-			"batch max tx fee in uusdc is <= 0 based on configured profit margin for %s. min profit margin should be lowered based on current batch size and min fee bps",
-			settlementPayoutChainID,
+		lmt.Logger(ctx).Warn(
+			"max tx fee to maintain configured profit margin when relaying settlement is less than or equal to 0. this settlement will not be relayed until it is timed out. min profit margin should be lowered based on current batch size and min fee bps to settlements can be relayed",
+			zap.String("maxTxFeeUUSDC", maxTxFeeUUSDC.String()),
+			zap.String("settlementInitiationChainID", batch.DestinationChainID()),
+			zap.String("settlementPayoutChainID", batch.SourceChainID()),
 		)
 	}
 
