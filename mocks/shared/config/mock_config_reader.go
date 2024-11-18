@@ -3,6 +3,8 @@
 package config
 
 import (
+	big "math/big"
+
 	config "github.com/skip-mev/go-fast-solver/shared/config"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -390,6 +392,73 @@ func (_c *MockConfigReader_GetCoingeckoConfig_Call) Return(_a0 config.CoingeckoC
 }
 
 func (_c *MockConfigReader_GetCoingeckoConfig_Call) RunAndReturn(run func() config.CoingeckoConfig) *MockConfigReader_GetCoingeckoConfig_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetGasAlertThresholds provides a mock function with given fields: chainID
+func (_m *MockConfigReader) GetGasAlertThresholds(chainID string) (*big.Int, *big.Int, error) {
+	ret := _m.Called(chainID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetGasAlertThresholds")
+	}
+
+	var r0 *big.Int
+	var r1 *big.Int
+	var r2 error
+	if rf, ok := ret.Get(0).(func(string) (*big.Int, *big.Int, error)); ok {
+		return rf(chainID)
+	}
+	if rf, ok := ret.Get(0).(func(string) *big.Int); ok {
+		r0 = rf(chainID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*big.Int)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(string) *big.Int); ok {
+		r1 = rf(chainID)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*big.Int)
+		}
+	}
+
+	if rf, ok := ret.Get(2).(func(string) error); ok {
+		r2 = rf(chainID)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// MockConfigReader_GetGasAlertThresholds_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetGasAlertThresholds'
+type MockConfigReader_GetGasAlertThresholds_Call struct {
+	*mock.Call
+}
+
+// GetGasAlertThresholds is a helper method to define mock.On call
+//   - chainID string
+func (_e *MockConfigReader_Expecter) GetGasAlertThresholds(chainID interface{}) *MockConfigReader_GetGasAlertThresholds_Call {
+	return &MockConfigReader_GetGasAlertThresholds_Call{Call: _e.mock.On("GetGasAlertThresholds", chainID)}
+}
+
+func (_c *MockConfigReader_GetGasAlertThresholds_Call) Run(run func(chainID string)) *MockConfigReader_GetGasAlertThresholds_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *MockConfigReader_GetGasAlertThresholds_Call) Return(warningThreshold *big.Int, criticalThreshold *big.Int, err error) *MockConfigReader_GetGasAlertThresholds_Call {
+	_c.Call.Return(warningThreshold, criticalThreshold, err)
+	return _c
+}
+
+func (_c *MockConfigReader_GetGasAlertThresholds_Call) RunAndReturn(run func(string) (*big.Int, *big.Int, error)) *MockConfigReader_GetGasAlertThresholds_Call {
 	_c.Call.Return(run)
 	return _c
 }
