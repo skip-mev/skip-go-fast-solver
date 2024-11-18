@@ -228,14 +228,14 @@ type RelayerConfig struct {
 	// to be relayed for ProfitableRelayTimeout duration, but it hasnt been
 	// sent because it is not profitable, then it will be sent regardless of
 	// profitability. This can be set to -1 for no timeout.
-	ProfitableRelayTimeout time.Duration `yaml:"relay_timeout"`
+	ProfitableRelayTimeout *time.Duration `yaml:"profitable_relay_timeout"`
 
-	// MaxRelayTxFeeUUSDC is the maximum amount of uusdc to pay to relay a tx,
+	// RelayCostCapUUSDC is the maximum amount of uusdc to pay to relay a tx,
 	// regardless of profitability checking, i.e. if the ProfitableRelayTimeout
 	// expires for a tx and it is going to be sent without ensuring it is
 	// profitable for the solver to do so, this is a final check to ensure that
 	// the tx is not relayed in an extremely expensive block.
-	MaxRelayTxFeeUUSDC string `yaml:"max_relay_tx_fee_uusdc"`
+	RelayCostCapUUSDC string `yaml:"relay_cost_cap_uusdc"`
 }
 
 // Used to monitor gas balance prometheus metric per chain for the solver addresses
