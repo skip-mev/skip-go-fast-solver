@@ -256,6 +256,10 @@ func (r *RelayerRunner) SubmitTxToRelay(
 	if err != nil {
 		return fmt.Errorf("getting destination chainID by hyperlane domain %s: %w", dispatch.DestinationDomain, err)
 	}
+	costCap, err := r.getRelayCostCap(ctx, destinationChainID, maxTxFeeUUSDC, time.Now())
+	if err != nil {
+		return fmt.Errorf("getting relay cost cap for hyperlane relay from %s to %s: %w", sourceChainID, destinationChainID, err)
+	}
 
 	insert := db.InsertHyperlaneTransferParams{
 		SourceChainID:      sourceChainID,
@@ -263,14 +267,7 @@ func (r *RelayerRunner) SubmitTxToRelay(
 		MessageID:          dispatch.MessageID,
 		MessageSentTx:      txHash,
 		TransferStatus:     dbtypes.TransferStatusPending,
-	}
-	if maxTxFeeUUSDC != nil {
-		costCap, err := r.getRelayCostCap(ctx, destinationChainID, maxTxFeeUUSDC, time.Now())
-		if err != nil {
-			return fmt.Errorf("getting relay cost cap for hyperlane relay from %s to %s: %w", sourceChainID, destinationChainID, err)
-		}
-
-		insert.MaxTxFeeUusdc = sql.NullString{String: costCap.String(), Valid: true}
+		MaxTxFeeUusdc:      sql.NullString{String: costCap.String(), Valid: true},
 	}
 
 	if _, err := r.db.InsertHyperlaneTransfer(ctx, insert); err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -301,11 +298,6 @@ func (r *RelayerRunner) TxAlreadySubmitted(ctx context.Context, txHash string, s
 }
 
 func (r *RelayerRunner) getRelayCostCap(ctx context.Context, destinationChainID string, maxTxFeeUUSDC *big.Int, createdAt time.Time) (*big.Int, error) {
-	if maxTxFeeUUSDC == nil {
-		// if there is not max tx fee specified, there is no relay cost cap
-		return nil, nil
-	}
-
 	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(destinationChainID)
 	if err != nil {
 		return nil, fmt.Errorf("getting destination chain config: %w", err)
@@ -314,6 +306,11 @@ func (r *RelayerRunner) getRelayCostCap(ctx context.Context, destinationChainID 
 	relayCostCapUUSDC, ok := new(big.Int).SetString(destinationChainConfig.Relayer.RelayCostCapUUSDC, 10)
 	if !ok {
 		return nil, fmt.Errorf("converting transfer destination chain %s relay cost cap %s in uusdc to *big.Int", destinationChainID, destinationChainConfig.Relayer.RelayCostCapUUSDC)
+	}
+
+	if maxTxFeeUUSDC == nil {
+		// if there is not max tx fee specified, use the relay cost cap
+		return relayCostCapUUSDC, nil
 	}
 
 	if destinationChainConfig.Relayer.ProfitableRelayTimeout != nil {
