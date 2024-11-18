@@ -24,7 +24,7 @@ func NewGasMonitor(clientManager *clientmanager.ClientManager) *GasMonitor {
 }
 
 func (gm *GasMonitor) Start(ctx context.Context) error {
-	lmt.Logger(ctx).Info("Starting transfer monitor")
+	lmt.Logger(ctx).Info("Starting gas monitor")
 	var chains []config.ChainConfig
 	evmChains, err := config.GetConfigReader(ctx).GetAllChainConfigsOfType(config.ChainType_EVM)
 	if err != nil {
@@ -37,11 +37,12 @@ func (gm *GasMonitor) Start(ctx context.Context) error {
 	chains = append(chains, evmChains...)
 	chains = append(chains, cosmosChains...)
 
+	ticker := time.NewTicker(1 * time.Minute)
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		default:
+		case <-ticker.C:
 			for _, chain := range chains {
 				client, err := gm.clientManager.GetClient(ctx, chain.ChainID)
 				if err != nil {
@@ -53,7 +54,6 @@ func (gm *GasMonitor) Start(ctx context.Context) error {
 				}
 			}
 		}
-		time.Sleep(1 * time.Minute)
 	}
 }
 
