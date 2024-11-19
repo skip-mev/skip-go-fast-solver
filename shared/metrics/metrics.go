@@ -193,7 +193,7 @@ func NewPromMetrics() Metrics {
 			Help:      "gas balances, paginated by chain id",
 		}, []string{chainIDLabel, chainNameLabel, gasTokenSymbolLabel}),
 		gasBalanceState: prom.NewGaugeFrom(stdprom.GaugeOpts{
-			Namespace: "relayerapi",
+			Namespace: "solver",
 			Name:      "gas_balance_state_gauge",
 			Help:      "gas balance states (0=ok 1=warning 2=critical), paginated by chain id",
 		}, []string{chainIDLabel, chainNameLabel}),
