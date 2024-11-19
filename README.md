@@ -47,7 +47,7 @@ Use these addresses in the solver config and when using the CLI tool to submit t
 
 1. Update [config/local/keys.json](config/local/keys.json) with the corresponding solver private keys and addresses.
 2. Update [config/local/config.yml](config/local/config.yml) with the needed config values (solver addresses, chain rpc links, etc.). Values that need to be set are in `<>` brackets.  Reference the [shared/config/config.go](shared/config/config.go) file for more info about the config fields. 
-   - [config/local/config.yml](config/local/config.yml) file has recommended values already set. To customize your solver deployment further, reference [config/sample/config.yml](config/sample/config.yml) to see which configuration values can be modified.
+   - The [config/local/config.yml](config/local/config.yml) config file is pre-filled with recommended values. To customize your solver deployment, reference [config/sample/config.yml](config/sample/config.yml) to see which config values can be modified.
 
 ```shell
 make build # build solver server binary
