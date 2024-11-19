@@ -250,10 +250,10 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 	switch {
 	case transferAmount.Cmp(&destinationChainConfig.Cosmos.MinFillSize) < 0:
 		abandonmentReason = "transfer amount is below configured min fill size for chain " + orderFill.DestinationChainID
-		amountOutOfRange = transferAmount.Sub(transferAmount, &destinationChainConfig.MinFillSize).Int64()
-	case transferAmount.Cmp(&destinationChainConfig.MaxFillSize) > 0:
+		amountOutOfRange = transferAmount.Sub(transferAmount, &destinationChainConfig.Cosmos.MinFillSize).Int64()
+	case transferAmount.Cmp(&destinationChainConfig.Cosmos.MaxFillSize) > 0:
 		abandonmentReason = "transfer amount exceeds configured max fill size for chain" + orderFill.DestinationChainID
-		amountOutOfRange = transferAmount.Sub(transferAmount, &destinationChainConfig.MaxFillSize).Int64()
+		amountOutOfRange = transferAmount.Sub(transferAmount, &destinationChainConfig.Cosmos.MaxFillSize).Int64()
 	default:
 		return true, nil
 	}
@@ -263,8 +263,8 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 		zap.String("orderID", orderFill.OrderID),
 		zap.String("sourceChainID", orderFill.SourceChainID),
 		zap.String("orderAmountOut", orderFill.AmountOut),
-		zap.Any("minAllowedFillSize", destinationChainConfig.MinFillSize),
-		zap.Any("maxAllowedFillSize", destinationChainConfig.MaxFillSize),
+		zap.Any("minAllowedFillSize", destinationChainConfig.Cosmos.MinFillSize),
+		zap.Any("maxAllowedFillSize", destinationChainConfig.Cosmos.MaxFillSize),
 	)
 
 	_, err = r.db.SetOrderStatus(ctx, db.SetOrderStatusParams{
@@ -284,9 +284,9 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 		zap.String("sourceChainID", orderFill.SourceChainID),
 		zap.String("orderAmountOut", orderFill.AmountOut),
 		zap.Any("minAllowedFillSize", destinationChainConfig.Cosmos.MinFillSize),
-    zap.Any("maxAllowedFillSize", destinationChainConfig.Cosmos.MaxFillSize),
-  )
-  
+		zap.Any("maxAllowedFillSize", destinationChainConfig.Cosmos.MaxFillSize),
+	)
+
 	metrics.FromContext(ctx).IncFillOrderStatusChange(orderFill.SourceChainID, destinationChainConfig.ChainID, dbtypes.OrderStatusAbandoned)
 	metrics.FromContext(ctx).ObserveFillLatency(orderFill.SourceChainID, orderFill.DestinationChainID, dbtypes.OrderStatusAbandoned, time.Since(orderFill.CreatedAt))
 	metrics.FromContext(ctx).ObserveTransferSizeOutOfRange(

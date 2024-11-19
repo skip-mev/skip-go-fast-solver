@@ -562,7 +562,15 @@ func ValidateChainConfig(chain ChainConfig) error {
 	if chain.BatchUUSDCSettleUpThreshold == "" {
 		return fmt.Errorf("batch_uusdc_settle_up_threshold is required")
 	}
-
+	if chain.MinFeeBps == 0 {
+		return fmt.Errorf("min_fee_bps is required")
+	}
+	if chain.MinProfitMarginBPS == 0 {
+		return fmt.Errorf("min_profit_margin_bps is required")
+	}
+	if chain.MinProfitMarginBPS >= chain.MinFeeBps {
+		return fmt.Errorf("min_profit_margin_bps can not be >= min_fee_bps")
+	}
 	if chain.Relayer.ValidatorAnnounceContractAddress == "" {
 		return fmt.Errorf("relayer.validator_announce_contract_address is required")
 	}
@@ -571,6 +579,12 @@ func ValidateChainConfig(chain ChainConfig) error {
 	}
 	if chain.Relayer.MailboxAddress == "" {
 		return fmt.Errorf("relayer.mailbox_address is required")
+	}
+	if chain.Relayer.ProfitableRelayTimeout == nil {
+		return fmt.Errorf("relayer.profitable_relay_timeout is required")
+	}
+	if chain.Relayer.RelayCostCapUUSDC == "" {
+		return fmt.Errorf("relayer.relay_cost_cap_u_usdc is required")
 	}
 
 	switch chain.Type {
