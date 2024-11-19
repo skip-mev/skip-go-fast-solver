@@ -86,6 +86,7 @@ type SubmittedTx struct {
 	TxType              string
 	TxStatus            string
 	TxStatusMessage     sql.NullString
+	TxCostUusdc         sql.NullString
 }
 
 type TransferMonitorMetadatum struct {

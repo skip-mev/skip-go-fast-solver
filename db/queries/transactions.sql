@@ -11,7 +11,9 @@ SELECT * FROM submitted_txs WHERE hyperlane_transfer_id = ?;
 SELECT * FROM submitted_txs WHERE tx_status = ?;
 
 -- name: SetSubmittedTxStatus :one
-UPDATE submitted_txs SET tx_status = ?, tx_status_message = ?, updated_at = CURRENT_TIMESTAMP WHERE tx_hash = ? AND chain_id = ? RETURNING *;
+UPDATE submitted_txs SET 
+    tx_status = ?, tx_status_message = ?, tx_cost_uusdc = ?, updated_at = CURRENT_TIMESTAMP 
+WHERE tx_hash = ? AND chain_id = ? RETURNING *;
 
 -- name: GetSubmittedTxsByOrderStatusAndType :many
 SELECT submitted_txs.* FROM submitted_txs INNER JOIN orders on submitted_txs.order_id = orders.id WHERE orders.order_status = ? AND submitted_txs.tx_type = ?;
