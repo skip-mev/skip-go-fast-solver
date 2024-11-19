@@ -568,6 +568,9 @@ func ValidateChainConfig(chain ChainConfig) error {
 	if chain.Relayer.RelayCostCapUUSDC == "" {
 		return fmt.Errorf("relayer.relay_cost_cap_u_usdc is required")
 	}
+	if chain.Relayer.MailboxAddress == "" {
+		return fmt.Errorf("relayer.mailbox_address is required")
+	}
 
 	switch chain.Type {
 	case ChainType_COSMOS:
@@ -624,9 +627,6 @@ func validateCosmosConfig(config *CosmosConfig, relayerConfig *RelayerConfig) er
 	}
 	if relayerConfig.MerkleHookContractAddress == "" {
 		return fmt.Errorf("relayer.merkle_hook_contract_address is required")
-	}
-	if relayerConfig.MailboxAddress == "" {
-		return fmt.Errorf("relayer.mailbox_address is required")
 	}
 
 	return nil
