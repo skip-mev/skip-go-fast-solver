@@ -36,6 +36,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "ethereum"
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     min_fill_size: <min_fill_size> # e.g. 5000000
@@ -65,6 +66,7 @@ chains:
     environment: "testnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "ethereum"
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     min_fill_size: <min_fill_size> # e.g. 5000000
@@ -94,6 +96,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "AVAX"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "avalanche-2"
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     min_fill_size: <min_fill_size> # e.g. 5000000
@@ -123,6 +126,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "ethereum"
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     min_fill_size: <min_fill_size> # e.g. 5000000
@@ -152,6 +156,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "ethereum"
     quick_start_num_blocks_back: 300000
     fast_transfer_contract_address: <use_address_from_readme>
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
@@ -186,6 +191,7 @@ chains:
     environment: "testnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "ethereum"
     #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
@@ -209,6 +215,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "OSMO"
     gas_token_decimals: 6
+    gas_token_coingecko_id: "osmosis"
     fast_transfer_contract_address: <use_address_from_readme>
     solver_address: <solver_address>
     hyperlane_domain: "875"
@@ -245,6 +252,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "ethereum"
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     min_fill_size: <min_fill_size> # e.g. 5000000
@@ -274,6 +282,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "MATIC"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "matic-network"
     fast_transfer_contract_address: <use_address_from_readme>
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     min_fill_size: <min_fill_size> # e.g. 5000000
