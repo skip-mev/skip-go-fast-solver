@@ -83,6 +83,8 @@ type ChainConfig struct {
 	GasTokenSymbol string `yaml:"gas_token_symbol"`
 	// GasTokenDecimals specifies the number of decimal places for the gas token
 	GasTokenDecimals uint8 `yaml:"gas_token_decimals"`
+	// GasTokenCoingeckoID is the coingecko ID of the chain's gas token
+	GasTokenCoingeckoID string `yaml:"gas_token_coingecko_id"`
 	// NumBlockConfirmationsBeforeFill is the number of block confirmations required
 	// before the solver will attempt to fill an order
 	NumBlockConfirmationsBeforeFill int64 `yaml:"num_block_confirmations_before_fill"`

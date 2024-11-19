@@ -82,6 +82,7 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 						lmt.Logger(ctx).Warn(
 							"relaying transfer is too expensive, waiting for better conditions",
 							zap.String("sourceChainID", transfer.SourceChainID),
+							zap.String("destChainID", transfer.DestinationChainID),
 							zap.String("txHash", transfer.MessageSentTx),
 						)
 					case errors.Is(err, ErrNotEnoughSignaturesFound):

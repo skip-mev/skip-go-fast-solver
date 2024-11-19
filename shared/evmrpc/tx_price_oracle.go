@@ -10,7 +10,6 @@ import (
 )
 
 const (
-	coingeckoEthID       = "ethereum"
 	coingeckoUSDCurrency = "usd"
 )
 
@@ -27,7 +26,7 @@ func NewOracle(coingecko coingecko.PriceClient) *Oracle {
 
 // TxFeeUUSDC estimates what the cost in uusdc would be to execute a tx. The
 // tx's gas fee cap and gas limit must be set.
-func (o *Oracle) TxFeeUUSDC(ctx context.Context, tx *types.Transaction) (*big.Int, error) {
+func (o *Oracle) TxFeeUUSDC(ctx context.Context, tx *types.Transaction, gasTokenCoingeckoID string) (*big.Int, error) {
 	if tx.Type() != types.DynamicFeeTxType {
 		return nil, fmt.Errorf("tx type must be dynamic fee tx, got %d", tx.Type())
 	}
@@ -41,17 +40,17 @@ func (o *Oracle) TxFeeUUSDC(ctx context.Context, tx *types.Transaction) (*big.In
 
 	// for a dry ran tx, Gas() will be the result of calling eth_estimateGas
 	estimatedGasUsed := tx.Gas()
-	return o.gasCostUUSDC(ctx, estimatedPricePerGas, big.NewInt(int64(estimatedGasUsed)))
+	return o.gasCostUUSDC(ctx, estimatedPricePerGas, big.NewInt(int64(estimatedGasUsed)), gasTokenCoingeckoID)
 }
 
 // gasCostUUSDC converts an amount of gas and the price per gas in gwei to
 // uusdc based on the current CoinGecko price of ethereum in usd.
-func (o *Oracle) gasCostUUSDC(ctx context.Context, pricePerGasWei *big.Int, gasUsed *big.Int) (*big.Int, error) {
+func (o *Oracle) gasCostUUSDC(ctx context.Context, pricePerGasWei *big.Int, gasUsed *big.Int, gasTokenCoingeckoID string) (*big.Int, error) {
 	// Calculate transaction fee in Wei
 	txFeeWei := new(big.Int).Mul(gasUsed, pricePerGasWei)
 
 	// Get the ETH price in USD cents from CoinGecko
-	ethPriceUSD, err := o.coingecko.GetSimplePrice(ctx, coingeckoEthID, coingeckoUSDCurrency)
+	ethPriceUSD, err := o.coingecko.GetSimplePrice(ctx, gasTokenCoingeckoID, coingeckoUSDCurrency)
 	if err != nil {
 		return nil, fmt.Errorf("getting CoinGecko price of Ethereum in USD: %w", err)
 	}

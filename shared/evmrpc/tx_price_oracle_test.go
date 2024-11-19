@@ -56,7 +56,7 @@ func Test_Oracle_TxFeeUUSDC(t *testing.T) {
 			mockcoingecko.EXPECT().GetSimplePrice(ctx, "ethereum", "usd").Return(tt.ETHPriceUSD, nil)
 
 			oracle := evmrpc.NewOracle(mockcoingecko)
-			uusdcPrice, err := oracle.TxFeeUUSDC(ctx, tx)
+			uusdcPrice, err := oracle.TxFeeUUSDC(ctx, tx, "ethereum")
 			assert.NoError(t, err)
 			assert.Equal(t, tt.ExpectedUUSDCPrice, uusdcPrice.Int64())
 		})
