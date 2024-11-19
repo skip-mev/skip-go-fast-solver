@@ -29,34 +29,6 @@ fund_rebalancer:
     target_amount: <target_amount> # e.g. "1000000000"
     min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
 chains:
-  1:
-    chain_name: "ethereum"
-    chain_id: "1"
-    type: "evm"
-    environment: "mainnet"
-    gas_token_symbol: "ETH"
-    gas_token_decimals: 18
-    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    hyperlane_domain: "1"
-    quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
-    max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    fast_transfer_contract_address: 0xe7935104c9670015b21c6300e5b95d2f75474cda
-    solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
-    usdc_denom: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
-    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
-    min_fee_bps: <min_fee_bps> # e.g. 100
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
-    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
-    evm:
-      rpc: <ethereum_rpc_server_url> # e.g. "https://eth.llamarpc.com"
-      rpc_basic_auth_var: <server_password>
-      signer_gas_balance:
-        warning_threshold_wei: <warning_threshold_wei> # e.g. 4290000000000000000
-        critical_threshold_wei: <critical_threshold_wei> # e.g. 1430000000000000000
-    relayer:
-      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
-      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
-
   43114:
     chain_name: "avalanche"
     chain_id: "43114"
@@ -64,6 +36,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "AVAX"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "avalanche-2"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     hyperlane_domain: "43114"
     quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
@@ -93,6 +66,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "ethereum"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     hyperlane_domain: "10"
     quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
@@ -122,6 +96,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "etheruem"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     hyperlane_domain: "42161"
     quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
@@ -151,6 +126,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "OSMO"
     gas_token_decimals: 6
+    gas_token_coingecko_id: "osmosis"
     fast_transfer_contract_address: "osmo1vy34lpt5zlj797w7zqdta3qfq834kapx88qtgudy7jgljztj567s73ny82"
     solver_address: <solver_address>
     hyperlane_domain: "875"
@@ -184,6 +160,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "ethereum"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     hyperlane_domain: "8453"
     quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
@@ -213,6 +190,7 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "MATIC"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "matic-network"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     hyperlane_domain: "137"
     quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
