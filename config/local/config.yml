@@ -146,8 +146,8 @@ chains:
       rpc_basic_auth_var: <env_var_with_server_password>
       grpc: <osmosis_grpc_server_url>
       grpc_tls_enabled: <grpc_tls_enabled> # e.g. false
-      min_fill_size: <min_fill_size> # e.g. 5000000
-      max_fill_size: <max_fill_size> # e.g. 10000000000
+      min_fill_size: 1000000
+      max_fill_size: 1000000000
       signer_gas_balance:
         warning_threshold_wei: 100000000 # 100 osmo ~ $50
         critical_threshold_wei: 40000000 # 40 osmo ~ $20
