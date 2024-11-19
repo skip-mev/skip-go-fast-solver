@@ -559,17 +559,8 @@ func ValidateChainConfig(chain ChainConfig) error {
 	if chain.USDCDenom == "" {
 		return fmt.Errorf("usdc_denom is required")
 	}
-	if chain.BatchUUSDCSettleUpThreshold == "" {
-		return fmt.Errorf("batch_uusdc_settle_up_threshold is required")
-	}
-	if chain.MinFeeBps == 0 {
-		return fmt.Errorf("min_fee_bps is required")
-	}
-	if chain.MinProfitMarginBPS == 0 {
-		return fmt.Errorf("min_profit_margin_bps is required")
-	}
-	if chain.MinProfitMarginBPS >= chain.MinFeeBps {
-		return fmt.Errorf("min_profit_margin_bps can not be >= min_fee_bps")
+	if chain.MinProfitMarginBPS > chain.MinFeeBps {
+		return fmt.Errorf("min_profit_margin_bps can not be > min_fee_bps")
 	}
 	if chain.Relayer.ProfitableRelayTimeout == nil {
 		return fmt.Errorf("relayer.profitable_relay_timeout is required")
@@ -585,6 +576,16 @@ func ValidateChainConfig(chain ChainConfig) error {
 		}
 		return validateCosmosConfig(chain.Cosmos, &chain.Relayer)
 	case ChainType_EVM:
+		if chain.BatchUUSDCSettleUpThreshold == "" {
+			return fmt.Errorf("batch_uusdc_settle_up_threshold is required")
+		}
+		if chain.MinFeeBps == 0 {
+			return fmt.Errorf("min_fee_bps is required")
+		}
+		if chain.MinProfitMarginBPS == 0 {
+			return fmt.Errorf("min_profit_margin_bps is required")
+		}
+
 		if chain.EVM == nil {
 			return fmt.Errorf("evm config is required for evm chain type")
 		}
