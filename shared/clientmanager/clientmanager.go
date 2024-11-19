@@ -12,7 +12,6 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/bridges/cctp"
 	"github.com/skip-mev/go-fast-solver/shared/keys"
 
-	"math/big"
 	"net/http"
 
 	"github.com/cosmos/cosmos-sdk/types/bech32"
@@ -170,11 +169,6 @@ func (cm *ClientManager) createEVMClient(
 	ctx context.Context,
 	chainID string,
 ) (cctp.BridgeClient, error) {
-	chainCfg, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
-	if err != nil {
-		return nil, err
-	}
-
 	rpc, err := config.GetConfigReader(ctx).GetRPCEndpoint(chainID)
 	if err != nil {
 		return nil, err
@@ -208,16 +202,11 @@ func (cm *ClientManager) createEVMClient(
 	if err != nil {
 		return nil, err
 	}
-	var minGasTip *big.Int
-	if chainCfg.EVM.MinGasTipCap != nil {
-		minGasTip = big.NewInt(*chainCfg.EVM.MinGasTipCap)
-	}
 
 	bridgeClient, err := cctp.NewEVMBridgeClient(
 		client,
 		chainID,
 		signing.NewLocalEthereumSigner(privateKey),
-		minGasTip,
 	)
 
 	return bridgeClient, err
