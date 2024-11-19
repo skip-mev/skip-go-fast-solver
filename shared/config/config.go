@@ -616,6 +616,12 @@ func validateCosmosConfig(config *CosmosConfig, relayerConfig *RelayerConfig) er
 	if config.GasDenom == "" {
 		return fmt.Errorf("cosmos.gas_denom is required")
 	}
+	if config.MinFillSize.Cmp(new(big.Int).SetInt64(0)) == 0 {
+		return fmt.Errorf("cosmos.min_fill_size is required")
+	}
+	if config.MaxFillSize.Cmp(new(big.Int).SetInt64(0)) == 0 {
+		return fmt.Errorf("cosmos.min_fill_size is required")
+	}
 
 	if config.SignerGasBalance.WarningThresholdWei == "" {
 		return fmt.Errorf("cosmos.signer_gas_balance.warning_threshold_wei is required")
