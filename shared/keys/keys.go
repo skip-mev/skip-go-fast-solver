@@ -36,10 +36,13 @@ func GetKeyStore(keyStoreType string, opts GetKeyStoreOpts) (map[string]string, 
 		}
 		return LoadKeyStoreFromPlaintextFile(opts.KeyFilePath)
 	case KeyStoreTypeEncryptedFile:
-		if opts.KeyFilePath == "" || opts.AESKeyHex == "" {
-			return nil, errors.New("key file path and aes key are required")
+		if opts.KeyFilePath == "" {
+			return nil, errors.New("key file path is required")
 		}
-		return LoadKeyStoreFromEncryptedFile(opts.KeyFilePath, opts.AESKeyHex)
+		if os.Getenv("AES_KEY_HEX") == "" {
+			return nil, errors.New("must set AES_KEY_HEX environment variable")
+		}
+		return LoadKeyStoreFromEncryptedFile(opts.KeyFilePath)
 	case KeyStoreTypeEnv:
 		return LoadKeyStoreFromEnv()
 	default:
@@ -89,7 +92,11 @@ func LoadKeyStoreFromEnv() (map[string]string, error) {
 	return keysMap, nil
 }
 
-func LoadKeyStoreFromEncryptedFile(keysPath, aesKeyHex string) (map[string]string, error) {
+func LoadKeyStoreFromEncryptedFile(keysPath string) (map[string]string, error) {
+	aesKeyHex := os.Getenv("AES_KEY_HEX")
+	if aesKeyHex == "" {
+		return nil, nil
+	}
 	passphrase, err := hex.DecodeString(aesKeyHex)
 	if err != nil {
 		return nil, err

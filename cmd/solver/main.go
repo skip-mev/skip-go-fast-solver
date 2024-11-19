@@ -41,7 +41,6 @@ import (
 var configPath = flag.String("config", "./config/local/config.yml", "path to solver config file")
 var keysPath = flag.String("keys", "./config/local/keys.json", "path to solver key file. must be specified if key-store-type is plaintext-file or encrpyted-file")
 var keyStoreType = flag.String("key-store-type", "plaintext-file", "where to load the solver keys from. (plaintext-file, encrypted-file, env)")
-var aesKeyHex = flag.String("aes-key-hex", "", "hex-encoded AES key used to decrypt keys file. must be specified if key-store-type is encrypted-file")
 var sqliteDBPath = flag.String("sqlite-db-path", "./solver.db", "path to sqlite db file")
 var migrationsPath = flag.String("migrations-path", "./db/migrations", "path to db migrations directory")
 var quickStart = flag.Bool("quickstart", true, "run quick start mode")
@@ -73,7 +72,7 @@ func main() {
 
 	ctx = config.ConfigReaderContext(ctx, config.NewConfigReader(cfg))
 
-	keyStore, err := keys.GetKeyStore(*keyStoreType, keys.GetKeyStoreOpts{KeyFilePath: *keysPath, AESKeyHex: *aesKeyHex})
+	keyStore, err := keys.GetKeyStore(*keyStoreType, keys.GetKeyStoreOpts{KeyFilePath: *keysPath})
 	if err != nil {
 		lmt.Logger(ctx).Fatal("Unable to load keystore", zap.Error(err))
 	}
