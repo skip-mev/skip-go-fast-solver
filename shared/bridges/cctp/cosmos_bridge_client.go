@@ -7,12 +7,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
-	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
 	"math/big"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
+	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
 
 	sdkgrpc "github.com/cosmos/cosmos-sdk/types/grpc"
 	"google.golang.org/grpc/metadata"
@@ -166,11 +167,37 @@ func (c *CosmosBridgeClient) GetTxResult(ctx context.Context, txHash string) (*b
 	result, err := c.rpcClient.Tx(ctx, txHashBytes, false)
 	if err != nil {
 		return nil, nil, err
-	} else if result.TxResult.Code != 0 {
-		return big.NewInt(result.TxResult.GasUsed), &TxFailure{fmt.Sprintf("tx failed with code: %d and log: %s", result.TxResult.Code, result.TxResult.Log)}, nil
 	}
 
-	return big.NewInt(result.TxResult.GasUsed), nil, nil
+	// parse tx fee event and use as the gas cost. we are using the fee event
+	// as the gas cost, technically this is not always true for all cosmos
+	// txns, however for all of the transactions that the solver will submit
+	// and get results of via this function, this should be true
+	var fee sdk.Coin
+outer:
+	for _, event := range result.TxResult.GetEvents() {
+		if event.GetType() != "tx" {
+			continue
+		}
+
+		for _, attribute := range event.GetAttributes() {
+			if attribute.GetKey() != "fee" {
+				continue
+			}
+
+			coin, err := sdk.ParseCoinNormalized(attribute.GetValue())
+			if err != nil {
+				return nil, nil, fmt.Errorf("parsing coin from tx fee event attribute %s: %w", attribute.GetValue(), err)
+			}
+			fee = coin
+			break outer
+		}
+	}
+
+	if result.TxResult.Code != 0 {
+		return fee.Amount.BigInt(), &TxFailure{fmt.Sprintf("tx failed with code: %d and log: %s", result.TxResult.Code, result.TxResult.Log)}, nil
+	}
+	return fee.Amount.BigInt(), nil, nil
 }
 
 func (c *CosmosBridgeClient) IsSettlementComplete(ctx context.Context, gatewayContractAddress, orderID string) (bool, error) {
