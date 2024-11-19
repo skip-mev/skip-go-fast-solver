@@ -571,15 +571,6 @@ func ValidateChainConfig(chain ChainConfig) error {
 	if chain.MinProfitMarginBPS >= chain.MinFeeBps {
 		return fmt.Errorf("min_profit_margin_bps can not be >= min_fee_bps")
 	}
-	if chain.Relayer.ValidatorAnnounceContractAddress == "" {
-		return fmt.Errorf("relayer.validator_announce_contract_address is required")
-	}
-	if chain.Relayer.MerkleHookContractAddress == "" {
-		return fmt.Errorf("relayer.merkle_hook_contract_address is required")
-	}
-	if chain.Relayer.MailboxAddress == "" {
-		return fmt.Errorf("relayer.mailbox_address is required")
-	}
 	if chain.Relayer.ProfitableRelayTimeout == nil {
 		return fmt.Errorf("relayer.profitable_relay_timeout is required")
 	}
@@ -592,7 +583,7 @@ func ValidateChainConfig(chain ChainConfig) error {
 		if chain.Cosmos == nil {
 			return fmt.Errorf("cosmos config is required for cosmos chain type")
 		}
-		return validateCosmosConfig(chain.Cosmos)
+		return validateCosmosConfig(chain.Cosmos, &chain.Relayer)
 	case ChainType_EVM:
 		if chain.EVM == nil {
 			return fmt.Errorf("evm config is required for evm chain type")
@@ -603,7 +594,7 @@ func ValidateChainConfig(chain ChainConfig) error {
 	}
 }
 
-func validateCosmosConfig(config *CosmosConfig) error {
+func validateCosmosConfig(config *CosmosConfig, relayerConfig *RelayerConfig) error {
 	if config.RPC == "" {
 		return fmt.Errorf("cosmos.rpc is required")
 	}
@@ -625,6 +616,16 @@ func validateCosmosConfig(config *CosmosConfig) error {
 	}
 	if config.SignerGasBalance.CriticalThresholdWei == "" {
 		return fmt.Errorf("cosmos.signer_gas_balance.critical_threshold_wei is required")
+	}
+
+	if relayerConfig.ValidatorAnnounceContractAddress == "" {
+		return fmt.Errorf("relayer.validator_announce_contract_address is required")
+	}
+	if relayerConfig.MerkleHookContractAddress == "" {
+		return fmt.Errorf("relayer.merkle_hook_contract_address is required")
+	}
+	if relayerConfig.MailboxAddress == "" {
+		return fmt.Errorf("relayer.mailbox_address is required")
 	}
 
 	return nil
