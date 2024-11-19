@@ -132,6 +132,8 @@ chains:
     gas_token_decimals: 6
     gas_token_coingecko_id: "osmosis"
     quick_start_num_blocks_back: 300000
+    max_rebalancing_gas_threshold: 1000000
+    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     fast_transfer_contract_address: osmo1vy34lpt5zlj797w7zqdta3qfq834kapx88qtgudy7jgljztj567s73ny82
     solver_address: <solver_address>
     hyperlane_domain: "875"
