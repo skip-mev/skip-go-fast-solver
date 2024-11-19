@@ -28,7 +28,7 @@ import (
 )
 
 type TxPriceOracle interface {
-	TxFeeUUSDC(ctx context.Context, tx *ethtypes.Transaction, gasTokenCoingeckoID string) (*big.Int, error)
+	TxFeeUUSDC(ctx context.Context, tx *ethtypes.Transaction) (*big.Int, error)
 }
 
 type HyperlaneClient struct {
@@ -279,10 +279,6 @@ func (c *HyperlaneClient) QuoteProcessUUSDC(ctx context.Context, domain string, 
 	if err != nil {
 		return nil, fmt.Errorf("getting chainID for hyperlane domain %s: %w", domain, err)
 	}
-	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(destinationChainID)
-	if err != nil {
-		return nil, fmt.Errorf("getting destination chain %s config: %w", destinationChainID, err)
-	}
 
 	signer, err := c.signer(ctx, domain)
 	if err != nil {
@@ -309,7 +305,7 @@ func (c *HyperlaneClient) QuoteProcessUUSDC(ctx context.Context, domain string, 
 		return nil, fmt.Errorf("simulating process tx: %w", err)
 	}
 
-	txFeeUUSDC, err := c.txPriceOracle.TxFeeUUSDC(ctx, unsentProcessTx, destinationChainConfig.GasTokenCoingeckoID)
+	txFeeUUSDC, err := c.txPriceOracle.TxFeeUUSDC(ctx, unsentProcessTx)
 	if err != nil {
 		return nil, fmt.Errorf("getting tx fee in uusdc from gas oracle: %w", err)
 	}
