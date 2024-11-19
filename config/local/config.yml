@@ -59,8 +59,6 @@ chains:
     evm:
       rpc: <avalanche_rpc_server_url>
       rpc_basic_auth_var: <env_var_with_server_password>
-      contracts:
-        usdc_erc20_address: 0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E
       signer_gas_balance:
         warning_threshold_wei: 1000000000000000000 # 1 avax
         critical_threshold_wei: 500000000000000000 # 0.5 avax
