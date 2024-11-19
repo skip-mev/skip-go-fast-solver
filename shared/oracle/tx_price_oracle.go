@@ -1,4 +1,4 @@
-package evmrpc
+package oracle
 
 import (
 	"context"
@@ -41,19 +41,18 @@ func (o *Oracle) TxFeeUUSDC(ctx context.Context, tx *types.Transaction) (*big.In
 
 	// for a dry ran tx, Gas() will be the result of calling eth_estimateGas
 	estimatedGasUsed := tx.Gas()
-	return o.GasCostUUSDC(ctx, estimatedPricePerGas, big.NewInt(int64(estimatedGasUsed)), tx.ChainId().String())
+
+	txFee := new(big.Int).Mul(estimatedPricePerGas, big.NewInt(int64(estimatedGasUsed)))
+	return o.GasCostUUSDC(ctx, txFee, tx.ChainId().String())
 }
 
-// gasCostUUSDC converts an amount of gas and the price per gas in gwei to
-// uusdc based on the current CoinGecko price of ethereum in usd.
-func (o *Oracle) GasCostUUSDC(ctx context.Context, pricePerGas *big.Int, gasUsed *big.Int, chainID string) (*big.Int, error) {
+// GasCostUUSDC converts a tx fee to uusdc based on the current CoinGecko of
+// the gas token in usd.
+func (o *Oracle) GasCostUUSDC(ctx context.Context, txFee *big.Int, chainID string) (*big.Int, error) {
 	chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
 	if err != nil {
 		return nil, fmt.Errorf("getting config for chain %s: %w", chainID, err)
 	}
-
-	// Calculate transaction fee
-	txFee := new(big.Int).Mul(gasUsed, pricePerGas)
 
 	// Get the gas token price in USD cents from CoinGecko
 	gasTokenPriceUSD, err := o.coingecko.GetSimplePrice(ctx, chainConfig.GasTokenCoingeckoID, coingeckoUSDCurrency)
