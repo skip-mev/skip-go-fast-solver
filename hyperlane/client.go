@@ -3,6 +3,8 @@ package hyperlane
 import (
 	"context"
 	"fmt"
+	"math/big"
+
 	"github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -23,6 +25,7 @@ type Client interface {
 	Process(ctx context.Context, domain string, message []byte, metadata []byte) ([]byte, error)
 	IsContract(ctx context.Context, domain, address string) (bool, error)
 	GetHyperlaneDispatch(ctx context.Context, domain, originChainID, initiateTxHash string) (*types.MailboxDispatchEvent, *types.MailboxMerkleHookPostDispatchEvent, error)
+	QuoteProcessUUSDC(ctx context.Context, domain string, message []byte, metadata []byte) (*big.Int, error)
 }
 
 type MultiClient struct {
@@ -31,7 +34,7 @@ type MultiClient struct {
 
 // NewMultiClientFromConfig creates a MultiClient that is configured for every
 // chain specific in the config that has a HyperlaneDomain set
-func NewMultiClientFromConfig(ctx context.Context, manager evmrpc.EVMRPCClientManager, keystore keys.KeyStore, evmTxExecutor evm.EVMTxExecutor) (*MultiClient, error) {
+func NewMultiClientFromConfig(ctx context.Context, manager evmrpc.EVMRPCClientManager, keystore keys.KeyStore, evmTxPriceOracle ethereum.TxPriceOracle, evmTxExecutor evm.EVMTxExecutor) (*MultiClient, error) {
 	clients := make(map[string]Client)
 	for _, cfg := range config.GetConfigReader(ctx).Config().Chains {
 		if cfg.HyperlaneDomain == "" {
@@ -46,7 +49,7 @@ func NewMultiClientFromConfig(ctx context.Context, manager evmrpc.EVMRPCClientMa
 			}
 			clients[cfg.HyperlaneDomain] = client
 		case config.ChainType_EVM:
-			client, err := ethereum.NewHyperlaneClient(ctx, cfg.HyperlaneDomain, manager, keystore, evmTxExecutor)
+			client, err := ethereum.NewHyperlaneClient(ctx, cfg.HyperlaneDomain, manager, keystore, evmTxPriceOracle, evmTxExecutor)
 			if err != nil {
 				return nil, fmt.Errorf("creating cosmos hyperlane client for domain %s: %w", cfg.HyperlaneDomain, err)
 			}
@@ -120,6 +123,14 @@ func (c *MultiClient) Process(ctx context.Context, domain string, message []byte
 		return nil, fmt.Errorf("no configured client for domain %s", domain)
 	}
 	return client.Process(ctx, domain, message, metadata)
+}
+
+func (c *MultiClient) QuoteProcessUUSDC(ctx context.Context, domain string, message []byte, metadata []byte) (*big.Int, error) {
+	client, ok := c.clients[domain]
+	if !ok {
+		return nil, fmt.Errorf("no configured client for domain %s", domain)
+	}
+	return client.QuoteProcessUUSDC(ctx, domain, message, metadata)
 }
 
 func (c *MultiClient) IsContract(ctx context.Context, domain, address string) (bool, error) {

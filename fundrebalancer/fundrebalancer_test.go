@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	evm2 "github.com/skip-mev/go-fast-solver/mocks/shared/txexecutor/evm"
 	"math/big"
 	"os"
 	"strconv"
 	"testing"
+
+	evm2 "github.com/skip-mev/go-fast-solver/mocks/shared/txexecutor/evm"
 
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/fundrebalancer"
@@ -523,4 +524,107 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		assert.Len(t, transfers, 0, "expected no transfers to be submitted due to gas threshold")
 	})
 
+	t.Run("submits required erc20 approvals returned from Skip Go", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		mockConfigReader := mock_config.NewMockConfigReader(t)
+		mockConfigReader.On("Config").Return(config.Config{
+			FundRebalancer: map[string]config.FundRebalancerConfig{
+				osmosisChainID: {
+					TargetAmount:     strconv.Itoa(osmosisTargetAmount),
+					MinAllowedAmount: strconv.Itoa(osmosisMinAmount),
+				},
+				arbitrumChainID: {
+					TargetAmount:     strconv.Itoa(arbitrumTargetAmount),
+					MinAllowedAmount: strconv.Itoa(arbitrumMinAmount),
+				},
+			},
+		})
+		mockConfigReader.EXPECT().GetUSDCDenom(osmosisChainID).Return(osmosisUSDCDenom, nil)
+		mockConfigReader.EXPECT().GetUSDCDenom(arbitrumChainID).Return(arbitrumUSDCDenom, nil)
+		mockConfigReader.On("GetChainConfig", osmosisChainID).Return(
+			config.ChainConfig{
+				Type:          config.ChainType_COSMOS,
+				Cosmos:        &config.CosmosConfig{USDCDenom: osmosisUSDCDenom},
+				SolverAddress: osmosisAddress,
+			},
+			nil,
+		)
+		mockConfigReader.On("GetChainConfig", arbitrumChainID).Return(
+			config.ChainConfig{
+				Type: config.ChainType_EVM,
+				EVM: &config.EVMConfig{
+					Contracts: config.ContractsConfig{USDCERC20Address: arbitrumUSDCDenom},
+				},
+				SolverAddress: arbitrumAddress,
+			},
+			nil,
+		)
+		ctx = config.ConfigReaderContext(ctx, mockConfigReader)
+
+		f, err := loadKeysFile(defaultKeys)
+		assert.NoError(t, err)
+
+		mockSkipGo := mock_skipgo.NewMockSkipGoClient(t)
+		mockEVMClientManager := mock_evmrpc.NewMockEVMRPCClientManager(t)
+		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
+		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
+		mockDatabse := mock_database.NewMockDatabase(t)
+
+		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
+		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", nil)
+
+		// mock executing the approval tx
+		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, mock.Anything, "0", arbitrumUSDCDenom, mock.Anything).Return("arbitrum hash", nil)
+
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
+		assert.NoError(t, err)
+
+		// setup initial state of mocks
+
+		// no pending txns
+		mockDatabse.EXPECT().GetAllPendingRebalanceTransfers(mockContext).Return(nil, nil).Maybe()
+		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, osmosisChainID).Return(nil, nil)
+		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, arbitrumChainID).Return(nil, nil)
+
+		// osmosis balance lower than min amount, arbitrum & eth balances higher than target
+		mockSkipGo.EXPECT().Balance(mockContext, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("0", nil)
+		mockEVMClient.EXPECT().GetUSDCBalance(mockContext, arbitrumUSDCDenom, arbitrumAddress).Return(big.NewInt(1000), nil)
+
+		route := &skipgo.RouteResponse{
+			AmountOut:              strconv.Itoa(osmosisTargetAmount),
+			Operations:             []any{"opts"},
+			RequiredChainAddresses: []string{arbitrumChainID, osmosisChainID},
+		}
+		mockSkipGo.EXPECT().Route(mockContext, arbitrumUSDCDenom, arbitrumChainID, osmosisUSDCDenom, osmosisChainID, big.NewInt(osmosisTargetAmount)).
+			Return(route, nil).Once()
+
+		txs := []skipgo.Tx{{
+			EVMTx: &skipgo.EVMTx{
+				ChainID: arbitrumChainID,
+				To:      osmosisAddress,
+				Value:   "999",
+				RequiredERC20Approvals: []skipgo.ERC20Approval{{
+					TokenContract: arbitrumUSDCDenom,
+					Spender:       "0xskipgo",
+					Amount:        "999",
+				}},
+				SignerAddress: arbitrumAddress,
+			}}}
+		mockSkipGo.EXPECT().Msgs(mockContext, arbitrumUSDCDenom, arbitrumChainID, arbitrumAddress, osmosisUSDCDenom, osmosisChainID, osmosisAddress, big.NewInt(osmosisTargetAmount), big.NewInt(osmosisTargetAmount), []string{arbitrumAddress, osmosisAddress}, route.Operations).
+			Return(txs, nil).Once()
+
+		mockEVMClient.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100), nil)
+
+		// should insert once rebalance transaction from arbitrum to osmosis
+		mockDatabse.EXPECT().InsertRebalanceTransfer(mockContext, db.InsertRebalanceTransferParams{
+			TxHash:             "arbitrum hash",
+			SourceChainID:      arbitrumChainID,
+			DestinationChainID: osmosisChainID,
+			Amount:             strconv.Itoa(osmosisTargetAmount),
+		}).Return(1, nil).Once()
+
+		rebalancer.Rebalance(ctx)
+	})
 }

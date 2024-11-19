@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
 	"math/big"
 	"strconv"
@@ -131,7 +132,17 @@ func (c *CosmosBridgeClient) Balance(
 }
 
 func (c *CosmosBridgeClient) SignerGasTokenBalance(ctx context.Context) (*big.Int, error) {
-	return nil, errors.New("not implemented")
+	fromAddress, err := bech32.ConvertAndEncode(c.prefix, c.signer.Address())
+	if err != nil {
+		return nil, fmt.Errorf("converting signer address to bech32: %w", err)
+	}
+
+	balance, err := c.Balance(ctx, fromAddress, c.gasDenom)
+	if err != nil {
+		return nil, fmt.Errorf("querying gas token balance: %w", err)
+	}
+
+	return balance, nil
 }
 
 func (c *CosmosBridgeClient) Allowance(ctx context.Context, owner string) (*big.Int, error) {
@@ -578,4 +589,8 @@ func (c *CosmosBridgeClient) BlockHeight(ctx context.Context) (uint64, error) {
 		return 0, err
 	}
 	return uint64(resp.Header.Height), nil
+}
+
+func (c *CosmosBridgeClient) QueryOrderSubmittedEvent(ctx context.Context, gatewayContractAddress, orderID string) (*fast_transfer_gateway.FastTransferOrder, error) {
+	return nil, errors.New("not implemented")
 }

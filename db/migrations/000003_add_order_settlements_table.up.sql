@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS order_settlements (
     destination_chain_id TEXT NOT NULL,
     source_chain_gateway_contract_address TEXT NOT NULL,
     amount TEXT NOT NULL,
+    profit TEXT NOT NULL,
     order_id TEXT NOT NULL,
 
     initiate_settlement_tx TEXT,

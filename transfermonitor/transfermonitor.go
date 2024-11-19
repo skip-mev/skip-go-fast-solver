@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"math/big"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +19,7 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"github.com/skip-mev/go-fast-solver/shared/tmrpc"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -81,6 +81,7 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 				var startBlockHeight uint64
 				transferMonitorMetadata, err := t.db.GetTransferMonitorMetadata(ctx, chainID)
 				if err != nil && !strings.Contains(err.Error(), "no rows in result set") {
+
 					lmt.Logger(ctx).Error("Error getting transfer monitor metadata", zap.Error(err))
 					continue
 				} else if err == nil {
@@ -144,10 +145,12 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 
 						_, err := t.db.InsertOrder(ctx, toInsert)
 						if err != nil && !strings.Contains(err.Error(), "sql: no rows in result set") {
+
 							lmt.Logger(ctx).Error("Error inserting order", zap.Error(err))
 							errorInsertingOrder = true
 							break
 						}
+						metrics.FromContext(ctx).IncFillOrderStatusChange(order.ChainID, order.DestinationChainID, dbtypes.OrderStatusPending)
 					}
 				}
 				lmt.Logger(ctx).Debug("num orders found while processing blocks", zap.Int("numOrders", len(orders)))
@@ -160,6 +163,7 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 					HeightLastSeen: int64(endBlockHeight),
 				})
 				if err != nil {
+
 					lmt.Logger(ctx).Error("Error inserting transfer monitor metadata", zap.Error(err))
 					continue
 				}
@@ -304,7 +308,7 @@ OuterLoop:
 
 				for iter.Next() {
 					m.Lock()
-					orderData := decodeOrder(iter.Event.Order)
+					orderData := fast_transfer_gateway.DecodeOrder(iter.Event.Order)
 					orders = append(orders, Order{
 						TxHash:             iter.Event.Raw.TxHash.Hex(),
 						TxBlockHeight:      iter.Event.Raw.BlockNumber,
@@ -333,20 +337,6 @@ OuterLoop:
 		return nil, err
 	}
 	return orders, nil
-}
-
-func decodeOrder(bytes []byte) fast_transfer_gateway.FastTransferOrder {
-	var order fast_transfer_gateway.FastTransferOrder
-	order.Sender = [32]byte(bytes[0:32])
-	order.Recipient = [32]byte(bytes[32:64])
-	order.AmountIn = new(big.Int).SetBytes(bytes[64:96])
-	order.AmountOut = new(big.Int).SetBytes(bytes[96:128])
-	order.Nonce = uint32(new(big.Int).SetBytes(bytes[128:132]).Uint64())
-	order.SourceDomain = uint32(new(big.Int).SetBytes(bytes[132:136]).Uint64())
-	order.DestinationDomain = uint32(new(big.Int).SetBytes(bytes[136:140]).Uint64())
-	order.TimeoutTimestamp = new(big.Int).SetBytes(bytes[140:148]).Uint64()
-	order.Data = bytes[148:]
-	return order
 }
 
 func getChainID(chain config.ChainConfig) (string, error) {

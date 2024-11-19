@@ -261,3 +261,40 @@ func (c *EVMBridgeClient) OrderStatus(ctx context.Context, gatewayContractAddres
 
 	return status, nil
 }
+
+func (c *EVMBridgeClient) QueryOrderSubmittedEvent(ctx context.Context, gatewayContractAddress, orderID string) (*fast_transfer_gateway.FastTransferOrder, error) {
+	fastTransferGateway, err := fast_transfer_gateway.NewFastTransferGateway(
+		common.HexToAddress(gatewayContractAddress),
+		c.client,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	orderIDBytes, err := hex.DecodeString(orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create topic for OrderRefunded event to filter logs for OrderRefunded events with this orderID
+	orderSubmittedTopic := [][32]byte{[32]byte(orderIDBytes)}
+	filterOpts := &bind.FilterOpts{
+		Context: ctx,
+	}
+
+	iterator, err := fastTransferGateway.FilterOrderSubmitted(filterOpts, orderSubmittedTopic)
+	if err != nil {
+		return nil, fmt.Errorf("filtering OrderSubmitted events: %w", err)
+	}
+
+	// Find the most recent OrderRefunded event for this orderID
+	var order *fast_transfer_gateway.FastTransferOrder
+	for iterator.Next() {
+		if iterator.Event != nil {
+			decodedOrder := fast_transfer_gateway.DecodeOrder(iterator.Event.Order)
+			order = &decodedOrder
+		}
+	}
+
+	return order, nil
+}

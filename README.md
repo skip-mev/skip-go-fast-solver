@@ -124,3 +124,12 @@ make build-cli # build cli tool
 ### Hyperlane Docs
 
 - [Hyperlane Docs Link](https://docs.hyperlane.xyz/)
+
+### Key Management
+
+Besides storing keys in a plaintext config file, users can also:
+
+- Run the solver with the flag `--key-store-type env` and store a json string of the keys map in the environment variable `SOLVER_KEYS`.
+  The keys map json string should be formed like [this](config/local/keys.json).
+- Store keys in an encrypted file and run the solver with the flags `--key-store-type encrypted-file --keys <path to encrypted keys file> --aes-key-hex <hex encoded aes key for decryption>`.
+  An example of how the encrypted file should be formed can be found [here](examples/encrypted_key_store/main.go).

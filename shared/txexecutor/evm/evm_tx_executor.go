@@ -1,13 +1,17 @@
 package evm
 
 import (
+	"sync"
+	"time"
+
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/evmrpc"
 	"github.com/skip-mev/go-fast-solver/shared/signing"
 	"github.com/skip-mev/go-fast-solver/shared/signing/evm"
 	"golang.org/x/net/context"
-	"sync"
-	"time"
+	"math/big"
 )
 
 type EVMTxExecutor interface {
@@ -58,6 +62,18 @@ func (s *SerializedEVMTxExecutor) ExecuteTx(
 		return "", ctx.Err()
 	}
 
+	chainCfg, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
+	if err != nil {
+		return "", err
+	}
+	if chainCfg.EVM == nil {
+		return "", fmt.Errorf("EVM chain config is null for chain id %s", chainID)
+	}
+	var minGasTipCap *big.Int
+	if chainCfg.EVM.MinGasTipCap != nil {
+		minGasTipCap = big.NewInt(*chainCfg.EVM.MinGasTipCap)
+	}
+
 	nonce, err := client.PendingNonceAt(ctx, common.HexToAddress(signerAddress))
 	if err != nil {
 		return "", err
@@ -70,10 +86,13 @@ func (s *SerializedEVMTxExecutor) ExecuteTx(
 		evm.WithChainID(chainID),
 		evm.WithNonce(nonce),
 		evm.WithEstimatedGasLimit(signerAddress, to, value, data),
-		evm.WithEstimatedGasFeeCap(),
-		evm.WithEstimatedGasTipCap(),
+		evm.WithEstimatedGasTipCap(minGasTipCap),
+		evm.WithEstimatedGasFeeCap(minGasTipCap),
 	)
 	signedTx, err := signer.Sign(ctx, chainID, tx)
+	if err != nil {
+		return "", err
+	}
 	signedTxBytes, err := signedTx.MarshalBinary()
 	if err != nil {
 		return "", err

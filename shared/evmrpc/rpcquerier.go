@@ -25,6 +25,7 @@ type EVMChainRPC interface {
 	GetLogs(ctx context.Context, topics [][]common.Hash, addresses []common.Address) ([]types.Log, error)
 	BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error)
 	HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error)
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 	PendingNonceAt(ctx context.Context, address common.Address) (uint64, error)
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
@@ -130,6 +131,10 @@ func (cr *chainRPCImpl) BlockByHash(ctx context.Context, hash common.Hash) (*typ
 
 func (cr *chainRPCImpl) HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
 	return cr.cc.HeaderByHash(ctx, hash)
+}
+
+func (cr *chainRPCImpl) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+	return cr.cc.HeaderByNumber(ctx, number)
 }
 
 func (cr *chainRPCImpl) PendingNonceAt(ctx context.Context, address common.Address) (uint64, error) {

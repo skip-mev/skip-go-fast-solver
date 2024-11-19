@@ -2,6 +2,16 @@
 # The solver will not starup with any unconfigured values in the final configuration.
 metrics:
   prometheus_address: "0.0.0.0:8001"
+coingecko:
+  base_url: "https://pro-api.coingecko.com/api/v3/"
+  # API key is optional here. If you do not have an API key, you can remove the
+  # api_key option all together. If you have a coin gecko API key, we will use
+  # it to get more up to date gas costs. If you specify an API key, you should
+  # reduce the requests per minute and cache refresh interval according to your
+  # keys limits. The values are currently set for no API key use.
+  api_key: <api_key>
+  requests_per_minute: 2
+  cache_refresh_interval: "15m"
 order_filler:
   worker_count: 10
 # The fund_rebalancer config is optional. If you do not want the solver to
@@ -9,13 +19,13 @@ order_filler:
 # will not be fast transferred via Skip Go Fast), you can omit the
 # fund_rebalancer config all together.
 fund_rebalancer:
-  ethereum:
+  1:
     target_amount: <target_amount> # e.g. "1000000000"
     min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
-  arbitrum:
+  42161:
     target_amount: <target_amount> # e.g. "1000000000"
     min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
-  osmosis:
+  osmosis-1:
     target_amount: <target_amount> # e.g. "1000000000"
     min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
 chains:
@@ -33,8 +43,10 @@ chains:
     fast_transfer_contract_address: <use_address_from_readme>
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     usdc_denom: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <ethereum_rpc_server_url> # e.g. "https://eth.llamarpc.com"
       rpc_basic_auth_var: <server_password>
@@ -45,6 +57,37 @@ chains:
       validator_announce_contract_address: '0xCe74905e51497b4adD3639366708b821dcBcff96'
       merkle_hook_contract_address: '0x48e6c30B97748d1e2e03bf3e9FbE3890ca5f8CCA'
       mailbox_address: '0xc005dc82818d67AF737725bD4bf75435d065D239'
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
+
+  ethereum-testnet:
+    chain_name: "ethereum"
+    chain_id: "11155111"
+    type: "evm"
+    environment: "testnet"
+    gas_token_symbol: "ETH"
+    gas_token_decimals: 18
+    fast_transfer_contract_address: <use_address_from_readme>
+    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
+    min_fill_size: <min_fill_size> # e.g. 5000000
+    max_fill_size: <max_fill_size> # e.g. 10000000000
+    max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
+    solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    evm:
+      rpc: <ethereum_testnet_rpc_server_url> # e.g. "https://sepolia.infura.io/v3/YOUR-API-KEY"
+      rpc_basic_auth_var: <server_password>
+      contracts:
+        usdc_erc20_address: 0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
+      signer_gas_balance:
+        warning_threshold_wei: 250000000000000000
+        critical_threshold_wei: 0
+    relayer:
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
 
   43114:
     chain_name: "avalanche"
@@ -60,8 +103,10 @@ chains:
     fast_transfer_contract_address: <use_address_from_readme>
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     usdc_denom: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <avalanche_rpc_server_url> # e.g. "https://api.avax.network/ext/bc/C/rpc"
       rpc_basic_auth_var: <server_password>
@@ -72,6 +117,8 @@ chains:
       validator_announce_contract_address: '0x9Cad0eC82328CEE2386Ec14a12E81d070a27712f'
       merkle_hook_contract_address: '0x84eea61D679F42D92145fA052C89900CBAccE95A'
       mailbox_address: '0xFf06aFcaABaDDd1fb08371f9ccA15D73D51FeBD6'
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
 
   10:
     chain_name: "optimism"
@@ -87,8 +134,10 @@ chains:
     fast_transfer_contract_address: <use_address_from_readme>
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     usdc_denom: "0x0b2c639c533813f4aa9d7837caf62653d097ff85"
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <optimism_rpc_server_url> # e.g. "https://mainnet.optimism.io"
       rpc_basic_auth_var: <server_password>
@@ -99,6 +148,8 @@ chains:
       validator_announce_contract_address: '0x30f5b08e01808643221528BB2f7953bf2830Ef38'
       merkle_hook_contract_address: '0x68eE9bec9B4dbB61f69D9D293Ae26a5AACb2e28f'
       mailbox_address: '0xd4C1905BB1D26BC93DAC913e13CaCC278CdCC80D'
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
 
   42161:
     chain_name: "arbitrum"
@@ -115,7 +166,10 @@ chains:
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     usdc_denom: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
     batch_uusdc_settle_up_threshold: 5000000
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <arbitrum_rpc_server_url> # e.g. "https://arb1.arbitrum.io/rpc"
       rpc_basic_auth_var: <server_password>
@@ -126,7 +180,46 @@ chains:
       validator_announce_contract_address: "0x1df063280C4166AF9a725e3828b4dAC6c7113B08"
       merkle_hook_contract_address: "0xb49a14568f9CC440f2c7DCf7FC6766040a5eb860"
       mailbox_address: "0x979Ca5202784112f4738403dBec5D0F3B9daabB9"
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
 
+  osmosis:
+    chain_name: "osmosis"
+    chain_id: "osmosis-1"
+    type: "cosmos"
+    environment: "mainnet"
+    gas_token_symbol: "OSMO"
+    gas_token_decimals: 6
+    fast_transfer_contract_address: <use_address_from_readme>
+    solver_address: <solver_address>
+    hyperlane_domain: "875"
+    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
+    min_fill_size: <min_fill_size> # e.g. 5000000
+    max_fill_size: <max_fill_size> # e.g. 10000000000
+    max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
+    usdc_denom: "ibc/498A0751C798A0D9A389AA3691123DADA57DAA4FE165D5C75894505B876BA6E4"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    cosmos:
+      address_prefix: "osmo"
+      rpc: <osmosis_rpc_server_url> # e.g. "https://rpc.osmosis.zone"
+      rpc_basic_auth_var: <server_password>
+      grpc: <osmosis_grpc_server_url> # e.g. "grpc.osmosis.zone:9090"
+      grpc_tls_enabled: <grpc_tls_enabled> # e.g. false
+      usdc_denom: "ibc/498A0751C798A0D9A389AA3691123DADA57DAA4FE165D5C75894505B876BA6E4"
+      signer_gas_balance:
+        warning_threshold_wei: <warning_threshold_wei> # e.g. 42860000
+        critical_threshold_wei: <critical_threshold_wei> # e.g. 14290000
+      gas_price: 0.0025
+      gas_denom: "uosmo"
+    relayer:
+      validator_announce_contract_address: "osmo147r8mfdsngswujgkr4tln9rhcrzz6yq0xn448ksd96mlcmp9wg6stvznke"
+      merkle_hook_contract_address: "osmo1e765uc5mctl7rz8dzl9decl5ghgxggeqyxutkjp2xkggrg6zma3qgdq2g4"
+      mailbox_address: "osmo1r6u37zv47ke4d2k9tkzun72ch466w6594kv8gqgrtmsvf7qxpm9sj95v98"
+    relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
+  
   8453:
     chain_name: "base"
     chain_id: "8453"
@@ -141,8 +234,10 @@ chains:
     fast_transfer_contract_address: <use_address_from_readme>
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     usdc_denom: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <base_mainnet_rpc_server_url> # e.g. "https://mainnet.base.org"
       rpc_basic_auth_var: <server_password>
@@ -153,6 +248,8 @@ chains:
       validator_announce_contract_address: '0x182E8d7c5F1B06201b102123FC7dF0EaeB445a7B'
       merkle_hook_contract_address: '0x19dc38aeae620380430C200a6E990D5Af5480117'
       mailbox_address: '0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D'
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
 
   137:
     chain_name: "polygon"
@@ -168,8 +265,10 @@ chains:
     fast_transfer_contract_address: <use_address_from_readme>
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     usdc_denom: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359"
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
     min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
       rpc: <polygon_mainnet_rpc_server_url> # e.g. "https://polygon-rpc.com"
       rpc_basic_auth_var: <server_password>
@@ -181,36 +280,3 @@ chains:
       merkle_hook_contract_address: '0x73FbD25c3e817DC4B4Cd9d00eff6D83dcde2DfF6'
       mailbox_address: '0x5d934f4e2f797775e53561bB72aca21ba36B96BB'
 
-  osmosis-1:
-    chain_name: "osmosis"
-    chain_id: "osmosis-1"
-    type: "cosmos"
-    environment: "mainnet"
-    gas_token_symbol: "OSMO"
-    gas_token_decimals: 6
-    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    hyperlane_domain: "875"
-    quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
-    max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
-    fast_transfer_contract_address: <use_address_from_readme>
-    solver_address: <solver_address>
-    usdc_denom: "ibc/498A0751C798A0D9A389AA3691123DADA57DAA4FE165D5C75894505B876BA6E4"
-    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
-    min_fee_bps: <min_fee_bps> # e.g. 100
-    cosmos:
-      address_prefix: "osmo"
-      rpc: <osmosis_rpc_server_url> # e.g. "https://rpc.osmosis.zone"
-      rpc_basic_auth_var: <server_password>
-      grpc: <osmosis_grpc_server_url> # e.g. "grpc.osmosis.zone:9090"
-      grpc_tls_enabled: <grpc_tls_enabled> # e.g. false
-      signer_gas_balance:
-        warning_threshold_wei: <warning_threshold_wei> # e.g. 42860000
-        critical_threshold_wei: <critical_threshold_wei> # e.g. 14290000
-      gas_price: <gas_price> # e.g. "0.0025"
-      gas_denom: "uosmo"
-      min_fill_size: <min_fill_size> # e.g. 5000000
-      max_fill_size: <max_fill_size> # e.g. 10000000000
-    relayer:
-      validator_announce_contract_address: "osmo147r8mfdsngswujgkr4tln9rhcrzz6yq0xn448ksd96mlcmp9wg6stvznke"
-      merkle_hook_contract_address: "osmo1e765uc5mctl7rz8dzl9decl5ghgxggeqyxutkjp2xkggrg6zma3qgdq2g4"
-      mailbox_address: "osmo1r6u37zv47ke4d2k9tkzun72ch466w6594kv8gqgrtmsvf7qxpm9sj95v98"

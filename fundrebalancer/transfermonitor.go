@@ -9,6 +9,7 @@ import (
 	genDB "github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"go.uber.org/zap"
 )
 
@@ -57,7 +58,7 @@ func (t *TransferTracker) UpdateTransfers(ctx context.Context) error {
 	}
 
 	for _, pendingTransfer := range pendingTransfers {
-		err := t.updateTransferStatus(ctx, pendingTransfer.ID, pendingTransfer.TxHash, pendingTransfer.SourceChainID)
+		err := t.updateTransferStatus(ctx, pendingTransfer.ID, pendingTransfer.TxHash, pendingTransfer.SourceChainID, pendingTransfer.DestinationChainID)
 		if err != nil {
 			lmt.Logger(ctx).Error(
 				"error tracking transfer",
@@ -74,15 +75,15 @@ func (t *TransferTracker) UpdateTransfers(ctx context.Context) error {
 	return nil
 }
 
-func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID int64, hash string, chainID string) error {
-	txHash, err := t.skipgo.TrackTx(ctx, hash, chainID)
+func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID int64, hash string, sourceChainID, destinationChainID string) error {
+	txHash, err := t.skipgo.TrackTx(ctx, hash, sourceChainID)
 	if err != nil {
-		return fmt.Errorf("failed to track transaction %s on chain %s: %w", hash, chainID, err)
+		return fmt.Errorf("failed to track transaction %s on chain %s: %w", hash, sourceChainID, err)
 	}
 
-	currentStatus, err := t.skipgo.Status(ctx, txHash, chainID)
+	currentStatus, err := t.skipgo.Status(ctx, txHash, sourceChainID)
 	if err != nil {
-		return fmt.Errorf("getting status for transaction %s on chain %s: %w", hash, chainID, err)
+		return fmt.Errorf("getting status for transaction %s on chain %s: %w", hash, sourceChainID, err)
 	}
 
 	// check if all transfers in the status are done
@@ -101,7 +102,8 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 			"waiting for transaction to complete",
 			zap.String("latestState", string(latestState)),
 			zap.String("txnHash", hash),
-			zap.String("chainID", chainID),
+			zap.String("sourceChainID", sourceChainID),
+			zap.String("destinationChainID", destinationChainID),
 		)
 		return nil
 	}
@@ -119,16 +121,18 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 		lmt.Logger(ctx).Info(
 			"rebalance transaction completed wtih an error",
 			zap.String("txnHash", hash),
-			zap.String("chainID", chainID),
+			zap.String("sourceChainID", sourceChainID),
+			zap.String("destinationChainID", destinationChainID),
 			zap.String("error", transferError),
 		)
+		metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(sourceChainID, destinationChainID, db.RebalanceTransactionStatusFailed)
 
 		err = t.database.UpdateTransferStatus(ctx, genDB.UpdateTransferStatusParams{
 			Status: db.RebalanceTransactionStatusFailed,
 			ID:     transferID,
 		})
 		if err != nil {
-			return fmt.Errorf("updating transfer status to failed for hash %s on chain %s: %w", hash, chainID, err)
+			return fmt.Errorf("updating transfer status to failed for hash %s on chain %s: %w", hash, sourceChainID, err)
 		}
 
 		return nil
@@ -137,15 +141,17 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 	lmt.Logger(ctx).Info(
 		"rebalance transaction completed successfully",
 		zap.String("txnHash", hash),
-		zap.String("chainID", chainID),
+		zap.String("sourceChainID", sourceChainID),
+		zap.String("destinationChainID", destinationChainID),
 	)
+	metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(sourceChainID, destinationChainID, db.RebalanceTransactionStatusSuccess)
 
 	err = t.database.UpdateTransferStatus(ctx, genDB.UpdateTransferStatusParams{
 		Status: db.RebalanceTransactionStatusSuccess,
 		ID:     transferID,
 	})
 	if err != nil {
-		return fmt.Errorf("updating transfer status to completed for hash %s on chain %s: %w", hash, chainID, err)
+		return fmt.Errorf("updating transfer status to completed for hash %s on chain %s: %w", hash, sourceChainID, err)
 	}
 
 	return nil

@@ -2,13 +2,11 @@ package config
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"os"
-	"strings"
+	"time"
 
-	bech322 "github.com/cosmos/cosmos-sdk/types/bech32"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -34,6 +32,7 @@ type Config struct {
 	Chains            map[string]ChainConfig `yaml:"chains"`
 	Metrics           MetricsConfig          `yaml:"metrics"`
 	OrderFillerConfig OrderFillerConfig      `yaml:"order_filler_config"`
+	Coingecko         CoingeckoConfig
 	// FundRebalancer is an optional configuration to aid in inventory
 	// management. You can set per chain target amounts and min allowed
 	// amounts, and the FundRebalancer will use skip go to move funds between
@@ -67,10 +66,6 @@ type FundRebalancerConfig struct {
 	MinAllowedAmount string `yaml:"min_allowed_amount"`
 }
 
-type OrderSettlerConfig struct {
-	UUSDCSettleUpThreshold string `yaml:"uusdc_settle_up_threshold"`
-}
-
 type ChainConfig struct {
 	// e.g. osmosis
 	ChainName string `yaml:"chain_name"`
@@ -97,7 +92,8 @@ type ChainConfig struct {
 	// QuickStartNumBlocksBack specifies how many blocks back to start scanning
 	// from when the solver is initialized
 	QuickStartNumBlocksBack uint64 `yaml:"quick_start_num_blocks_back"`
-	// Maximum total gas cost for rebalancing txs per chain, fails if gas sum of rebalancing txs exceeds this threshold
+	// Maximum total gas cost for rebalancing txs per chain, fails if gas sum
+	// of rebalancing txs exceeds this threshold
 	MaxRebalancingGasThreshold uint64 `yaml:"max_rebalancing_gas_threshold"`
 	// FastTransferContractAddress is the address of the Skip Go Fast Transfer
 	// Protocol contract deployed on this chain
@@ -111,17 +107,99 @@ type ChainConfig struct {
 	// Relayer contains configuration for the Hyperlane relayer service
 	// used for cross-chain message passing during settlement
 	Relayer RelayerConfig `yaml:"relayer"`
-	// BatchUUSDCSettleUpThreshold is the amount of uusdc that needs to
-	// accumulate in filled (but not settled) orders before the solver will
-	// initiate a batch settlement. A settlement batch is per (source chain,
-	// destination chain).
-	BatchUUSDCSettleUpThreshold string `yaml:"batch_uusdc_settle_up_threshold"`
+
+	/* *** SETTING THE FOLLOWING CONFIG VALUES ARE VERY IMPORTANT FOR SOLVER PROFITABILITY *** */
+
 	// MinFeeBps is the min fee amount the solver is willing to fill in bps.
 	// For example, if an order has an amount in of 100usdc and an amount out
 	// of 99usdc, that is an implied fee to the solver of 1usdc, or a 1%/100bps
 	// fee. Thus, if MinFeeBps is set to 200, and an order comes in with the
 	// above amount in and out, then the solver will ignore it.
 	MinFeeBps int `yaml:"min_fee_bps"`
+
+	// BatchUUSDCSettleUpThreshold is the amount of uusdc that needs to
+	// accumulate in filled (but not settled) orders before the solver will
+	// initiate a batch settlement. A settlement batch is per source chain and
+	// destination chain pair. Note that this amount is for the total amount
+	// being settled up, not just the profit that will be made.
+	BatchUUSDCSettleUpThreshold string `yaml:"batch_uusdc_settle_up_threshold"`
+
+	// MinProfitMarginBPS is the minimum amount of bps that the solver should
+	// make when settling order batches. This value should be set carefully as
+	// it is used to determine what the max tx fee that should be paid to
+	// settle a batch of orders in order to maintain your set profit margin.
+	// Thus, this value should always be set to a lower value than the
+	// MinFeeBps, since your profit margin must be less than the actual profit
+	// (you have to pay some tx fee). Below is an equation that shows how this
+	// value will be used when settling up.
+	//
+	// (NetSettlementProfit - TxFee) / TotalSettlementValue = MinProfitMargin
+	//
+	// Where:
+	// NetSettlementProfit = total amount in of orders in settlement batch -
+	//   total amount out of orders in settlement batch.
+	// and,
+	// TotalSettlementValue = total amount in of orders in settlement batch.
+	//
+	// To determine the TxFee, we can rearrange the equation as follows.
+	//
+	// NetSettlementProfit - (TotalSettlementValue * MinProfitMargin) = TxFee
+	//
+	// Here you can see the relationship between how MinProfitMarginBPS,
+	// BatchUUSDCSettleUpThreshold, and MinFeeBps all relate to each other. As
+	// you increase BatchUUSDCSettleUpThreshold, the TotalSettlementValue of
+	// each batch will increase. As you increase the MinFeeBps, the
+	// NetSettlementProfit will increase, and as you increase
+	// MinProfitMarginBPS, the max TxFee you are willing to pay to get your
+	// settlement landed on chain will decrease. So, all three of these values
+	// should be set with care for each chain, based on solver fund reserves on
+	// this chain, typical gas costs, and expected minimum fees to be paid by
+	// users to submit orders on this chain.
+	//
+	// As an example, lets say MinFeeBps is set to 20bps,
+	// BatchUUSDCSettleUpThreshold is set to 5000000000uusdc (5 usdc), and
+	// MinProfitMarginBPS is set to 15bps. When a settlement happens, you can
+	// expect a typical batch to have a total value of 5000000000 uusdc, and a
+	// profit of 10000000 uusdc (5000usdc and 10usdc, respectively). Using the
+	// above formula, we can calculate the max TxFee that we can pay to land
+	// the settlement on chain in order to maintain the MinProfitMarginBPS of
+	// 15bps.
+	//
+	// 10000000uusdc - (5000000000uusdc * (20bps / 10000)) = 2500000uusdc
+	//
+	// Thus, the solver will not submit the settlement on chain if simulating
+	// the submission and converting the gas cost to uusdc is > 2500000uusdc.
+	// So, if these were you actual numbers, you should be sure that the gas
+	// cost will be lower than 2500000uusdc on this chain to land the
+	// settlement. This number may be OK for a cheap L2 like Arbitrum, however
+	// it would likely be impossible to land a settlement tx on Ethereum
+	// mainnet for only 2.5usdc paid in tx fees (you would never receive your
+	// profit!).
+	//
+	// As an extreme example, lets say you keep the above values but set
+	// MinProfitMarginBPS to 0bps. Applying the same formula to determine the
+	// max TxFee that we can pay to land the settlement on chain in order to
+	// maintain the MinProfitMarginBPS of 0bps.
+	//
+	// 10000000uusdc - (5000000000uusdc * (0bps / 10000)) = 10000000uusdc
+	//
+	// This means that the solver is willing to (potentially) use all of its
+	// profit on the TxFee to settle up (you most likely do not want this).
+	//
+	// As a final example, if you set the MinProfitMarginBPS higher than your
+	// MinFeeBps. For exmaple if MinProfitMarginBPS is 25bps and MinFeeBps is
+	// 20bps. Then applying the same formula to determine the max TxFee that we
+	// can pay to land the settlement on chain in order to maintain the
+	// MinProfitMarginBPS of 25bps.
+	//
+	// 10000000uusdc - (5000000000uusdc * (25bps / 10000)) = -2500000uusdc
+	//
+	// The result is now a negative tx fee. This means that chain would need to
+	// pay the solver in order to land the settlement tx on chain to maintain
+	// the profit margin of 25bps, this is obviously impossible and the tx will
+	// never land on chain. The solver will log an error if it sees this
+	// occurring.
+	MinProfitMarginBPS int `yaml:"min_profit_margin_bps"`
 }
 
 type RelayerConfig struct {
@@ -134,6 +212,24 @@ type RelayerConfig struct {
 	// MailboxAddress is the address of the Hyperlane mailbox contract used
 	// for sending and receiving cross-chain messages
 	MailboxAddress string `yaml:"mailbox_address"`
+
+	// ProfitableRelayTimeout is the maximum amount of time delay relaying a
+	// transaction waiting for it to be profitable. Currently this only applies
+	// to settlement relays. For example, if you have your MinProfitMarginBPS
+	// set too high relative to current gas fees on the settle up chain, then
+	// the relay will be delayed indefinitely until the gas fees reach a
+	// certain level (which they may never reach). Once a tx has been attempted
+	// to be relayed for ProfitableRelayTimeout duration, but it hasnt been
+	// sent because it is not profitable, then it will be sent regardless of
+	// profitability. This can be set to -1 for no timeout.
+	ProfitableRelayTimeout *time.Duration `yaml:"profitable_relay_timeout"`
+
+	// RelayCostCapUUSDC is the maximum amount of uusdc to pay to relay a tx,
+	// regardless of profitability checking, i.e. if the ProfitableRelayTimeout
+	// expires for a tx and it is going to be sent without ensuring it is
+	// profitable for the solver to do so, this is a final check to ensure that
+	// the tx is not relayed in an extremely expensive block.
+	RelayCostCapUUSDC string `yaml:"relay_cost_cap_uusdc"`
 }
 
 // Used to monitor gas balance prometheus metric per chain for the solver addresses
@@ -175,6 +271,11 @@ type CosmosConfig struct {
 }
 
 type EVMConfig struct {
+	// MinGasTipCap is the minimum tip to include for EIP-1559 transactions
+	// If the gas price oracle price returns a lower tip than MinGasTipCap, MinGasTipCap is used
+	// Used mainly for Polygon where there is a network gas tip cap minimum and nodes frequently return values lower
+	// than it
+	MinGasTipCap *int64 `yaml:"min_gas_tip_cap"`
 	// RPC is the HTTP endpoint for the EVM chain's RPC server
 	RPC string `yaml:"rpc"`
 	// RPCBasicAuthVar is the environment variable name containing the basic auth
@@ -184,6 +285,24 @@ type EVMConfig struct {
 	SignerGasBalance SignerGasBalanceConfig `yaml:"signer_gas_balance"`
 	// SolverAddress is the address of the solver wallet on this chain
 	SolverAddress string `yaml:"solver_address"`
+}
+
+type CoingeckoConfig struct {
+	// BaseURL is the coingecko api url used to fetch token prices
+	BaseURL string `yaml:"base_url"`
+	// RequestsPerMinute is the max amount of requests allowed to be made to
+	// the coin gecko api per minute
+	RequestsPerMinute int `yaml:"requests_per_minute"`
+	// APIKey is optional. If you do not have an API key, you can remove the
+	// APIKey option all together. If you have a coin gecko API key, we will
+	// use it to get more up to date gas costs. If you specify an API key, you
+	// should reduce the requests per minute and cache refresh interval
+	// according to your keys limits.
+	APIKey string `yaml:"api_key"`
+	// CacheRefreshInterval is how long the internal coin gecko client will
+	// cache prices for. Set this accoridng to your coin gecko's plans rate
+	// limits (if you have one).
+	CacheRefreshInterval time.Duration `yaml:"cache_refresh_interval"`
 }
 
 // Config Helpers
@@ -231,10 +350,14 @@ type ConfigReader interface {
 	GetChainConfig(chainID string) (ChainConfig, error)
 	GetAllChainConfigsOfType(chainType ChainType) ([]ChainConfig, error)
 
+	GetCoingeckoConfig() CoingeckoConfig
+
 	GetGatewayContractAddress(chainID string) (string, error)
 	GetChainIDByHyperlaneDomain(domain string) (string, error)
 
 	GetUSDCDenom(chainID string) (string, error)
+
+	GetGasAlertThresholds(chainID string) (warningThreshold, criticalThreshold *big.Int, err error)
 }
 
 type configReader struct {
@@ -290,34 +413,6 @@ func (r *configReader) createIndexes() {
 
 func (r configReader) Config() Config {
 	return r.config
-}
-
-func (r configReader) GetSolverAddress(domain uint32, environment ChainEnvironment) (string, []byte, error) {
-	domainIndex, ok := r.cctpDomainIndex[environment]
-	if !ok {
-		return "", nil, fmt.Errorf("cctp domain index not found for environment %s", environment)
-	}
-
-	chain, ok := domainIndex[domain]
-	if !ok {
-		return "", nil, fmt.Errorf("cctp domain %d not found for environment %s", domain, environment)
-	}
-	switch chain.Type {
-	case ChainType_COSMOS:
-		_, addressBytes, err := bech322.DecodeAndConvert(chain.SolverAddress)
-		if err != nil {
-			return "", nil, err
-		}
-		return chain.SolverAddress, addressBytes, nil
-	case ChainType_EVM:
-		addressBytes, err := hex.DecodeString(strings.TrimPrefix(chain.SolverAddress, "0x"))
-		if err != nil {
-			return "", nil, err
-		}
-		return chain.SolverAddress, addressBytes, nil
-	default:
-		return "", nil, fmt.Errorf("unknown chain type")
-	}
 }
 
 func (r configReader) GetChainEnvironment(chainID string) (ChainEnvironment, error) {
@@ -383,6 +478,10 @@ func (r configReader) GetAllChainConfigsOfType(chainType ChainType) ([]ChainConf
 		}
 	}
 	return chains, nil
+}
+
+func (r configReader) GetCoingeckoConfig() CoingeckoConfig {
+	return r.config.Coingecko
 }
 
 func (r configReader) GetGatewayContractAddress(chainID string) (string, error) {
@@ -530,4 +629,34 @@ func validateEVMConfig(config *EVMConfig) error {
 	}
 
 	return nil
+}
+
+func (r configReader) GetGasAlertThresholds(chainID string) (warningThreshold, criticalThreshold *big.Int, err error) {
+	var warningThresholdString, criticalThresholdString string
+
+	chain, err := r.GetChainConfig(chainID)
+	if err != nil {
+		return nil, nil, err
+	}
+	switch chain.Type {
+	case ChainType_COSMOS:
+		warningThresholdString = chain.Cosmos.SignerGasBalance.WarningThresholdWei
+		criticalThresholdString = chain.Cosmos.SignerGasBalance.CriticalThresholdWei
+	case ChainType_EVM:
+		warningThresholdString = chain.EVM.SignerGasBalance.WarningThresholdWei
+		criticalThresholdString = chain.EVM.SignerGasBalance.CriticalThresholdWei
+	default:
+		return nil, nil, fmt.Errorf("unknown chain type")
+	}
+
+	warningThreshold, ok := new(big.Int).SetString(warningThresholdString, 10)
+	if !ok {
+		return nil, nil, fmt.Errorf("failed to parse gas balance threshold amount")
+	}
+	criticalThreshold, ok = new(big.Int).SetString(criticalThresholdString, 10)
+	if !ok {
+		return nil, nil, fmt.Errorf("failed to parse gas balance threshold amount")
+	}
+
+	return warningThreshold, criticalThreshold, nil
 }
