@@ -131,8 +131,6 @@ chains:
     solver_address: <solver_address>
     hyperlane_domain: "875"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    min_fill_size: <min_fill_size> # e.g. 5000000
-    max_fill_size: <max_fill_size> # e.g. 10000000000
     max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     usdc_denom: "ibc/498A0751C798A0D9A389AA3691123DADA57DAA4FE165D5C75894505B876BA6E4"
     cosmos:
@@ -141,6 +139,8 @@ chains:
       rpc_basic_auth_var: <server_password>
       grpc: <osmosis_grpc_server_url> # e.g. "grpc.osmosis.zone:9090"
       grpc_tls_enabled: <grpc_tls_enabled> # e.g. false
+      min_fill_size: <min_fill_size> # e.g. 5000000
+      max_fill_size: <max_fill_size> # e.g. 10000000000
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 42860000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 14290000
