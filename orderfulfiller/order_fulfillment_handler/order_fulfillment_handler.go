@@ -20,6 +20,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	excessiveOrderFillLatencyDuration = 30 * time.Minute
+)
+
 type Relayer interface {
 	SubmitTxToRelay(ctx context.Context, txHash string, sourceChainID string, maxTxFeeUUSDC *big.Int) error
 }
@@ -64,6 +68,9 @@ func (r *orderFulfillmentHandler) UpdateFulfillmentStatus(ctx context.Context, o
 	destinationChainGatewayContractAddress, err := config.GetConfigReader(ctx).GetGatewayContractAddress(order.DestinationChainID)
 	if err != nil {
 		return "", fmt.Errorf("getting gateway contract address for destination chainID %s: %w", order.DestinationChainID, err)
+	}
+	if order.CreatedAt.Add(excessiveOrderFillLatencyDuration).Before(time.Now()) {
+		metrics.FromContext(ctx).IncExcessiveOrderFulfillmentLatency(order.SourceChainID, order.DestinationChainID, order.OrderStatus)
 	}
 
 	// if the order is already filled, set the status to filled
@@ -248,12 +255,12 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 	var abandonmentReason string
 	var amountOutOfRange int64
 	switch {
-	case transferAmount.Cmp(&destinationChainConfig.MinFillSize) < 0:
+	case transferAmount.Cmp(&destinationChainConfig.Cosmos.MinFillSize) < 0:
 		abandonmentReason = "transfer amount is below configured min fill size for chain " + orderFill.DestinationChainID
-		amountOutOfRange = transferAmount.Sub(transferAmount, &destinationChainConfig.MinFillSize).Int64()
-	case transferAmount.Cmp(&destinationChainConfig.MaxFillSize) > 0:
+		amountOutOfRange = transferAmount.Sub(transferAmount, &destinationChainConfig.Cosmos.MinFillSize).Int64()
+	case transferAmount.Cmp(&destinationChainConfig.Cosmos.MaxFillSize) > 0:
 		abandonmentReason = "transfer amount exceeds configured max fill size for chain" + orderFill.DestinationChainID
-		amountOutOfRange = transferAmount.Sub(transferAmount, &destinationChainConfig.MaxFillSize).Int64()
+		amountOutOfRange = transferAmount.Sub(transferAmount, &destinationChainConfig.Cosmos.MaxFillSize).Int64()
 	default:
 		return true, nil
 	}
@@ -263,8 +270,8 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 		zap.String("orderID", orderFill.OrderID),
 		zap.String("sourceChainID", orderFill.SourceChainID),
 		zap.String("orderAmountOut", orderFill.AmountOut),
-		zap.Any("minAllowedFillSize", destinationChainConfig.MinFillSize),
-		zap.Any("maxAllowedFillSize", destinationChainConfig.MaxFillSize),
+		zap.Any("minAllowedFillSize", destinationChainConfig.Cosmos.MinFillSize),
+		zap.Any("maxAllowedFillSize", destinationChainConfig.Cosmos.MaxFillSize),
 	)
 
 	_, err = r.db.SetOrderStatus(ctx, db.SetOrderStatusParams{
@@ -277,6 +284,15 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 	if err != nil {
 		return false, fmt.Errorf("failed to set fill status to abandoned: %w", err)
 	}
+
+	lmt.Logger(ctx).Info(
+		"abandoning transaction, "+abandonmentReason,
+		zap.String("orderID", orderFill.OrderID),
+		zap.String("sourceChainID", orderFill.SourceChainID),
+		zap.String("orderAmountOut", orderFill.AmountOut),
+		zap.Any("minAllowedFillSize", destinationChainConfig.Cosmos.MinFillSize),
+		zap.Any("maxAllowedFillSize", destinationChainConfig.Cosmos.MaxFillSize),
+	)
 
 	metrics.FromContext(ctx).IncFillOrderStatusChange(orderFill.SourceChainID, destinationChainConfig.ChainID, dbtypes.OrderStatusAbandoned)
 	metrics.FromContext(ctx).ObserveFillLatency(orderFill.SourceChainID, orderFill.DestinationChainID, dbtypes.OrderStatusAbandoned, time.Since(orderFill.CreatedAt))

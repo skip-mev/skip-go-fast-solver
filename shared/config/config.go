@@ -94,12 +94,6 @@ type ChainConfig struct {
 	// QuickStartNumBlocksBack specifies how many blocks back to start scanning
 	// from when the solver is initialized
 	QuickStartNumBlocksBack uint64 `yaml:"quick_start_num_blocks_back"`
-	// MinFillSize is the minimum amount of USDC that can be processed in a single
-	// order fill. Orders below this size will be abandoned
-	MinFillSize big.Int `yaml:"min_fill_size"`
-	// MaxFillSize is the maximum amount of USDC that can be processed in a single
-	// order fill. Orders exceeding this size will be abandoned
-	MaxFillSize big.Int `yaml:"max_fill_size"`
 	// Maximum total gas cost for rebalancing txs per chain, fails if gas sum
 	// of rebalancing txs exceeds this threshold
 	MaxRebalancingGasThreshold uint64 `yaml:"max_rebalancing_gas_threshold"`
@@ -265,14 +259,17 @@ type CosmosConfig struct {
 	AddressPrefix string `yaml:"address_prefix"`
 	// GasBalance contains thresholds for monitoring the solver's gas balance
 	SignerGasBalance SignerGasBalanceConfig `yaml:"signer_gas_balance"`
-	// USDCDenom is the denomination identifier for USDC on this chain
-	// (typically an IBC denom hash for Cosmos chains)
-	USDCDenom string `yaml:"usdc_denom"`
 	// GasPrice is the amount of native tokens to pay per unit of gas
 	GasPrice float64 `yaml:"gas_price"`
 	// GasDenom is the denomination of the token used to pay for gas
 	// (e.g., "uosmo" for Osmosis)
 	GasDenom string `yaml:"gas_denom"`
+	// MinFillSize is the minimum amount of USDC that can be processed in a single
+	// order fill. Orders below this size will be abandoned
+	MinFillSize big.Int `yaml:"min_fill_size"`
+	// MaxFillSize is the maximum amount of USDC that can be processed in a single
+	// order fill. Orders exceeding this size will be abandoned
+	MaxFillSize big.Int `yaml:"max_fill_size"`
 }
 
 type EVMConfig struct {
@@ -281,33 +278,15 @@ type EVMConfig struct {
 	// Used mainly for Polygon where there is a network gas tip cap minimum and nodes frequently return values lower
 	// than it
 	MinGasTipCap *int64 `yaml:"min_gas_tip_cap"`
-	// FastTransferContractAddress is the address of Skip Go Fast
-	// gateway contract on this chain
-	FastTransferContractAddress string `yaml:"fast_transfer_contract_address"`
 	// RPC is the HTTP endpoint for the EVM chain's RPC server
 	RPC string `yaml:"rpc"`
 	// RPCBasicAuthVar is the environment variable name containing the basic auth
 	// credentials for the RPC endpoint if required
 	RPCBasicAuthVar string `yaml:"rpc_basic_auth_var"`
-	// GRPC is the endpoint for the chain's gRPC server
-	GRPC string `yaml:"grpc"`
-	// GRPCTLSEnabled indicates whether TLS should be used for gRPC connections
-	GRPCTLSEnabled bool `yaml:"grpc_tls_enabled"`
 	// GasBalance contains thresholds for monitoring the solver's gas balance
 	SignerGasBalance SignerGasBalanceConfig `yaml:"signer_gas_balance"`
 	// SolverAddress is the address of the solver wallet on this chain
 	SolverAddress string `yaml:"solver_address"`
-	// USDCDenom is the contract address of the USDC token on this chain
-	USDCDenom string `yaml:"usdc_denom"`
-	// Contracts contains addresses of various protocol contracts deployed on this chain
-	Contracts ContractsConfig `yaml:"contracts"`
-}
-
-type ContractsConfig struct {
-	// USDCERC20Address is the contract address of the USDC ERC20 token
-	// deployed on this EVM chain. This is used for token transfers and
-	// balance checks.
-	USDCERC20Address string `yaml:"usdc_erc20_address"`
 }
 
 type CoingeckoConfig struct {
@@ -338,6 +317,12 @@ func LoadConfig(path string) (Config, error) {
 	var config Config
 	if err := yaml.Unmarshal(cfgBytes, &config); err != nil {
 		return Config{}, err
+	}
+
+	for chainID, chainConfig := range config.Chains {
+		if err := ValidateChainConfig(chainConfig); err != nil {
+			return Config{}, fmt.Errorf("invalid configuration for chain %s: %w", chainID, err)
+		}
 	}
 
 	return config, nil
@@ -533,23 +518,135 @@ func (r configReader) GetUSDCDenom(chainID string) (string, error) {
 		return "", fmt.Errorf("chain id %s not found", chainID)
 	}
 
-	switch chainConfig.Type {
-	case ChainType_COSMOS:
-		if chainConfig.Cosmos == nil {
-			return "", fmt.Errorf("cosmos config is nil for chain %s", chainID)
-		}
-		if chainConfig.Cosmos.USDCDenom == "" {
-			return "", fmt.Errorf("usdc denom not configured for cosmos chain %s", chainID)
-		}
-		return chainConfig.Cosmos.USDCDenom, nil
-	case ChainType_EVM:
-		if chainConfig.EVM == nil || chainConfig.EVM.Contracts.USDCERC20Address == "" {
-			return "", fmt.Errorf("usdc contract address not configured for evm chain %s", chainID)
-		}
-		return chainConfig.EVM.Contracts.USDCERC20Address, nil
-	default:
-		return "", fmt.Errorf("unsupported chain type %s for chain %s", chainConfig.Type, chainID)
+	return chainConfig.USDCDenom, nil
+}
+
+func ValidateChainConfig(chain ChainConfig) error {
+	if chain.ChainName == "" {
+		return fmt.Errorf("chain_name is required")
 	}
+	if chain.ChainID == "" {
+		return fmt.Errorf("chain_id is required")
+	}
+	if chain.Type == "" {
+		return fmt.Errorf("type is required")
+	}
+	if chain.Environment == "" {
+		return fmt.Errorf("environment is required")
+	}
+	if chain.GasTokenSymbol == "" {
+		return fmt.Errorf("gas_token_symbol is required")
+	}
+	if chain.GasTokenDecimals == 0 {
+		return fmt.Errorf("gas_token_decimals is required")
+	}
+	if chain.NumBlockConfirmationsBeforeFill == 0 {
+		return fmt.Errorf("num_block_confirmations_before_fill is required")
+	}
+	if chain.HyperlaneDomain == "" {
+		return fmt.Errorf("hyperlane_domain is required")
+	}
+	if chain.QuickStartNumBlocksBack == 0 {
+		return fmt.Errorf("quick_start_num_blocks_back is required")
+	}
+	if chain.MaxRebalancingGasThreshold == 0 {
+		return fmt.Errorf("max_rebalancing_gas_threshold is required")
+	}
+	if chain.FastTransferContractAddress == "" {
+		return fmt.Errorf("fast_transfer_contract_address is required")
+	}
+	if chain.SolverAddress == "" {
+		return fmt.Errorf("solver_address is required")
+	}
+	if chain.USDCDenom == "" {
+		return fmt.Errorf("usdc_denom is required")
+	}
+	if chain.MinProfitMarginBPS > chain.MinFeeBps {
+		return fmt.Errorf("min_profit_margin_bps can not be > min_fee_bps")
+	}
+	if chain.Relayer.ProfitableRelayTimeout == nil {
+		return fmt.Errorf("relayer.profitable_relay_timeout is required")
+	}
+	if chain.Relayer.RelayCostCapUUSDC == "" {
+		return fmt.Errorf("relayer.relay_cost_cap_u_usdc is required")
+	}
+	if chain.Relayer.MailboxAddress == "" {
+		return fmt.Errorf("relayer.mailbox_address is required")
+	}
+
+	switch chain.Type {
+	case ChainType_COSMOS:
+		if chain.Cosmos == nil {
+			return fmt.Errorf("cosmos config is required for cosmos chain type")
+		}
+		return validateCosmosConfig(chain.Cosmos, &chain.Relayer)
+	case ChainType_EVM:
+		if chain.BatchUUSDCSettleUpThreshold == "" {
+			return fmt.Errorf("batch_uusdc_settle_up_threshold is required")
+		}
+		if chain.MinFeeBps == 0 {
+			return fmt.Errorf("min_fee_bps is required")
+		}
+		if chain.MinProfitMarginBPS == 0 {
+			return fmt.Errorf("min_profit_margin_bps is required")
+		}
+
+		if chain.EVM == nil {
+			return fmt.Errorf("evm config is required for evm chain type")
+		}
+		return validateEVMConfig(chain.EVM)
+	default:
+		return fmt.Errorf("invalid chain type: %s", chain.Type)
+	}
+}
+
+func validateCosmosConfig(config *CosmosConfig, relayerConfig *RelayerConfig) error {
+	if config.RPC == "" {
+		return fmt.Errorf("cosmos.rpc is required")
+	}
+	if config.GRPC == "" {
+		return fmt.Errorf("cosmos.grpc is required")
+	}
+	if config.AddressPrefix == "" {
+		return fmt.Errorf("cosmos.address_prefix is required")
+	}
+	if config.GasPrice == 0 {
+		return fmt.Errorf("cosmos.gas_price is required")
+	}
+	if config.GasDenom == "" {
+		return fmt.Errorf("cosmos.gas_denom is required")
+	}
+
+	if config.SignerGasBalance.WarningThresholdWei == "" {
+		return fmt.Errorf("cosmos.signer_gas_balance.warning_threshold_wei is required")
+	}
+	if config.SignerGasBalance.CriticalThresholdWei == "" {
+		return fmt.Errorf("cosmos.signer_gas_balance.critical_threshold_wei is required")
+	}
+
+	if relayerConfig.ValidatorAnnounceContractAddress == "" {
+		return fmt.Errorf("relayer.validator_announce_contract_address is required")
+	}
+	if relayerConfig.MerkleHookContractAddress == "" {
+		return fmt.Errorf("relayer.merkle_hook_contract_address is required")
+	}
+
+	return nil
+}
+
+func validateEVMConfig(config *EVMConfig) error {
+	if config.RPC == "" {
+		return fmt.Errorf("evm.rpc is required")
+	}
+
+	if config.SignerGasBalance.WarningThresholdWei == "" {
+		return fmt.Errorf("evm.signer_gas_balance.warning_threshold_wei is required")
+	}
+	if config.SignerGasBalance.CriticalThresholdWei == "" {
+		return fmt.Errorf("evm.signer_gas_balance.critical_threshold_wei is required")
+	}
+
+	return nil
 }
 
 func (r configReader) GetGasAlertThresholds(chainID string) (warningThreshold, criticalThreshold *big.Int, err error) {

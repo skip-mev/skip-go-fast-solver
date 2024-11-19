@@ -48,6 +48,9 @@ type Metrics interface {
 	ObserveInsufficientBalanceError(chainID string, amountInsufficientBy uint64)
 
 	SetGasBalance(chainID, chainName, gasTokenSymbol string, gasBalance, warningThreshold, criticalThreshold big.Int, gasTokenDecimals uint8)
+
+	IncExcessiveOrderFulfillmentLatency(sourceChainID, destinationChainID, orderStatus string)
+	IncExcessiveHyperlaneRelayLatency(sourceChainID, destinationChainID string)
 }
 
 type metricsContextKey struct{}
@@ -74,15 +77,17 @@ type PromMetrics struct {
 	fillOrderStatusChange metrics.Counter
 	fillLatency           metrics.Histogram
 
-	orderSettlementStatusChange metrics.Counter
-	settlementLatency           metrics.Histogram
+	orderSettlementStatusChange      metrics.Counter
+	settlementLatency                metrics.Histogram
+	excessiveOrderFulfillmentLatency metrics.Counter
 
 	fundRebalanceTransferStatusChange metrics.Counter
 
-	hplMessageStatusChange metrics.Counter
-	hplCheckpointingErrors metrics.Counter
-	hplLatency             metrics.Histogram
-	hplRelayTooExpensive   metrics.Counter
+	hplMessageStatusChange         metrics.Counter
+	hplCheckpointingErrors         metrics.Counter
+	hplLatency                     metrics.Histogram
+	hplRelayTooExpensive           metrics.Counter
+	excessiveHyperlaneRelayLatency metrics.Counter
 
 	transferSizeOutOfRange    metrics.Histogram
 	feeBpsRejections          metrics.Histogram
@@ -98,6 +103,11 @@ func NewPromMetrics() Metrics {
 			Namespace: "solver",
 			Name:      "fill_order_status_change_counter",
 			Help:      "numbers of fill order status changes, paginated by source and destination chain, and status",
+		}, []string{sourceChainIDLabel, destinationChainIDLabel, orderStatusLabel}),
+		excessiveOrderFulfillmentLatency: prom.NewCounterFrom(stdprom.CounterOpts{
+			Namespace: "solver",
+			Name:      "excessive_order_fulfillment_latency_counter",
+			Help:      "number of observations of excessive order fulfillment latency, paginated by source and destination chain and status",
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, orderStatusLabel}),
 		orderSettlementStatusChange: prom.NewCounterFrom(stdprom.CounterOpts{
 			Namespace: "solver",
@@ -152,6 +162,11 @@ func NewPromMetrics() Metrics {
 			Namespace: "solver",
 			Name:      "hyperlane_relay_too_expensive_counter",
 			Help:      "counter of relay attempts that were aborted due to being too expensive",
+		}, []string{sourceChainIDLabel, destinationChainIDLabel}),
+		excessiveHyperlaneRelayLatency: prom.NewCounterFrom(stdprom.CounterOpts{
+			Namespace: "solver",
+			Name:      "excessive_hyperlane_relay_latency_counter",
+			Help:      "number of observations of excessive hyperlane relay latency, paginated by source and destination chain",
 		}, []string{sourceChainIDLabel, destinationChainIDLabel}),
 
 		transferSizeOutOfRange: prom.NewHistogramFrom(stdprom.HistogramOpts{
@@ -282,8 +297,27 @@ func (m *PromMetrics) SetGasBalance(chainID, chainName, gasTokenSymbol string, g
 	m.gasBalance.With(chainIDLabel, chainID, chainNameLabel, chainName, gasTokenSymbolLabel, gasTokenSymbol).Set(gasTokenAmount)
 }
 
+func (m *PromMetrics) IncExcessiveOrderFulfillmentLatency(sourceChainID, destinationChainID, orderStatus string) {
+	m.excessiveOrderFulfillmentLatency.With(
+		sourceChainIDLabel, sourceChainID,
+		destinationChainIDLabel, destinationChainID,
+		orderStatusLabel, orderStatus,
+	).Add(1)
+}
+
+func (m *PromMetrics) IncExcessiveHyperlaneRelayLatency(sourceChainID, destinationChainID string) {
+	m.excessiveHyperlaneRelayLatency.With(
+		sourceChainIDLabel, sourceChainID,
+		destinationChainIDLabel, destinationChainID,
+	).Add(1)
+}
+
 type NoOpMetrics struct{}
 
+func (n NoOpMetrics) IncExcessiveOrderFulfillmentLatency(sourceChainID, destinationChainID, orderStatus string) {
+}
+func (n NoOpMetrics) IncExcessiveHyperlaneRelayLatency(sourceChainID, destinationChainID string) {
+}
 func (n NoOpMetrics) IncHyperlaneRelayTooExpensive(sourceChainID, destinationChainID string) {
 }
 func (n NoOpMetrics) ObserveInsufficientBalanceError(chainID string, amountInsufficientBy uint64) {

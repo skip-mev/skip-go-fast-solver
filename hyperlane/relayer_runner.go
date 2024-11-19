@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	relayInterval = 10 * time.Second
+	relayInterval                  = 10 * time.Second
+	excessiveHyperlaneRelayLatency = 30 * time.Minute
 )
 
 type Database interface {
@@ -172,6 +173,9 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(transfer.DestinationChainID)
 	if err != nil {
 		return false, fmt.Errorf("getting destination chain config for chainID %s: %w", transfer.DestinationChainID, err)
+	}
+	if transfer.CreatedAt.Add(excessiveHyperlaneRelayLatency).Before(time.Now()) {
+		metrics.FromContext(ctx).IncExcessiveHyperlaneRelayLatency(transfer.SourceChainID, transfer.DestinationChainID)
 	}
 	delivered, err := r.hyperlane.HasBeenDelivered(ctx, destinationChainConfig.HyperlaneDomain, transfer.MessageID)
 	if err != nil {
