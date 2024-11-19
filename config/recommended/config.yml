@@ -34,8 +34,6 @@ fund_rebalancer:
     target_amount: 1000000000000000
     min_allowed_amount: 1000000000000000
 chains:
-  # TODO: coingecko id for all chains gas tokens
-  # TODO: gas token name
   avalanche:
     chain_name: "avalanche"
     chain_id: "43114"
@@ -43,7 +41,10 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "AVAX"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "avalanche-2"
+    hyperlane_domain: "43114"
     fast_transfer_contract_address: 0xD415B02A7E91dBAf92EAa4721F9289CFB7f4E1cF
+    quick_start_num_blocks_back: 300000
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     max_rebalancing_gas_threshold: 1000000
     solver_address: <solver_address>
@@ -59,7 +60,7 @@ chains:
         warning_threshold_wei: 1000000000000000000 # 1 avax
         critical_threshold_wei: 500000000000000000 # 0.5 avax
     relayer:
-      mailbox_address: "0x979Ca5202784112f4738403dBec5D0F3B9daabB9"
+      mailbox_address: "0xFf06aFcaABaDDd1fb08371f9ccA15D73D51FeBD6"
       profitable_relay_timeout: 1h
       relay_cost_cap_uusdc: 1000000
 
@@ -70,7 +71,10 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "ethereum"
+    hyperlane_domain: "10"
     fast_transfer_contract_address: 0x0f479de4fd3144642f1af88e3797b1821724f703
+    quick_start_num_blocks_back: 300000
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     max_rebalancing_gas_threshold: 1000000
     solver_address: <solver_address>
@@ -86,7 +90,7 @@ chains:
         warning_threshold_wei: 10000000000000000 # .01 eth ~ $30
         critical_threshold_wei: 1000000000000000 # .001 eth ~ $3
     relayer:
-      mailbox_address: "0x979Ca5202784112f4738403dBec5D0F3B9daabB9"
+      mailbox_address: "0xd4C1905BB1D26BC93DAC913e13CaCC278CdCC80D"
       profitable_relay_timeout: 1h
       relay_cost_cap_uusdc: 1000000
 
@@ -97,10 +101,11 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
-    quick_start_num_blocks_back: 300000
+    gas_token_coingecko_id: "ethereum"
     fast_transfer_contract_address: 0x23cb6147e5600c23d1fb5543916d3d5457c9b54c
     solver_address: <solver_address>
     hyperlane_domain: "42161"
+    quick_start_num_blocks_back: 300000
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     max_rebalancing_gas_threshold: 1000000
     min_fee_bps: 10
@@ -126,6 +131,8 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "OSMO"
     gas_token_decimals: 6
+    gas_token_coingecko_id: "osmosis"
+    quick_start_num_blocks_back: 300000
     fast_transfer_contract_address: osmo1vy34lpt5zlj797w7zqdta3qfq834kapx88qtgudy7jgljztj567s73ny82
     solver_address: <solver_address>
     hyperlane_domain: "875"
@@ -154,9 +161,12 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "ETH"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "ethereum"
     fast_transfer_contract_address: 0x43d090025aaa6c8693b71952b910ac55ccb56bbb
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
+    quick_start_num_blocks_back: 300000
     max_rebalancing_gas_threshold: 1000000
+    hyperlane_domain: "8453"
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     min_fee_bps: 10
     batch_uusdc_settle_up_threshold: <settle_up_threshold> # 1/2 of destination inventory evenly distributed across source chains
@@ -170,8 +180,7 @@ chains:
         warning_threshold_wei: 10000000000000000 # .01 eth ~ $30
         critical_threshold_wei: 1000000000000000 # .001 eth ~ $3
     relayer:
-      # TODO: change mailbox
-      mailbox_address: "0x979Ca5202784112f4738403dBec5D0F3B9daabB9"
+      mailbox_address: "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
       profitable_relay_timeout: 1h
       relay_cost_cap_uusdc: 1000000
 
@@ -182,8 +191,11 @@ chains:
     environment: "mainnet"
     gas_token_symbol: "MATIC"
     gas_token_decimals: 18
+    gas_token_coingecko_id: "matic-network"
     fast_transfer_contract_address: 0x3ffaf8d0d33226302e3a0ae48367cf1dd2023b1f
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
+    quick_start_num_blocks_back: 300000
+    hyperlane_domain: "137"
     max_rebalancing_gas_threshold: 1000000
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     min_fee_bps: 10
@@ -199,6 +211,6 @@ chains:
         critical_threshold_wei: 500000000000000000 # 0.5 matic
         min_gas_tip_cap: 30000000000
     relayer:
-      mailbox_address: "0x979Ca5202784112f4738403dBec5D0F3B9daabB9"
+      mailbox_address: "0x5d934f4e2f797775e53561bB72aca21ba36B96BB"
       profitable_relay_timeout: 1h
       relay_cost_cap_uusdc: 1000000
