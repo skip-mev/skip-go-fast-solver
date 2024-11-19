@@ -30,7 +30,7 @@ fund_rebalancer:
     min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
 chains:
   1:
-    chain_name: "ethereum" 
+    chain_name: "ethereum"
     chain_id: "1"
     type: "evm"
     environment: "mainnet"
