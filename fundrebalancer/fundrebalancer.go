@@ -253,7 +253,6 @@ func (r *FundRebalancer) MoveFundsToChain(
 			return nil, nil, fmt.Errorf("getting chain config for gas threshold check: %w", err)
 		}
 
-		var gasCostUUSDC string
 		if chainConfig.MaxRebalancingGasCostUUSDC != "" {
 			gasAcceptable, gasCostUUSDC, err := r.isGasAcceptable(ctx, txns, rebalanceFromChainID)
 			if err != nil {
@@ -276,14 +275,6 @@ func (r *FundRebalancer) MoveFundsToChain(
 			return nil, nil, fmt.Errorf("signing and submitting transaction: %w", err)
 		}
 		metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(rebalanceFromChainID, rebalanceToChain, dbtypes.RebalanceTransactionStatusPending)
-
-		lmt.Logger(ctx).Info(
-			"successfully rebalanced usdc",
-			zap.String("sourceChainID", rebalanceFromChainID),
-			zap.String("destinationChainID", rebalanceToChain),
-			zap.String("amount", usdcToRebalance.String()),
-			zap.String("gasCostUUSDC", gasCostUUSDC),
-		)
 
 		totalUSDCcMoved = new(big.Int).Add(totalUSDCcMoved, usdcToRebalance)
 		hashes = append(hashes, txHash)
@@ -480,6 +471,7 @@ func (r *FundRebalancer) GetRebalanceTxns(
 				return nil, fmt.Errorf("hex decoding evm call data: %w", err)
 			}
 
+			// This approval is needed for gas estimation
 			if err := r.ERC20Approval(ctx, SkipGoTxnWithMetadata{
 				tx:                 skipgo.Tx{EVMTx: txn.EVMTx},
 				sourceChainID:      sourceChainID,
@@ -488,7 +480,6 @@ func (r *FundRebalancer) GetRebalanceTxns(
 			}); err != nil {
 				return nil, fmt.Errorf("handling ERC20 approval: %w", err)
 			}
-			lmt.Logger(ctx).Info("", zap.Any("sourceChainID", sourceChainID), zap.Any("destChainID", destChainID), zap.Any("amount", amount))
 
 			txBuilder := evm.NewTxBuilder(client)
 			estimate, err := txBuilder.EstimateGasForTx(
