@@ -87,6 +87,7 @@ type SubmittedTx struct {
 	TxStatus            string
 	TxStatusMessage     sql.NullString
 	TxCostUusdc         sql.NullString
+	RebalanceTransferID sql.NullInt64
 }
 
 type TransferMonitorMetadatum struct {
