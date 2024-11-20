@@ -263,13 +263,23 @@ func (r *FundRebalancer) MoveFundsToChain(
 		}
 		txn := txns[0]
 
+		approvalHash, err := r.ERC20Approval(ctx, txn)
+		if err != nil {
+			return nil, nil, fmt.Errorf("approving usdc erc20 spend on chain %s for %suusdc: %w", rebalanceFromChainID, usdcToRebalance.String(), err)
+		}
+
+		txnWithMetadata, err := r.TxnWithMetadata(ctx, rebalanceFromChainID, rebalanceFromChainID, usdcToRebalance, txn)
+		if err != nil {
+			return nil, nil, fmt.Errorf("getting transaction metadata: %w", err)
+		}
+
 		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(rebalanceFromChainID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("getting chain config for gas threshold check: %w", err)
 		}
 
 		if chainConfig.MaxRebalancingGasThreshold != 0 {
-			gasAcceptable, totalRebalancingGas, err := r.isGasAcceptable(txns, chainConfig.MaxRebalancingGasThreshold)
+			gasAcceptable, totalRebalancingGas, err := r.isGasAcceptable(txn, chainConfig.MaxRebalancingGasThreshold)
 			if err != nil {
 				return nil, nil, fmt.Errorf("checking if gas amount is acceptable: %w", err)
 			}
@@ -283,11 +293,6 @@ func (r *FundRebalancer) MoveFundsToChain(
 				)
 				continue
 			}
-		}
-
-		approvalHash, err := r.ERC20Approval(ctx, txn)
-		if err != nil {
-			return nil, nil, fmt.Errorf("approving usdc erc20 spend on chain %s for %suusdc: %w", rebalanceFromChainID, usdcToRebalance.String(), err)
 		}
 
 		rebalanceHash, err := r.SignAndSubmitTxn(ctx, txn)
@@ -444,7 +449,7 @@ func (r *FundRebalancer) GetRebalanceTxns(
 	amount *big.Int,
 	sourceChainID string,
 	destChainID string,
-) ([]SkipGoTxnWithMetadata, error) {
+) ([]skipgo.Tx, error) {
 	rebalanceFromDenom, err := config.GetConfigReader(ctx).GetUSDCDenom(sourceChainID)
 	if err != nil {
 		return nil, fmt.Errorf("getting usdc denom for chain %s: %w", sourceChainID, err)
@@ -513,43 +518,55 @@ func (r *FundRebalancer) GetRebalanceTxns(
 		return nil, fmt.Errorf("getting rebalancing txn operations from Skip Go: %w", err)
 	}
 
-	txnsWithMetadata := make([]SkipGoTxnWithMetadata, 0, len(txns))
-	for _, txn := range txns {
-		var gasEstimate uint64
-		if txn.EVMTx != nil {
-			client, err := r.evmClientManager.GetClient(ctx, txn.EVMTx.ChainID)
-			if err != nil {
-				return nil, fmt.Errorf("getting evm client for chain %s: %w", txn.EVMTx.ChainID, err)
-			}
+	return txns, nil
+}
 
-			decodedData, err := hex.DecodeString(txn.EVMTx.Data)
-			if err != nil {
-				return nil, fmt.Errorf("hex decoding evm call data: %w", err)
-			}
-
-			txBuilder := evm.NewTxBuilder(client)
-			estimate, err := txBuilder.EstimateGasForTx(
-				ctx,
-				sourceChainConfig.SolverAddress,
-				txn.EVMTx.To,
-				txn.EVMTx.Value,
-				decodedData,
-			)
-			if err != nil {
-				return nil, fmt.Errorf("estimating gas: %w", err)
-			}
-			gasEstimate = estimate
-		}
-		txnsWithMetadata = append(txnsWithMetadata, SkipGoTxnWithMetadata{
-			tx:                 txn,
-			sourceChainID:      sourceChainID,
-			destinationChainID: destChainID,
-			amount:             amount,
-			gasEstimate:        gasEstimate,
-		})
+func (r *FundRebalancer) TxnWithMetadata(
+	ctx context.Context,
+	sourceChainID string,
+	destinationChainID string,
+	amount *big.Int,
+	txn skipgo.Tx,
+) (SkipGoTxnWithMetadata, error) {
+	sourceChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(sourceChainID)
+	if err != nil {
+		return SkipGoTxnWithMetadata{}, fmt.Errorf("getting source chain config for chain %s: %w", sourceChainID, err)
 	}
 
-	return txnsWithMetadata, nil
+	var gasEstimate uint64
+	if txn.EVMTx == nil {
+		return SkipGoTxnWithMetadata{}, fmt.Errorf("evm tx cannot be nil")
+	}
+	client, err := r.evmClientManager.GetClient(ctx, txn.EVMTx.ChainID)
+	if err != nil {
+		return SkipGoTxnWithMetadata{}, fmt.Errorf("getting evm client for chain %s: %w", txn.EVMTx.ChainID, err)
+	}
+
+	decodedData, err := hex.DecodeString(txn.EVMTx.Data)
+	if err != nil {
+		return SkipGoTxnWithMetadata{}, fmt.Errorf("hex decoding evm call data: %w", err)
+	}
+
+	txBuilder := evm.NewTxBuilder(client)
+	estimate, err := txBuilder.EstimateGasForTx(
+		ctx,
+		sourceChainConfig.SolverAddress,
+		txn.EVMTx.To,
+		txn.EVMTx.Value,
+		decodedData,
+	)
+	if err != nil {
+		return SkipGoTxnWithMetadata{}, fmt.Errorf("estimating gas: %w", err)
+	}
+	gasEstimate = estimate
+
+	return SkipGoTxnWithMetadata{
+		tx:                 txn,
+		sourceChainID:      sourceChainID,
+		destinationChainID: destinationChainID,
+		amount:             amount,
+		gasEstimate:        gasEstimate,
+	}, nil
 }
 
 // SignAndSubmitTxn signs and submits txs to chain
@@ -599,12 +616,13 @@ func (r *FundRebalancer) SignAndSubmitTxn(
 	}
 }
 
-func (r *FundRebalancer) ERC20Approval(ctx context.Context, txn SkipGoTxnWithMetadata) (string, error) {
-	if txn.tx.EVMTx == nil {
+func (r *FundRebalancer) ERC20Approval(ctx context.Context, tx skipgo.Tx) (string, error) {
+	if tx.EVMTx == nil {
 		// if this isnt an evm tx, no erc20 approvals are required
 		return "", nil
 	}
-	evmTx := txn.tx.EVMTx
+
+	evmTx := tx.EVMTx
 	if len(evmTx.RequiredERC20Approvals) == 0 {
 		// if no approvals are required, return with no error
 		return "", nil
@@ -667,24 +685,11 @@ func (r *FundRebalancer) ERC20Approval(ctx context.Context, txn SkipGoTxnWithMet
 	return hash, nil
 }
 
-func (r *FundRebalancer) estimateTotalGas(txns []SkipGoTxnWithMetadata) (uint64, error) {
-	var totalGas uint64
-	for _, txn := range txns {
-		totalGas += txn.gasEstimate
-	}
-	return totalGas, nil
-}
-
-func (r *FundRebalancer) isGasAcceptable(txns []SkipGoTxnWithMetadata, maxRebalancingGasThreshold uint64) (bool, uint64, error) {
+func (r *FundRebalancer) isGasAcceptable(txn SkipGoTxnWithMetadata, maxRebalancingGasThreshold uint64) (bool, uint64, error) {
 	// Check if total gas needed exceeds threshold to rebalance funds from this chain
-	totalRebalancingGas, err := r.estimateTotalGas(txns)
-	if err != nil {
-		return false, 0, fmt.Errorf("estimating total gas for transactions: %w", err)
+	if txn.gasEstimate > maxRebalancingGasThreshold {
+		return false, txn.gasEstimate, nil
 	}
 
-	if totalRebalancingGas > maxRebalancingGasThreshold {
-		return false, totalRebalancingGas, nil
-	}
-
-	return true, totalRebalancingGas, nil
+	return true, txn.gasEstimate, nil
 }
