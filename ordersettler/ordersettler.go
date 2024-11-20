@@ -144,6 +144,7 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 					"failed to get source chain ID by hyperlane domain. skipping order settlement. it may be unsettled.",
 					zap.Uint32("hyperlaneDomain", fill.SourceDomain),
 					zap.String("orderID", fill.OrderID),
+					zap.Error(err),
 				)
 				continue
 			}
