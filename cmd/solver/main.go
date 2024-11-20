@@ -4,10 +4,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/gasmonitor"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/skip-mev/go-fast-solver/gasmonitor"
 
 	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
 	"github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
@@ -144,7 +145,7 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		r, err := fundrebalancer.NewFundRebalancer(ctx, *keysPath, skipgo, evmManager, db.New(dbConn), evmTxExecutor)
+		r, err := fundrebalancer.NewFundRebalancer(ctx, keyStore, skipgo, evmManager, db.New(dbConn), evmTxExecutor)
 		if err != nil {
 			return fmt.Errorf("creating fund rebalancer: %w", err)
 		}

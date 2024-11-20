@@ -2,13 +2,12 @@ package fundrebalancer
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"math/big"
-	"os"
 	"strings"
 	"time"
 
+	"github.com/skip-mev/go-fast-solver/shared/keys"
 	evmtxsubmission "github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -51,19 +50,14 @@ type FundRebalancer struct {
 
 func NewFundRebalancer(
 	ctx context.Context,
-	keysPath string,
+	keystore keys.KeyStore,
 	skipgo skipgo.SkipGoClient,
 	evmClientManager evmrpc.EVMRPCClientManager,
 	database Database,
 	evmTxExecutor evmtxsubmission.EVMTxExecutor,
 ) (*FundRebalancer, error) {
-	chainIDToPriavateKey, err := loadChainIDToPrivateKeyMap(keysPath)
-	if err != nil {
-		return nil, fmt.Errorf("loading chain id to private key map from %s: %w", keysPath, err)
-	}
-
 	return &FundRebalancer{
-		chainIDToPrivateKey: chainIDToPriavateKey,
+		chainIDToPrivateKey: keystore,
 		skipgo:              skipgo,
 		evmClientManager:    evmClientManager,
 		config:              config.GetConfigReader(ctx).Config().FundRebalancer,
@@ -105,6 +99,7 @@ func (r *FundRebalancer) Run(ctx context.Context) {
 // rebalance all of them.
 func (r *FundRebalancer) Rebalance(ctx context.Context) {
 	for chainID := range r.config {
+
 		usdcNeeded, err := r.USDCNeeded(ctx, chainID)
 		if err != nil {
 			lmt.Logger(ctx).Error("error getting usdc needed on chain", zap.Error(err), zap.String("chainID", chainID))
@@ -142,25 +137,6 @@ func (r *FundRebalancer) Rebalance(ctx context.Context) {
 			)
 		}
 	}
-}
-
-func loadChainIDToPrivateKeyMap(keysPath string) (map[string]string, error) {
-	keysBytes, err := os.ReadFile(keysPath)
-	if err != nil {
-		return nil, err
-	}
-
-	rawKeysMap := make(map[string]map[string]string)
-	if err := json.Unmarshal(keysBytes, &rawKeysMap); err != nil {
-		return nil, err
-	}
-
-	keysMap := make(map[string]string)
-	for key, value := range rawKeysMap {
-		keysMap[key] = value["private_key"]
-	}
-
-	return keysMap, nil
 }
 
 // USDCNeeded gets the amount of usdc a chain needs in order to reach its
