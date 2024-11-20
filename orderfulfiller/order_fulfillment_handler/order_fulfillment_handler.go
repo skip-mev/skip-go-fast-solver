@@ -122,16 +122,17 @@ func (r *orderFulfillmentHandler) UpdateFulfillmentStatus(ctx context.Context, o
 			return dbtypes.OrderStatusRefunded, nil
 		}
 
-		metrics.FromContext(ctx).IncFillOrderStatusChange(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusExpiredPendingRefund)
-
 		if _, err := r.db.SetOrderStatus(ctx, db.SetOrderStatusParams{
 			SourceChainID:                     order.SourceChainID,
 			OrderID:                           order.OrderID,
 			SourceChainGatewayContractAddress: order.SourceChainGatewayContractAddress,
 			OrderStatus:                       dbtypes.OrderStatusExpiredPendingRefund,
 		}); err != nil {
-
 			return "", err
+		}
+
+		if order.OrderStatus == dbtypes.OrderStatusPending {
+			metrics.FromContext(ctx).IncFillOrderStatusChange(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusExpiredPendingRefund)
 		}
 		return dbtypes.OrderStatusExpiredPendingRefund, nil
 
