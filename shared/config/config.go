@@ -29,10 +29,11 @@ const (
 
 // Config Schema
 type Config struct {
-	Chains            map[string]ChainConfig `yaml:"chains"`
-	Metrics           MetricsConfig          `yaml:"metrics"`
-	OrderFillerConfig OrderFillerConfig      `yaml:"order_filler_config"`
-	Coingecko         CoingeckoConfig
+	Chains                map[string]ChainConfig `yaml:"chains"`
+	Metrics               MetricsConfig          `yaml:"metrics"`
+	OrderFillerConfig     OrderFillerConfig      `yaml:"order_filler_config"`
+	TransferMonitorConfig TransferMonitorConfig  `yaml:"transfer_monitor_config"`
+	Coingecko             CoingeckoConfig
 	// FundRebalancer is an optional configuration to aid in inventory
 	// management. You can set per chain target amounts and min allowed
 	// amounts, and the FundRebalancer will use skip go to move funds between
@@ -64,6 +65,11 @@ type FundRebalancerConfig struct {
 	// before a rebalance is triggered to move uusdc from other chains to this
 	// chain.
 	MinAllowedAmount string `yaml:"min_allowed_amount"`
+}
+
+type TransferMonitorConfig struct {
+	// PollInterval controls how often the transfer monitor will query the chain for new orders
+	PollInterval *time.Duration `yaml:"poll_interval"`
 }
 
 type ChainConfig struct {
