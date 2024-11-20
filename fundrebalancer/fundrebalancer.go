@@ -11,6 +11,7 @@ import (
 	evmtxsubmission "github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
 
@@ -46,6 +47,7 @@ type FundRebalancer struct {
 	database            Database
 	trasferTracker      *TransferTracker
 	evmTxExecutor       evmtxsubmission.EVMTxExecutor
+	evmTxPriceOracle    evmrpc.IOracle
 }
 
 func NewFundRebalancer(
@@ -54,6 +56,7 @@ func NewFundRebalancer(
 	skipgo skipgo.SkipGoClient,
 	evmClientManager evmrpc.EVMRPCClientManager,
 	database Database,
+	evmTxPriceOracle evmrpc.IOracle,
 	evmTxExecutor evmtxsubmission.EVMTxExecutor,
 ) (*FundRebalancer, error) {
 	return &FundRebalancer{
@@ -63,6 +66,7 @@ func NewFundRebalancer(
 		config:              config.GetConfigReader(ctx).Config().FundRebalancer,
 		database:            database,
 		trasferTracker:      NewTransferTracker(skipgo, database),
+		evmTxPriceOracle:    evmTxPriceOracle,
 		evmTxExecutor:       evmTxExecutor,
 	}, nil
 }
@@ -244,31 +248,27 @@ func (r *FundRebalancer) MoveFundsToChain(
 			return nil, nil, fmt.Errorf("only single transaction transfers are supported")
 		}
 		txn := txns[0]
-
 		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(rebalanceFromChainID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("getting chain config for gas threshold check: %w", err)
 		}
 
-		if chainConfig.MaxRebalancingGasThreshold != 0 {
-			gasAcceptable, totalRebalancingGas, err := r.isGasAcceptable(txns, chainConfig.MaxRebalancingGasThreshold)
+		var gasCostUUSDC string
+		if chainConfig.MaxRebalancingGasCostUUSDC != "" {
+			gasAcceptable, gasCostUUSDC, err := r.isGasAcceptable(ctx, txns, rebalanceFromChainID)
 			if err != nil {
-				return nil, nil, fmt.Errorf("checking if gas amount is acceptable: %w", err)
+				return nil, nil, fmt.Errorf("checking if total rebalancing gas cost is acceptable: %w", err)
 			}
 			if !gasAcceptable {
+				maxCost, _ := new(big.Int).SetString(chainConfig.MaxRebalancingGasCostUUSDC, 10)
 				lmt.Logger(ctx).Info(
-					"skipping rebalance from chain "+rebalanceFromChainID+" due to rebalancing txs exceeding gas threshold",
-					zap.String("sourceChainID", rebalanceFromChainID),
+					"skipping rebalance from chain "+rebalanceFromChainID+" due to high rebalancing gas cost",
 					zap.String("destinationChainID", rebalanceToChain),
-					zap.Uint64("estimatedGas", totalRebalancingGas),
-					zap.Uint64("gasThreshold", chainConfig.MaxRebalancingGasThreshold),
+					zap.String("estimatedGasCostUUSDC", gasCostUUSDC),
+					zap.String("maxRebalancingGasCostUUSDC", maxCost.String()),
 				)
 				continue
 			}
-		}
-
-		if err = r.ERC20Approval(ctx, txn); err != nil {
-			return nil, nil, fmt.Errorf("approving usdc erc20 spend on chain %s for %suusdc: %w", rebalanceFromChainID, usdcToRebalance.String(), err)
 		}
 
 		txHash, err := r.SignAndSubmitTxn(ctx, txn)
@@ -276,6 +276,14 @@ func (r *FundRebalancer) MoveFundsToChain(
 			return nil, nil, fmt.Errorf("signing and submitting transaction: %w", err)
 		}
 		metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(rebalanceFromChainID, rebalanceToChain, dbtypes.RebalanceTransactionStatusPending)
+
+		lmt.Logger(ctx).Info(
+			"successfully rebalanced usdc",
+			zap.String("sourceChainID", rebalanceFromChainID),
+			zap.String("destinationChainID", rebalanceToChain),
+			zap.String("amount", usdcToRebalance.String()),
+			zap.String("gasCostUUSDC", gasCostUUSDC),
+		)
 
 		totalUSDCcMoved = new(big.Int).Add(totalUSDCcMoved, usdcToRebalance)
 		hashes = append(hashes, txHash)
@@ -472,6 +480,16 @@ func (r *FundRebalancer) GetRebalanceTxns(
 				return nil, fmt.Errorf("hex decoding evm call data: %w", err)
 			}
 
+			if err := r.ERC20Approval(ctx, SkipGoTxnWithMetadata{
+				tx:                 skipgo.Tx{EVMTx: txn.EVMTx},
+				sourceChainID:      sourceChainID,
+				destinationChainID: destChainID,
+				amount:             amount,
+			}); err != nil {
+				return nil, fmt.Errorf("handling ERC20 approval: %w", err)
+			}
+			lmt.Logger(ctx).Info("", zap.Any("sourceChainID", sourceChainID), zap.Any("destChainID", destChainID), zap.Any("amount", amount))
+
 			txBuilder := evm.NewTxBuilder(client)
 			estimate, err := txBuilder.EstimateGasForTx(
 				ctx,
@@ -630,16 +648,44 @@ func (r *FundRebalancer) estimateTotalGas(txns []SkipGoTxnWithMetadata) (uint64,
 	return totalGas, nil
 }
 
-func (r *FundRebalancer) isGasAcceptable(txns []SkipGoTxnWithMetadata, maxRebalancingGasThreshold uint64) (bool, uint64, error) {
-	// Check if total gas needed exceeds threshold to rebalance funds from this chain
-	totalRebalancingGas, err := r.estimateTotalGas(txns)
+// Compares total gas cost of fund rebalancing txns in USDC to configured threshold for a specified chain
+func (r *FundRebalancer) isGasAcceptable(ctx context.Context, txns []SkipGoTxnWithMetadata, chainID string) (bool, string, error) {
+	totalGas, err := r.estimateTotalGas(txns)
 	if err != nil {
-		return false, 0, fmt.Errorf("estimating total gas for transactions: %w", err)
+		return false, "", fmt.Errorf("estimating total gas: %w", err)
 	}
 
-	if totalRebalancingGas > maxRebalancingGasThreshold {
-		return false, totalRebalancingGas, nil
+	client, err := r.evmClientManager.GetClient(ctx, chainID)
+	if err != nil {
+		return false, "", fmt.Errorf("getting evm client: %w", err)
 	}
 
-	return true, totalRebalancingGas, nil
+	gasPrice, err := client.SuggestGasPrice(ctx)
+	if err != nil {
+		return false, "", fmt.Errorf("getting gas price: %w", err)
+	}
+
+	chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
+	if err != nil {
+		return false, "", fmt.Errorf("getting chain config: %w", err)
+	}
+
+	gasCostUUSDC, err := r.evmTxPriceOracle.TxFeeUUSDC(ctx, types.NewTx(&types.DynamicFeeTx{
+		Gas:       totalGas,
+		GasFeeCap: gasPrice,
+	}), chainConfig.GasTokenCoingeckoID)
+	if err != nil {
+		return false, "", fmt.Errorf("calculating total fund rebalancing gas cost in UUSDC: %w", err)
+	}
+
+	maxCost, ok := new(big.Int).SetString(chainConfig.MaxRebalancingGasCostUUSDC, 10)
+	if !ok {
+		return false, "", fmt.Errorf("parsing max gas cost threshold")
+	}
+
+	if gasCostUUSDC.Cmp(maxCost) > 0 {
+		return false, gasCostUUSDC.String(), nil
+	}
+
+	return true, gasCostUUSDC.String(), nil
 }

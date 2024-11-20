@@ -100,9 +100,9 @@ type ChainConfig struct {
 	// QuickStartNumBlocksBack specifies how many blocks back to start scanning
 	// from when the solver is initialized
 	QuickStartNumBlocksBack uint64 `yaml:"quick_start_num_blocks_back"`
-	// Maximum total gas cost for rebalancing txs per chain, fails if gas sum
-	// of rebalancing txs exceeds this threshold
-	MaxRebalancingGasThreshold uint64 `yaml:"max_rebalancing_gas_threshold"`
+	// Maximum total gas cost for rebalancing txs per chain, fails if the sum
+	// of rebalancing txs in UUSDC exceeds this threshold
+	MaxRebalancingGasCostUUSDC string `yaml:"max_rebalancing_gas_cost_uusdc"`
 	// FastTransferContractAddress is the address of the Skip Go Fast Transfer
 	// Protocol contract deployed on this chain
 	FastTransferContractAddress string `yaml:"fast_transfer_contract_address"`
@@ -555,8 +555,8 @@ func ValidateChainConfig(chain ChainConfig) error {
 	if chain.QuickStartNumBlocksBack == 0 {
 		return fmt.Errorf("quick_start_num_blocks_back is required")
 	}
-	if chain.MaxRebalancingGasThreshold == 0 {
-		return fmt.Errorf("max_rebalancing_gas_threshold is required")
+	if chain.MaxRebalancingGasCostUUSDC == "" {
+		return fmt.Errorf("max_rebalancing_gas_cost_uusdc is required")
 	}
 	if chain.FastTransferContractAddress == "" {
 		return fmt.Errorf("fast_transfer_contract_address is required")

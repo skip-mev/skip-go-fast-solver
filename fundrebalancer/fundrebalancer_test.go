@@ -135,8 +135,9 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
+		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -201,10 +202,11 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockDatabse := mock_database.NewMockDatabase(t)
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", nil)
+		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -303,6 +305,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, "42161", arbitrumAddress, []byte{}, "0", osmosisAddress, mock.Anything).Return("arbhash", nil)
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, "1", ethAddress, []byte{}, "0", osmosisAddress, mock.Anything).Return("ethhash", nil)
+		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
 
 		// using an in memory database for this test
 		mockDatabse := mock_database.NewFakeDatabase()
@@ -310,7 +313,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -414,10 +417,11 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClientManager := mock_evmrpc.NewMockEVMRPCClientManager(t)
 		mockDatabse := mock_database.NewMockDatabase(t)
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
+		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -470,7 +474,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 				Type:                       config.ChainType_EVM,
 				USDCDenom:                  arbitrumUSDCDenom,
 				SolverAddress:              arbitrumAddress,
-				MaxRebalancingGasThreshold: 50, // Set low threshold that will be exceeded
+				MaxRebalancingGasCostUUSDC: "50", // Set low threshold that will be exceeded
 			},
 			nil,
 		)
@@ -480,13 +484,16 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockSkipGo := mock_skipgo.NewMockSkipGoClient(t)
 		mockEVMClientManager := mock_evmrpc.NewMockEVMRPCClientManager(t)
 		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
+		mockEVMClient.EXPECT().SuggestGasPrice(mockContext).Return(big.NewInt(1000000000), nil) // high gas price
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
+		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
+		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything, mock.Anything).Return(big.NewInt(51), nil)
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
 		assert.NoError(t, err)
 		// No pending txns
 		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, osmosisChainID).Return(nil, nil)
@@ -579,7 +586,9 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
+		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
+
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks

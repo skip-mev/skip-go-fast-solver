@@ -145,7 +145,7 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		r, err := fundrebalancer.NewFundRebalancer(ctx, keyStore, skipgo, evmManager, db.New(dbConn), evmTxExecutor)
+		r, err := fundrebalancer.NewFundRebalancer(ctx, keyStore, skipgo, evmManager, db.New(dbConn), evmTxPriceOracle, evmTxExecutor)
 		if err != nil {
 			return fmt.Errorf("creating fund rebalancer: %w", err)
 		}

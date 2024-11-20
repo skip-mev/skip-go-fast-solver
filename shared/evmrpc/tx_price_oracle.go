@@ -13,6 +13,12 @@ const (
 	coingeckoUSDCurrency = "usd"
 )
 
+var _ IOracle = (*Oracle)(nil)
+
+type IOracle interface {
+	TxFeeUUSDC(ctx context.Context, tx *types.Transaction, gasTokenCoingeckoID string) (*big.Int, error)
+}
+
 // Oracle is a evm uusdc tx execution price oracle that determines the price of
 // executing a tx on chain in uusdc.
 type Oracle struct {

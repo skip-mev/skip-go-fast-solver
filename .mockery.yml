@@ -6,6 +6,7 @@ packages:
     interfaces:
       EVMRPCClientManager:
       EVMChainRPC:
+      IOracle:
   github.com/skip-mev/go-fast-solver/shared/http:
     interfaces:
       Client:
