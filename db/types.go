@@ -21,6 +21,8 @@ const (
 	TxTypeSettlement               string = "SETTLEMENT"
 	TxTypeHyperlaneMessageDelivery string = "HYPERLANE_MESSAGE_DELIVERY"
 	TxTypeInitiateTimeout          string = "INITIATE_TIMEOUT"
+	TxTypeERC20Approval            string = "ERC20_APPROVAL"
+	TxTypeFundRebalnance           string = "FUND_REBALANCE"
 
 	RebalanceTransactionStatusPending string = "PENDING"
 	RebalanceTransactionStatusSuccess string = "SUCCESS"
