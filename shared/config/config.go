@@ -32,7 +32,7 @@ type Config struct {
 	Chains                map[string]ChainConfig `yaml:"chains"`
 	Metrics               MetricsConfig          `yaml:"metrics"`
 	OrderFillerConfig     OrderFillerConfig      `yaml:"order_filler_config"`
-	TransferMonitorConfig TransferMonitorConfig  `yaml:"transfer_monitor_config"`
+	TransferMonitorConfig TransferMonitorConfig  `yaml:"transfer_monitor"`
 	Coingecko             CoingeckoConfig
 	// FundRebalancer is an optional configuration to aid in inventory
 	// management. You can set per chain target amounts and min allowed

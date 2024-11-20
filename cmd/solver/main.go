@@ -163,7 +163,7 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		transferMonitor := transfermonitor.NewTransferMonitor(db.New(dbConn), *quickStart)
+		transferMonitor := transfermonitor.NewTransferMonitor(db.New(dbConn), *quickStart, cfg.TransferMonitorConfig.PollInterval)
 		err := transferMonitor.Start(ctx)
 		if err != nil {
 			return fmt.Errorf("creating transfer monitor: %w", err)

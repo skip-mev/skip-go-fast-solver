@@ -14,6 +14,8 @@ coingecko:
   cache_refresh_interval: "15m"
 order_filler:
   worker_count: 10
+transfer_monitor:
+  poll_interval: 5s
 # The fund_rebalancer config is optional. If you do not want the solver to
 # rebalance your funds across chains via Skip GO (via the CCTP slow path CCTP, they
 # will not be fast transferred via Skip Go Fast), you can omit the
