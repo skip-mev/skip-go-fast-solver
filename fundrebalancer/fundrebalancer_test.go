@@ -19,6 +19,7 @@ import (
 	mock_evmrpc "github.com/skip-mev/go-fast-solver/mocks/shared/evmrpc"
 	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
 	"github.com/skip-mev/go-fast-solver/shared/config"
+	"github.com/skip-mev/go-fast-solver/shared/keys"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -107,7 +108,6 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 			},
 		})
 		mockConfigReader.EXPECT().GetUSDCDenom(osmosisChainID).Return(osmosisUSDCDenom, nil)
-		mockConfigReader.EXPECT().GetUSDCDenom(arbitrumChainID).Return(arbitrumUSDCDenom, nil)
 		mockConfigReader.On("GetChainConfig", osmosisChainID).Return(
 			config.ChainConfig{
 				Type:          config.ChainType_COSMOS,
@@ -131,12 +131,12 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 
 		mockSkipGo := mock_skipgo.NewMockSkipGoClient(t)
 		mockEVMClientManager := mock_evmrpc.NewMockEVMRPCClientManager(t)
-		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
-		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
+		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
+		assert.NoError(t, err)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -144,11 +144,9 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		// no pending txns
 		mockDatabse.EXPECT().GetAllPendingRebalanceTransfers(mockContext).Return(nil, nil).Maybe()
 		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, osmosisChainID).Return(nil, nil)
-		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, arbitrumChainID).Return(nil, nil)
 
 		// balances higher than min amount
 		mockSkipGo.EXPECT().Balance(mockContext, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("1000", nil)
-		mockEVMClient.EXPECT().GetUSDCBalance(mockContext, arbitrumUSDCDenom, arbitrumAddress).Return(big.NewInt(1000), nil)
 
 		rebalancer.Rebalance(ctx)
 
@@ -203,8 +201,10 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockDatabse := mock_database.NewMockDatabase(t)
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", nil)
+		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
+		assert.NoError(t, err)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -212,7 +212,6 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		// no pending txns
 		mockDatabse.EXPECT().GetAllPendingRebalanceTransfers(mockContext).Return(nil, nil).Maybe()
 		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, osmosisChainID).Return(nil, nil)
-		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, arbitrumChainID).Return(nil, nil)
 
 		// osmosis balance lower than min amount, arbitrum & eth balances higher than target
 		mockSkipGo.EXPECT().Balance(mockContext, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("0", nil)
@@ -308,7 +307,10 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		// using an in memory database for this test
 		mockDatabse := mock_database.NewFakeDatabase()
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
+		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
+		assert.NoError(t, err)
+
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -387,7 +389,6 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 			},
 		})
 		mockConfigReader.EXPECT().GetUSDCDenom(osmosisChainID).Return(osmosisUSDCDenom, nil)
-		mockConfigReader.EXPECT().GetUSDCDenom(arbitrumChainID).Return(arbitrumUSDCDenom, nil)
 		mockConfigReader.On("GetChainConfig", osmosisChainID).Return(
 			config.ChainConfig{
 				Type:          config.ChainType_COSMOS,
@@ -411,12 +412,12 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 
 		mockSkipGo := mock_skipgo.NewMockSkipGoClient(t)
 		mockEVMClientManager := mock_evmrpc.NewMockEVMRPCClientManager(t)
-		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
-		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
+		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
+		assert.NoError(t, err)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -428,11 +429,9 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, osmosisChainID).Return([]db.GetPendingRebalanceTransfersToChainRow{
 			{ID: 1, TxHash: "hash", SourceChainID: arbitrumChainID, DestinationChainID: osmosisChainID, Amount: strconv.Itoa(osmosisTargetAmount)},
 		}, nil)
-		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, arbitrumChainID).Return(nil, nil)
 
 		// osmosis balance lower than min amount, arbitrum & eth balances higher than target
 		mockSkipGo.EXPECT().Balance(mockContext, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("0", nil)
-		mockEVMClient.EXPECT().GetUSDCBalance(mockContext, arbitrumUSDCDenom, arbitrumAddress).Return(big.NewInt(1000), nil)
 
 		// not expecting any calls to create/submit any transactions because a
 		// rebaalnce is not necessary with the in flight txn to osmosis
@@ -484,12 +483,13 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
+		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
+		assert.NoError(t, err)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
 		assert.NoError(t, err)
 		// No pending txns
 		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, osmosisChainID).Return(nil, nil)
-		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, arbitrumChainID).Return(nil, nil)
 		// Osmosis needs funds, Arbitrum has excess
 		mockSkipGo.EXPECT().Balance(mockContext, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("0", nil)
 		mockEVMClient.EXPECT().GetUSDCBalance(mockContext, arbitrumUSDCDenom, arbitrumAddress).Return(big.NewInt(200), nil)
@@ -576,7 +576,10 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		// mock executing the approval tx
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, mock.Anything, "0", arbitrumUSDCDenom, mock.Anything).Return("arbitrum hash", nil)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, f.Name(), mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
+		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
+		assert.NoError(t, err)
+
+		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -584,7 +587,6 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		// no pending txns
 		mockDatabse.EXPECT().GetAllPendingRebalanceTransfers(mockContext).Return(nil, nil).Maybe()
 		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, osmosisChainID).Return(nil, nil)
-		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, arbitrumChainID).Return(nil, nil)
 
 		// osmosis balance lower than min amount, arbitrum & eth balances higher than target
 		mockSkipGo.EXPECT().Balance(mockContext, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("0", nil)
