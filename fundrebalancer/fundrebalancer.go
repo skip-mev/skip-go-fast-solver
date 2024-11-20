@@ -99,6 +99,14 @@ func (r *FundRebalancer) Run(ctx context.Context) {
 // rebalance all of them.
 func (r *FundRebalancer) Rebalance(ctx context.Context) {
 	for chainID := range r.config {
+		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
+		if err != nil {
+			lmt.Logger(ctx).Error("error getting chain config", zap.Error(err), zap.String("chainID", chainID))
+			continue
+		}
+		if chainConfig.Type != config.ChainType_COSMOS {
+			continue
+		}
 
 		usdcNeeded, err := r.USDCNeeded(ctx, chainID)
 		if err != nil {
