@@ -140,7 +140,12 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 
 			sourceChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(strconv.Itoa(int(fill.SourceDomain)))
 			if err != nil {
-				return fmt.Errorf("getting source chainID: %w", err)
+				lmt.Logger(ctx).Warn(
+					"failed to get source chain ID by hyperlane domain. skipping order settlement. it may be unsettled.",
+					zap.Uint32("hyperlaneDomain", fill.SourceDomain),
+					zap.String("orderID", fill.OrderID),
+				)
+				continue
 			}
 			sourceGatewayAddress, err := config.GetConfigReader(ctx).GetGatewayContractAddress(sourceChainID)
 			if err != nil {
