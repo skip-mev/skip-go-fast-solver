@@ -272,10 +272,10 @@ type CosmosConfig struct {
 	GasDenom string `yaml:"gas_denom"`
 	// MinFillSize is the minimum amount of USDC that can be processed in a single
 	// order fill. Orders below this size will be abandoned
-	MinFillSize big.Int `yaml:"min_fill_size"`
+	MinFillSize *big.Int `yaml:"min_fill_size"`
 	// MaxFillSize is the maximum amount of USDC that can be processed in a single
 	// order fill. Orders exceeding this size will be abandoned
-	MaxFillSize big.Int `yaml:"max_fill_size"`
+	MaxFillSize *big.Int `yaml:"max_fill_size"`
 }
 
 type EVMConfig struct {
@@ -622,14 +622,14 @@ func validateCosmosConfig(config *CosmosConfig, relayerConfig *RelayerConfig) er
 	if config.GasDenom == "" {
 		return fmt.Errorf("cosmos.gas_denom is required")
 	}
-	if config.MinFillSize.Sign() < 0 {
+	if config.MinFillSize == nil {
 		return fmt.Errorf("cosmos.min_fill_size is required")
 	}
-	if config.MaxFillSize.Sign() < 0 {
+	if config.MaxFillSize == nil {
 		return fmt.Errorf("cosmos.max_fill_size is required")
 	}
-	if config.MaxFillSize.Cmp(&config.MinFillSize) < 0 {
-		return fmt.Errorf("cosmos.max_fill_size must be greater than min_fill_size")
+	if config.MaxFillSize.Cmp(config.MinFillSize) < 0 {
+		return fmt.Errorf("cosmos.max_fill_size must be greater than cosmos.min_fill_size")
 	}
 
 	if config.SignerGasBalance.WarningThresholdWei == "" {
