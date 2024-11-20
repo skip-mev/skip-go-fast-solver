@@ -146,6 +146,7 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 					zap.String("orderID", fill.OrderID),
 					zap.Error(err),
 				)
+				r.ordersSeen[fill.OrderID] = true
 				continue
 			}
 			sourceGatewayAddress, err := config.GetConfigReader(ctx).GetGatewayContractAddress(sourceChainID)
