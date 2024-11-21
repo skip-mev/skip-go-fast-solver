@@ -205,8 +205,8 @@ func (c *EVMBridgeClient) IsOrderRefunded(ctx context.Context, gatewayContractAd
 	return false, "", nil
 }
 
-func (c *EVMBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayContractAddress, orderID string) (*string, *string, time.Time, error) {
-	return nil, nil, time.Time{}, errors.New("not implemented")
+func (c *EVMBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayContractAddress, orderID string) (*OrderFillEvent, time.Time, error) {
+	return nil, time.Time{}, errors.New("not implemented")
 }
 
 func (c *EVMBridgeClient) ShouldRetryTx(ctx context.Context, txHash string, submitTime pgtype.Timestamp, txExpirationHeight *uint64) (bool, error) {
