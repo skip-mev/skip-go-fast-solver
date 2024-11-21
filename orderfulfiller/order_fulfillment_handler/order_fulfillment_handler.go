@@ -73,17 +73,18 @@ func (r *orderFulfillmentHandler) UpdateFulfillmentStatus(ctx context.Context, o
 		metrics.FromContext(ctx).IncExcessiveOrderFulfillmentLatency(order.SourceChainID, order.DestinationChainID, order.OrderStatus)
 	}
 
-	// if the order is already filled, set the status to filled
-	fillTx, filler, timestamp, err := destinationChainBridgeClient.QueryOrderFillEvent(ctx, destinationChainGatewayContractAddress, order.OrderID)
+	orderFillEvent, timestamp, err := destinationChainBridgeClient.QueryOrderFillEvent(ctx, destinationChainGatewayContractAddress, order.OrderID)
 	if err != nil {
 		return "", fmt.Errorf("querying for order fill event on chainID %s at contract %s for order %s: %w", order.DestinationChainID, destinationChainGatewayContractAddress, order.OrderID, err)
-	} else if fillTx != nil && filler != nil {
+	}
+	if orderFillEvent != nil {
+		// if the order is already filled, set the status to filled
 		metrics.FromContext(ctx).IncFillOrderStatusChange(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusFilled)
 		metrics.FromContext(ctx).ObserveFillLatency(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusFilled, time.Since(order.CreatedAt))
 
 		if _, err := r.db.SetFillTx(ctx, db.SetFillTxParams{
-			FillTx:                            sql.NullString{String: *fillTx, Valid: true},
-			Filler:                            sql.NullString{String: *filler, Valid: true},
+			FillTx:                            sql.NullString{String: orderFillEvent.TxHash, Valid: true},
+			Filler:                            sql.NullString{String: orderFillEvent.Filler, Valid: true},
 			SourceChainID:                     order.SourceChainID,
 			OrderID:                           order.OrderID,
 			SourceChainGatewayContractAddress: order.SourceChainGatewayContractAddress,
