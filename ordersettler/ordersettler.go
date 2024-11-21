@@ -184,13 +184,11 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 				continue
 			}
 
-			orderDetails, err := sourceBridgeClient.QueryOrderSubmittedEvent(ctx, sourceGatewayAddress, fill.OrderID)
+			orderFillEvent, _, err := bridgeClient.QueryOrderFillEvent(ctx, chain.FastTransferContractAddress, fill.OrderID)
 			if err != nil {
-				return fmt.Errorf("getting order submitted event on chain %s for order %s: %w", sourceChainID, fill.OrderID, err)
-			} else if orderDetails == nil {
-				return fmt.Errorf("could not find order submitted event on chain %s for order %s", sourceChainID, fill.OrderID)
+				return fmt.Errorf("querying for order fill event on destination chain at address %s for order id %s: %w", chain.FastTransferContractAddress, fill.OrderID, err)
 			}
-			profit := big.NewInt(0).Sub(orderDetails.AmountIn, orderDetails.AmountOut)
+			profit := new(big.Int).Sub(amount, orderFillEvent.FillAmount)
 
 			_, err = r.db.InsertOrderSettlement(ctx, db.InsertOrderSettlementParams{
 				SourceChainID:                     sourceChainID,
