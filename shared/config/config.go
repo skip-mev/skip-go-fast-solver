@@ -103,6 +103,17 @@ type ChainConfig struct {
 	// Maximum total gas cost for rebalancing txs per chain, fails if the sum
 	// of rebalancing txs in UUSDC exceeds this threshold
 	MaxRebalancingGasCostUUSDC string `yaml:"max_rebalancing_gas_cost_uusdc"`
+	// FundRebalancingTimeout specifies how long to delay a rebalancing transfer when
+	// gas costs exceed MaxRebalancingGasCostUUSDC. After this timeout expires, the
+	// transfer will proceed if gas costs are below FundRebalancingCostCapUUSDC.
+	// Set to -1 to disable the timeout.
+	FundRebalancingTimeout *time.Duration `yaml:"profitable_relay_timeout"`
+	// FundRebalancingCostCapUUSDC is the absolute maximum gas cost in uusdc that will
+	// be paid for a rebalancing transfer after FundRebalancingTimeout expires. This
+	// should be higher than MaxRebalancingGasCostUUSDC to prevent the solver from
+	// getting stuck with insufficient funds when gas costs are high. If gas costs
+	// exceed this cap even after timeout, the rebalancing will not occur.
+	FundRebalancingCostCapUUSDC string `yaml:"relay_cost_cap_uusdc"`
 	// FastTransferContractAddress is the address of the Skip Go Fast Transfer
 	// Protocol contract deployed on this chain
 	FastTransferContractAddress string `yaml:"fast_transfer_contract_address"`
@@ -557,6 +568,12 @@ func ValidateChainConfig(chain ChainConfig) error {
 	}
 	if chain.MaxRebalancingGasCostUUSDC == "" {
 		return fmt.Errorf("max_rebalancing_gas_cost_uusdc is required")
+	}
+	if chain.FundRebalancingCostCapUUSDC == "" {
+		return fmt.Errorf("fund_rebalancing_cost_cap_uusdc is required")
+	}
+	if chain.FundRebalancingTimeout == nil {
+		return fmt.Errorf("fund_rebalancing_timeout is required")
 	}
 	if chain.FastTransferContractAddress == "" {
 		return fmt.Errorf("fast_transfer_contract_address is required")

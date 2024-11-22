@@ -53,6 +53,8 @@ chains:
     quick_start_num_blocks_back: 300000
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     max_rebalancing_gas_cost_uusdc: "1000000"
+    fund_rebalancing_timeout: 1h
+    fund_rebalancing_cost_cap_uusdc: "2000000"
     solver_address: <solver_address>
     usdc_denom: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
     min_fee_bps: 10
@@ -82,6 +84,8 @@ chains:
     quick_start_num_blocks_back: 300000
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     max_rebalancing_gas_cost_uusdc: "1000000"
+    fund_rebalancing_timeout: 1h
+    fund_rebalancing_cost_cap_uusdc: "2000000"
     solver_address: <solver_address>
     usdc_denom: "0x0b2c639c533813f4aa9d7837caf62653d097ff85"
     min_fee_bps: 10
@@ -113,6 +117,8 @@ chains:
     quick_start_num_blocks_back: 300000
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     max_rebalancing_gas_cost_uusdc: "1000000"
+    fund_rebalancing_timeout: 1h
+    fund_rebalancing_cost_cap_uusdc: 2000000
     min_fee_bps: 10
     batch_uusdc_settle_up_threshold: <settle_up_threshold> # 1/2 of destination inventory evenly distributed across source chains
     min_profit_margin_bps: 8
@@ -137,6 +143,8 @@ chains:
     gas_token_coingecko_id: "osmosis"
     quick_start_num_blocks_back: 300000
     max_rebalancing_gas_cost_uusdc: "1000000"
+    fund_rebalancing_timeout: 1h
+    fund_rebalancing_cost_cap_uusdc: "2000000"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     fast_transfer_contract_address: osmo1vy34lpt5zlj797w7zqdta3qfq834kapx88qtgudy7jgljztj567s73ny82
     solver_address: <solver_address>
@@ -174,6 +182,8 @@ chains:
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     quick_start_num_blocks_back: 300000
     max_rebalancing_gas_cost_uusdc: "1000000"
+    fund_rebalancing_timeout: 1h
+    fund_rebalancing_cost_cap_uusdc: "2000000"
     hyperlane_domain: "8453"
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     usdc_denom: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
@@ -204,6 +214,8 @@ chains:
     quick_start_num_blocks_back: 300000
     hyperlane_domain: "137"
     max_rebalancing_gas_cost_uusdc: "1000000"
+    fund_rebalancing_timeout: 1h
+    fund_rebalancing_cost_cap_uusdc: "2000000"
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     usdc_denom: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359"
     min_fee_bps: 10

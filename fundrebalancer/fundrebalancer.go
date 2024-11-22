@@ -639,7 +639,8 @@ func (r *FundRebalancer) estimateTotalGas(txns []SkipGoTxnWithMetadata) (uint64,
 	return totalGas, nil
 }
 
-// Compares total gas cost of fund rebalancing txns in USDC to configured threshold for a specified chain
+// isGasAcceptable checks if the gas cost for rebalancing transactions is acceptable based on configured thresholds
+// and timeouts. Returns (isAcceptable, gasCostUUSDC string, error)
 func (r *FundRebalancer) isGasAcceptable(ctx context.Context, txns []SkipGoTxnWithMetadata, chainID string) (bool, string, error) {
 	totalGas, err := r.estimateTotalGas(txns)
 	if err != nil {
@@ -674,9 +675,50 @@ func (r *FundRebalancer) isGasAcceptable(ctx context.Context, txns []SkipGoTxnWi
 		return false, "", fmt.Errorf("parsing max gas cost threshold")
 	}
 
-	if gasCostUUSDC.Cmp(maxCost) > 0 {
+	if gasCostUUSDC.Cmp(maxCost) <= 0 {
+		return true, gasCostUUSDC.String(), nil
+	}
+
+	// No fund rebalancing timeout set
+	if *chainConfig.FundRebalancingTimeout == -1 {
 		return false, gasCostUUSDC.String(), nil
 	}
 
-	return true, gasCostUUSDC.String(), nil
+	transfers, err := r.database.GetPendingRebalanceTransfersToChain(ctx, chainID)
+	if err != nil {
+		return false, "", fmt.Errorf("getting pending transfers: %w", err)
+	}
+
+	if len(transfers) == 0 || chainConfig.FundRebalancingTimeout == nil {
+		return false, gasCostUUSDC.String(), nil
+	}
+
+	// Use oldest pending transfer
+	oldestTransfer := transfers[0]
+	for _, transfer := range transfers {
+		if transfer.CreatedAt.Before(oldestTransfer.CreatedAt) {
+			oldestTransfer = transfer
+		}
+	}
+
+	// If timeout is exceeded, Use higher cost cap for timed out rebalancing
+	if time.Since(oldestTransfer.CreatedAt) > *chainConfig.FundRebalancingTimeout {
+		costCap, ok := new(big.Int).SetString(chainConfig.FundRebalancingCostCapUUSDC, 10)
+		if !ok {
+			return false, "", fmt.Errorf("parsing rebalancing cost cap")
+		}
+
+		lmt.Logger(ctx).Info(
+			"rebalancing timeout exceeded, using higher cost cap",
+			zap.String("chainID", chainID),
+			zap.String("gasCostUUSDC", gasCostUUSDC.String()),
+			zap.String("costCap", costCap.String()),
+			zap.Duration("timeoutDuration", *chainConfig.FundRebalancingTimeout),
+		)
+
+		return gasCostUUSDC.Cmp(costCap) <= 0, gasCostUUSDC.String(), nil
+	}
+
+	// If timeout hasn't passed, don't accept the current gas price
+	return false, gasCostUUSDC.String(), nil
 }
