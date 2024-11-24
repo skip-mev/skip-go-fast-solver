@@ -131,6 +131,7 @@ func TestFundRebalancer_RebalanceWithAbandonedTransfer(t *testing.T) {
 	assert.NoError(t, err)
 
 	rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, fakeDatabase, mockTxPriceOracle, mockEVMTxExecutor)
+	assert.NoError(t, err)
 
 	// Insert an old pending transfer that should be abandoned
 	oldTransferID, err := fakeDatabase.InsertRebalanceTransfer(ctx, db.InsertRebalanceTransferParams{
