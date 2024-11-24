@@ -24,21 +24,27 @@ fund_rebalancer:
   42161:
     target_amount: 0
     min_allowed_amount: 0
+    rebalance_transfer_timeout: 1h
   43114:
     target_amount: 0
     min_allowed_amount: 0
+    rebalance_transfer_timeout: 1h
   137:
     target_amount: 0
     min_allowed_amount: 0
+    rebalance_transfer_timeout: 1h
   8453:
     target_amount: 0
     min_allowed_amount: 0
+    rebalance_transfer_timeout: 1h
   10:
     target_amount: 0
     min_allowed_amount: 0
+    rebalance_transfer_timeout: 1h
   osmosis-1:
     target_amount: 1000000000000000
     min_allowed_amount: 1000000000000000
+    rebalance_transfer_timeout: 1h
 chains:
   43114:
     chain_name: "avalanche"

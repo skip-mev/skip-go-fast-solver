@@ -24,12 +24,31 @@ fund_rebalancer:
   1:
     target_amount: <target_amount> # e.g. "1000000000"
     min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
+    rebalance_transfer_timeout: <rebalance_transfer_timeout> # e.g. 1h
   42161:
     target_amount: <target_amount> # e.g. "1000000000"
     min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
+    rebalance_transfer_timeout: <rebalance_transfer_timeout> # e.g. 1h
   osmosis-1:
     target_amount: <target_amount> # e.g. "1000000000"
     min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
+    rebalance_transfer_timeout: <rebalance_transfer_timeout> # e.g. 1h
+  43114:
+    target_amount: <target_amount> # e.g. "1000000000"
+    min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
+    rebalance_transfer_timeout: <rebalance_transfer_timeout> # e.g. 1h
+  137:
+    target_amount: <target_amount> # e.g. "1000000000"
+    min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
+    rebalance_transfer_timeout: <rebalance_transfer_timeout> # e.g. 1h
+  8453:
+    target_amount: <target_amount> # e.g. "1000000000"
+    min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
+    rebalance_transfer_timeout: <rebalance_transfer_timeout> # e.g. 1h
+  10:
+    target_amount: <target_amount> # e.g. "1000000000"
+    min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
+    rebalance_transfer_timeout: <rebalance_transfer_timeout> # e.g. 1h
 chains:
   43114:
     chain_name: "avalanche"

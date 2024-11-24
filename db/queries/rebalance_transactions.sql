@@ -22,7 +22,8 @@ SELECT
     tx_hash,
     source_chain_id,
     destination_chain_id,
-    amount 
+    amount,
+    created_at
 FROM rebalance_transfers 
 WHERE status = 'PENDING';
 

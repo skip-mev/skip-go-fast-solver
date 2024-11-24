@@ -65,6 +65,9 @@ type FundRebalancerConfig struct {
 	// before a rebalance is triggered to move uusdc from other chains to this
 	// chain.
 	MinAllowedAmount string `yaml:"min_allowed_amount"`
+	// RebalanceTransferTimeout is the maximum amount of time to wait before marking
+	// a pending rebalance transfer status as abandoned
+	RebalanceTransferTimeout *time.Duration `yaml:"rebalance_transfer_timeout"`
 }
 
 type TransferMonitorConfig struct {
@@ -366,6 +369,7 @@ type ConfigReader interface {
 	GetUSDCDenom(chainID string) (string, error)
 
 	GetGasAlertThresholds(chainID string) (warningThreshold, criticalThreshold *big.Int, err error)
+	GetRebalanceTransferTimeout(chainId string) *time.Duration
 }
 
 type configReader struct {
@@ -525,6 +529,10 @@ func (r configReader) GetUSDCDenom(chainID string) (string, error) {
 	}
 
 	return chainConfig.USDCDenom, nil
+}
+
+func (r configReader) GetRebalanceTransferTimeout(chainId string) *time.Duration {
+	return r.config.FundRebalancer[chainId].RebalanceTransferTimeout
 }
 
 func ValidateChainConfig(chain ChainConfig) error {

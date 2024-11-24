@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"time"
 )
 
 const getAllPendingRebalanceTransfers = `-- name: GetAllPendingRebalanceTransfers :many
@@ -15,7 +16,8 @@ SELECT
     tx_hash,
     source_chain_id,
     destination_chain_id,
-    amount 
+    amount,
+    created_at
 FROM rebalance_transfers 
 WHERE status = 'PENDING'
 `
@@ -26,6 +28,7 @@ type GetAllPendingRebalanceTransfersRow struct {
 	SourceChainID      string
 	DestinationChainID string
 	Amount             string
+	CreatedAt          time.Time
 }
 
 func (q *Queries) GetAllPendingRebalanceTransfers(ctx context.Context) ([]GetAllPendingRebalanceTransfersRow, error) {
@@ -43,6 +46,7 @@ func (q *Queries) GetAllPendingRebalanceTransfers(ctx context.Context) ([]GetAll
 			&i.SourceChainID,
 			&i.DestinationChainID,
 			&i.Amount,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
