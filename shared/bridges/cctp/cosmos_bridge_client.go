@@ -167,6 +167,9 @@ func (c *CosmosBridgeClient) GetTxResult(ctx context.Context, txHash string) (*b
 
 	result, err := c.rpcClient.Tx(ctx, txHashBytes, false)
 	if err != nil {
+		if strings.HasSuffix(err.Error(), "not found") {
+			return nil, nil, ErrTxResultNotFound{TxHash: txHash}
+		}
 		return nil, nil, err
 	} else if result.TxResult.Code != 0 {
 		return big.NewInt(result.TxResult.GasUsed), &TxFailure{fmt.Sprintf("tx failed with code: %d and log: %s", result.TxResult.Code, result.TxResult.Log)}, nil

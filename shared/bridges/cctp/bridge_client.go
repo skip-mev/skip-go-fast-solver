@@ -50,6 +50,14 @@ func (e ErrReceiveNotFound) Error() string {
 	return fmt.Sprintf("receive not found for tx: %s", e.TxHash)
 }
 
+type ErrTxResultNotFound struct {
+	TxHash string
+}
+
+func (e ErrTxResultNotFound) Error() string {
+	return fmt.Sprintf("tx result not found for tx: %s", e.TxHash)
+}
+
 type BridgeClient interface {
 	BlockHeight(ctx context.Context) (uint64, error)
 	SignerGasTokenBalance(ctx context.Context) (*big.Int, error)
