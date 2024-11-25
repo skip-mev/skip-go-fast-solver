@@ -19,7 +19,7 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
 )
 
-var (
+const (
 	txAbandonedTimeout = 10 * time.Minute
 )
 
