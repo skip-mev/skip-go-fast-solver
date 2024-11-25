@@ -681,6 +681,58 @@ func (_c *MockConfigReader_GetUSDCDenom_Call) RunAndReturn(run func(string) (str
 	return _c
 }
 
+// GetFundRebalancingConfig provides a mock function with given fields: chainID
+func (_m *MockConfigReader) GetFundRebalancingConfig(chainID string) (config.FundRebalancerConfig, error) {
+	ret := _m.Called(chainID)
+
+	var r0 config.FundRebalancerConfig
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string) (config.FundRebalancerConfig, error)); ok {
+		return rf(chainID)
+	}
+	if rf, ok := ret.Get(0).(func(string) config.FundRebalancerConfig); ok {
+		r0 = rf(chainID)
+	} else {
+		r0 = ret.Get(0).(config.FundRebalancerConfig)
+	}
+
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(chainID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockConfigReader_GetFundRebalancingConfig_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetFundRebalancingConfig'
+type MockConfigReader_GetFundRebalancingConfig_Call struct {
+	*mock.Call
+}
+
+// GetFundRebalancingConfig is a helper method to define mock.On call
+//   - chainID string
+func (_e *MockConfigReader_Expecter) GetFundRebalancingConfig(chainID interface{}) *MockConfigReader_GetFundRebalancingConfig_Call {
+	return &MockConfigReader_GetFundRebalancingConfig_Call{Call: _e.mock.On("GetFundRebalancingConfig", chainID)}
+}
+
+func (_c *MockConfigReader_GetFundRebalancingConfig_Call) Run(run func(chainID string)) *MockConfigReader_GetFundRebalancingConfig_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *MockConfigReader_GetFundRebalancingConfig_Call) Return(_a0 config.FundRebalancerConfig, _a1 error) *MockConfigReader_GetFundRebalancingConfig_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockConfigReader_GetFundRebalancingConfig_Call) RunAndReturn(run func(string) (config.FundRebalancerConfig, error)) *MockConfigReader_GetFundRebalancingConfig_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockConfigReader creates a new instance of MockConfigReader. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockConfigReader(t interface {

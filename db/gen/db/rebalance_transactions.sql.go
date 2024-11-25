@@ -67,8 +67,8 @@ SELECT
     tx_hash,
     source_chain_id,
     destination_chain_id,
-    amount 
-FROM rebalance_transfers 
+    amount
+FROM rebalance_transfers
 WHERE destination_chain_id = ? AND status = 'PENDING'
 `
 

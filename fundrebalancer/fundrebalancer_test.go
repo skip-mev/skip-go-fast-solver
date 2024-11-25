@@ -1,4 +1,4 @@
-package fundrebalancer_test
+package fundrebalancer
 
 import (
 	"context"
@@ -8,11 +8,11 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	evm2 "github.com/skip-mev/go-fast-solver/mocks/shared/txexecutor/evm"
 
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
-	"github.com/skip-mev/go-fast-solver/fundrebalancer"
 	mock_database "github.com/skip-mev/go-fast-solver/mocks/fundrebalancer"
 	mock_skipgo "github.com/skip-mev/go-fast-solver/mocks/shared/clients/skipgo"
 	mock_config "github.com/skip-mev/go-fast-solver/mocks/shared/config"
@@ -56,6 +56,8 @@ const (
 var (
 	mockContext = mock.Anything
 
+	disabledTimeout = -1 * time.Hour
+
 	defaultKeys = map[string]interface{}{
 		arbitrumChainID: map[string]string{
 			"address":     arbitrumAddress,
@@ -98,15 +100,22 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockConfigReader.On("Config").Return(config.Config{
 			FundRebalancer: map[string]config.FundRebalancerConfig{
 				osmosisChainID: {
-					TargetAmount:     strconv.Itoa(osmosisTargetAmount),
-					MinAllowedAmount: strconv.Itoa(osmosisMinAmount),
+					TargetAmount:               strconv.Itoa(osmosisTargetAmount),
+					MinAllowedAmount:           strconv.Itoa(osmosisMinAmount),
+					MaxRebalancingGasCostUUSDC: "50000000",
+					ProfitabilityTimeout:       disabledTimeout,
+					TransferCostCapUUSDC:       "10000000",
 				},
 				arbitrumChainID: {
-					TargetAmount:     strconv.Itoa(arbitrumTargetAmount),
-					MinAllowedAmount: strconv.Itoa(arbitrumMinAmount),
+					TargetAmount:               strconv.Itoa(arbitrumTargetAmount),
+					MinAllowedAmount:           strconv.Itoa(arbitrumMinAmount),
+					MaxRebalancingGasCostUUSDC: "50000000",
+					ProfitabilityTimeout:       disabledTimeout,
+					TransferCostCapUUSDC:       "10000000",
 				},
 			},
 		})
+
 		mockConfigReader.EXPECT().GetUSDCDenom(osmosisChainID).Return(osmosisUSDCDenom, nil)
 		mockConfigReader.On("GetChainConfig", osmosisChainID).Return(
 			config.ChainConfig{
@@ -137,7 +146,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		assert.NoError(t, err)
 		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
+		rebalancer, err := NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -163,15 +172,32 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockConfigReader.On("Config").Return(config.Config{
 			FundRebalancer: map[string]config.FundRebalancerConfig{
 				osmosisChainID: {
-					TargetAmount:     strconv.Itoa(osmosisTargetAmount),
-					MinAllowedAmount: strconv.Itoa(osmosisMinAmount),
+					TargetAmount:               strconv.Itoa(osmosisTargetAmount),
+					MinAllowedAmount:           strconv.Itoa(osmosisMinAmount),
+					MaxRebalancingGasCostUUSDC: "50000000",
+					ProfitabilityTimeout:       disabledTimeout,
+					TransferCostCapUUSDC:       "10000000",
 				},
 				arbitrumChainID: {
-					TargetAmount:     strconv.Itoa(arbitrumTargetAmount),
-					MinAllowedAmount: strconv.Itoa(arbitrumMinAmount),
+					TargetAmount:               strconv.Itoa(arbitrumTargetAmount),
+					MinAllowedAmount:           strconv.Itoa(arbitrumMinAmount),
+					MaxRebalancingGasCostUUSDC: "50000000",
+					ProfitabilityTimeout:       disabledTimeout,
+					TransferCostCapUUSDC:       "10000000",
 				},
 			},
 		})
+		mockConfigReader.On("GetFundRebalancingConfig", arbitrumChainID).Return(
+			config.FundRebalancerConfig{
+				TargetAmount:               strconv.Itoa(arbitrumTargetAmount),
+				MinAllowedAmount:           strconv.Itoa(arbitrumMinAmount),
+				MaxRebalancingGasCostUUSDC: "50000000",
+				ProfitabilityTimeout:       disabledTimeout,
+				TransferCostCapUUSDC:       "10000000",
+			},
+			nil,
+		)
+
 		mockConfigReader.EXPECT().GetUSDCDenom(osmosisChainID).Return(osmosisUSDCDenom, nil)
 		mockConfigReader.EXPECT().GetUSDCDenom(arbitrumChainID).Return(arbitrumUSDCDenom, nil)
 		mockConfigReader.On("GetChainConfig", osmosisChainID).Return(
@@ -198,15 +224,17 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockSkipGo := mock_skipgo.NewMockSkipGoClient(t)
 		mockEVMClientManager := mock_evmrpc.NewMockEVMRPCClientManager(t)
 		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
+		mockEVMClient.EXPECT().SuggestGasPrice(mockContext).Return(big.NewInt(100), nil)
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", nil)
 		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
+		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything, mock.Anything).Return(big.NewInt(75), nil)
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
+		rebalancer, err := NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -265,6 +293,21 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 				},
 			},
 		})
+		mockConfigReader.On("GetFundRebalancingConfig", arbitrumChainID).Return(
+			config.FundRebalancerConfig{
+				TargetAmount:     strconv.Itoa(arbitrumTargetAmount),
+				MinAllowedAmount: strconv.Itoa(arbitrumMinAmount),
+			},
+			nil,
+		)
+		mockConfigReader.On("GetFundRebalancingConfig", ethChainID).Return(
+			config.FundRebalancerConfig{
+				TargetAmount:     strconv.Itoa(ethTargetAmount),
+				MinAllowedAmount: strconv.Itoa(ethMinAmount),
+			},
+			nil,
+		)
+
 		mockConfigReader.EXPECT().GetUSDCDenom(osmosisChainID).Return(osmosisUSDCDenom, nil)
 		mockConfigReader.EXPECT().GetUSDCDenom(arbitrumChainID).Return(arbitrumUSDCDenom, nil)
 		mockConfigReader.EXPECT().GetUSDCDenom(ethChainID).Return(ethUSDCDenom, nil)
@@ -313,7 +356,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
+		rebalancer, err := NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -391,6 +434,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 				},
 			},
 		})
+
 		mockConfigReader.EXPECT().GetUSDCDenom(osmosisChainID).Return(osmosisUSDCDenom, nil)
 		mockConfigReader.On("GetChainConfig", osmosisChainID).Return(
 			config.ChainConfig{
@@ -421,7 +465,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
+		rebalancer, err := NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -443,22 +487,39 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		rebalancer.Rebalance(ctx)
 	})
 
-	t.Run("skips rebalance when gas threshold exceeded", func(t *testing.T) {
+	t.Run("skips rebalance when gas threshold exceeded and timeout is set to -1", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
 		mockConfigReader := mock_config.NewMockConfigReader(t)
 		mockConfigReader.On("Config").Return(config.Config{
 			FundRebalancer: map[string]config.FundRebalancerConfig{
 				osmosisChainID: {
-					TargetAmount:     strconv.Itoa(osmosisTargetAmount),
-					MinAllowedAmount: strconv.Itoa(osmosisMinAmount),
+					TargetAmount:               strconv.Itoa(osmosisTargetAmount),
+					MinAllowedAmount:           strconv.Itoa(osmosisMinAmount),
+					MaxRebalancingGasCostUUSDC: "50",
+					ProfitabilityTimeout:       disabledTimeout,
+					TransferCostCapUUSDC:       "10000000",
 				},
 				arbitrumChainID: {
-					TargetAmount:     strconv.Itoa(arbitrumTargetAmount),
-					MinAllowedAmount: strconv.Itoa(arbitrumMinAmount),
+					TargetAmount:               strconv.Itoa(arbitrumTargetAmount),
+					MinAllowedAmount:           strconv.Itoa(arbitrumMinAmount),
+					MaxRebalancingGasCostUUSDC: "50",
+					ProfitabilityTimeout:       disabledTimeout,
+					TransferCostCapUUSDC:       "10000000",
 				},
 			},
 		})
+		mockConfigReader.On("GetFundRebalancingConfig", arbitrumChainID).Return(
+			config.FundRebalancerConfig{
+				TargetAmount:               strconv.Itoa(arbitrumTargetAmount),
+				MinAllowedAmount:           strconv.Itoa(arbitrumMinAmount),
+				MaxRebalancingGasCostUUSDC: "50",
+				ProfitabilityTimeout:       disabledTimeout,
+				TransferCostCapUUSDC:       "10000000",
+			},
+			nil,
+		)
+
 		mockConfigReader.EXPECT().GetUSDCDenom(osmosisChainID).Return(osmosisUSDCDenom, nil)
 		mockConfigReader.EXPECT().GetUSDCDenom(arbitrumChainID).Return(arbitrumUSDCDenom, nil)
 		mockConfigReader.On("GetChainConfig", osmosisChainID).Return(
@@ -471,10 +532,9 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		)
 		mockConfigReader.On("GetChainConfig", arbitrumChainID).Return(
 			config.ChainConfig{
-				Type:                       config.ChainType_EVM,
-				USDCDenom:                  arbitrumUSDCDenom,
-				SolverAddress:              arbitrumAddress,
-				MaxRebalancingGasCostUUSDC: "50", // Set low threshold that will be exceeded
+				Type:          config.ChainType_EVM,
+				USDCDenom:     arbitrumUSDCDenom,
+				SolverAddress: arbitrumAddress,
 			},
 			nil,
 		)
@@ -493,7 +553,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
+		rebalancer, err := NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
 		assert.NoError(t, err)
 		// No pending txns
 		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, osmosisChainID).Return(nil, nil)
@@ -548,6 +608,14 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 				},
 			},
 		})
+		mockConfigReader.On("GetFundRebalancingConfig", arbitrumChainID).Return(
+			config.FundRebalancerConfig{
+				TargetAmount:     strconv.Itoa(arbitrumTargetAmount),
+				MinAllowedAmount: strconv.Itoa(arbitrumMinAmount),
+			},
+			nil,
+		)
+
 		mockConfigReader.EXPECT().GetUSDCDenom(osmosisChainID).Return(osmosisUSDCDenom, nil)
 		mockConfigReader.EXPECT().GetUSDCDenom(arbitrumChainID).Return(arbitrumUSDCDenom, nil)
 		mockConfigReader.On("GetChainConfig", osmosisChainID).Return(
@@ -588,7 +656,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 
 		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
 
-		rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
+		rebalancer, err := NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
 		assert.NoError(t, err)
 
 		// setup initial state of mocks
@@ -636,4 +704,211 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 
 		rebalancer.Rebalance(ctx)
 	})
+}
+
+func TestFundRebalancer_GasAcceptability(t *testing.T) {
+	t.Run("accepts transaction above threshold but below cap after timeout", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		mockContext := mock.Anything
+		timeout := 1 * time.Hour
+		mockConfigReader := mock_config.NewMockConfigReader(t)
+		mockConfigReader.On("Config").Return(config.Config{
+			FundRebalancer: map[string]config.FundRebalancerConfig{
+				arbitrumChainID: {
+					TargetAmount:               strconv.Itoa(arbitrumTargetAmount),
+					MinAllowedAmount:           strconv.Itoa(arbitrumMinAmount),
+					MaxRebalancingGasCostUUSDC: "50",
+					ProfitabilityTimeout:       timeout,
+					TransferCostCapUUSDC:       "100",
+				},
+			},
+		})
+		mockConfigReader.On("GetFundRebalancingConfig", arbitrumChainID).Return(
+			config.FundRebalancerConfig{
+				TargetAmount:               strconv.Itoa(arbitrumTargetAmount),
+				MinAllowedAmount:           strconv.Itoa(arbitrumMinAmount),
+				MaxRebalancingGasCostUUSDC: "50",
+				ProfitabilityTimeout:       timeout,
+				TransferCostCapUUSDC:       "100",
+			},
+			nil,
+		)
+		mockConfigReader.On("GetChainConfig", arbitrumChainID).Return(
+			config.ChainConfig{
+				Type: config.ChainType_EVM,
+			},
+			nil,
+		)
+		ctx = config.ConfigReaderContext(ctx, mockConfigReader)
+
+		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
+		mockEVMClient.EXPECT().SuggestGasPrice(mockContext).Return(big.NewInt(1000000000), nil)
+		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
+		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything, mock.Anything).Return(big.NewInt(75), nil)
+
+		rebalancer := setupRebalancer(t, ctx, mockEVMClient, mockTxPriceOracle, nil)
+
+		txns := []SkipGoTxnWithMetadata{{
+			tx:          skipgo.Tx{EVMTx: &skipgo.EVMTx{ChainID: arbitrumChainID}},
+			gasEstimate: 100000,
+		}}
+
+		// First attempt should fail and start tracking
+		acceptable, cost, err := rebalancer.isGasAcceptable(ctx, txns, arbitrumChainID)
+		assert.NoError(t, err)
+		assert.False(t, acceptable)
+		assert.Equal(t, "75", cost)
+
+		// Simulate time passing
+		rebalancer.profitabilityFailures[arbitrumChainID].firstFailureTime = time.Now().Add(-2 * time.Hour)
+
+		// Second attempt should succeed due to timeout
+		acceptable, cost, err = rebalancer.isGasAcceptable(ctx, txns, arbitrumChainID)
+		assert.NoError(t, err)
+		assert.True(t, acceptable)
+		assert.Equal(t, "75", cost)
+	})
+
+	t.Run("rejects transaction above cap even after timeout", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		mockContext := mock.Anything
+		timeout := 1 * time.Hour
+		mockConfigReader := mock_config.NewMockConfigReader(t)
+		mockConfigReader.On("Config").Return(config.Config{
+			FundRebalancer: map[string]config.FundRebalancerConfig{
+				arbitrumChainID: {
+					TargetAmount:               strconv.Itoa(arbitrumTargetAmount),
+					MinAllowedAmount:           strconv.Itoa(arbitrumMinAmount),
+					MaxRebalancingGasCostUUSDC: "50",
+					ProfitabilityTimeout:       timeout,
+					TransferCostCapUUSDC:       "100",
+				},
+			},
+		})
+		mockConfigReader.On("GetFundRebalancingConfig", arbitrumChainID).Return(
+			config.FundRebalancerConfig{
+				TargetAmount:               strconv.Itoa(arbitrumTargetAmount),
+				MinAllowedAmount:           strconv.Itoa(arbitrumMinAmount),
+				MaxRebalancingGasCostUUSDC: "50",
+				ProfitabilityTimeout:       timeout,
+				TransferCostCapUUSDC:       "100",
+			},
+			nil,
+		)
+		mockConfigReader.On("GetChainConfig", arbitrumChainID).Return(
+			config.ChainConfig{
+				Type: config.ChainType_EVM,
+			},
+			nil,
+		)
+		ctx = config.ConfigReaderContext(ctx, mockConfigReader)
+
+		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
+		mockEVMClient.EXPECT().SuggestGasPrice(mockContext).Return(big.NewInt(1000000000), nil)
+		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
+		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything, mock.Anything).Return(big.NewInt(150), nil)
+
+		rebalancer := setupRebalancer(t, ctx, mockEVMClient, mockTxPriceOracle, nil)
+
+		txns := []SkipGoTxnWithMetadata{{
+			tx:          skipgo.Tx{EVMTx: &skipgo.EVMTx{ChainID: arbitrumChainID}},
+			gasEstimate: 100000,
+		}}
+
+		// First attempt should fail and start tracking
+		acceptable, cost, err := rebalancer.isGasAcceptable(ctx, txns, arbitrumChainID)
+		assert.NoError(t, err)
+		assert.False(t, acceptable)
+		assert.Equal(t, "150", cost)
+
+		// Simulate time passing
+		rebalancer.profitabilityFailures[arbitrumChainID].firstFailureTime = time.Now().Add(-2 * time.Hour)
+
+		// Second attempt should still fail due to being above cap
+		acceptable, cost, err = rebalancer.isGasAcceptable(ctx, txns, arbitrumChainID)
+		assert.NoError(t, err)
+		assert.False(t, acceptable)
+		assert.Equal(t, "150", cost)
+	})
+
+	t.Run("clears failure tracking when gas becomes acceptable", func(t *testing.T) {
+		t.Parallel()
+		ctx := context.Background()
+		mockContext := mock.Anything
+		timeout := 1 * time.Hour
+		mockConfigReader := mock_config.NewMockConfigReader(t)
+		mockConfigReader.On("Config").Return(config.Config{
+			FundRebalancer: map[string]config.FundRebalancerConfig{
+				arbitrumChainID: {
+					TargetAmount:               strconv.Itoa(arbitrumTargetAmount),
+					MinAllowedAmount:           strconv.Itoa(arbitrumMinAmount),
+					MaxRebalancingGasCostUUSDC: "50",
+					ProfitabilityTimeout:       timeout,
+					TransferCostCapUUSDC:       "100",
+				},
+			},
+		})
+		mockConfigReader.On("GetFundRebalancingConfig", arbitrumChainID).Return(
+			config.FundRebalancerConfig{
+				TargetAmount:               strconv.Itoa(arbitrumTargetAmount),
+				MinAllowedAmount:           strconv.Itoa(arbitrumMinAmount),
+				MaxRebalancingGasCostUUSDC: "50",
+				ProfitabilityTimeout:       timeout,
+				TransferCostCapUUSDC:       "100",
+			},
+			nil,
+		)
+		mockConfigReader.On("GetChainConfig", arbitrumChainID).Return(
+			config.ChainConfig{
+				Type: config.ChainType_EVM,
+			},
+			nil,
+		)
+		ctx = config.ConfigReaderContext(ctx, mockConfigReader)
+
+		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
+		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
+		rebalancer := setupRebalancer(t, ctx, mockEVMClient, mockTxPriceOracle, nil)
+
+		txns := []SkipGoTxnWithMetadata{{
+			tx:          skipgo.Tx{EVMTx: &skipgo.EVMTx{ChainID: arbitrumChainID}},
+			gasEstimate: 100000,
+		}}
+
+		// First attempt with high gas
+		mockEVMClient.EXPECT().SuggestGasPrice(mockContext).Return(big.NewInt(1000000000), nil)
+		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything, mock.Anything).Return(big.NewInt(75), nil).Once()
+
+		acceptable, _, err := rebalancer.isGasAcceptable(ctx, txns, arbitrumChainID)
+		assert.NoError(t, err)
+		assert.False(t, acceptable)
+		assert.NotNil(t, rebalancer.profitabilityFailures[arbitrumChainID])
+
+		// Second attempt with low gas
+		mockEVMClient.EXPECT().SuggestGasPrice(mockContext).Return(big.NewInt(500000000), nil)
+		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything, mock.Anything).Return(big.NewInt(25), nil).Once()
+
+		acceptable, _, err = rebalancer.isGasAcceptable(ctx, txns, arbitrumChainID)
+		assert.NoError(t, err)
+		assert.True(t, acceptable)
+		assert.Nil(t, rebalancer.profitabilityFailures[arbitrumChainID])
+	})
+}
+
+func setupRebalancer(t *testing.T, ctx context.Context, mockEVMClient *mock_evmrpc.MockEVMChainRPC, mockTxPriceOracle *mock_evmrpc.MockOracle, mockDatabase *mock_database.MockDatabase) *FundRebalancer {
+	mockEVMClientManager := mock_evmrpc.NewMockEVMRPCClientManager(t)
+	mockEVMClientManager.EXPECT().GetClient(mock.Anything, arbitrumChainID).Return(mockEVMClient, nil)
+	mockSkipGo := mock_skipgo.NewMockSkipGoClient(t)
+	mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
+
+	f, err := loadKeysFile(defaultKeys)
+	assert.NoError(t, err)
+	keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
+	assert.NoError(t, err)
+
+	rebalancer, err := NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabase, mockTxPriceOracle, mockEVMTxExecutor)
+	assert.NoError(t, err)
+	return rebalancer
 }

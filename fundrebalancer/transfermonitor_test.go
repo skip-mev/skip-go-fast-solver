@@ -1,4 +1,4 @@
-package fundrebalancer_test
+package fundrebalancer
 
 import (
 	"math/big"
@@ -8,7 +8,6 @@ import (
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
-	"github.com/skip-mev/go-fast-solver/fundrebalancer"
 	mock_database "github.com/skip-mev/go-fast-solver/mocks/fundrebalancer"
 	mock_skipgo "github.com/skip-mev/go-fast-solver/mocks/shared/clients/skipgo"
 	mock_config "github.com/skip-mev/go-fast-solver/mocks/shared/config"
@@ -68,7 +67,7 @@ func TestTransferMonitor_UpdateTransfers(t *testing.T) {
 			Status: dbtypes.RebalanceTransferStatusFailed,
 		}).Return(nil)
 
-		tm := fundrebalancer.NewTransferTracker(mockSkipGo, mockDatabase)
+		tm := NewTransferTracker(mockSkipGo, mockDatabse)
 
 		assert.NoError(t, tm.UpdateTransfers(ctx))
 	})
