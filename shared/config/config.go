@@ -72,13 +72,13 @@ type FundRebalancerConfig struct {
 	// gas costs exceed MaxRebalancingGasCostUUSDC. After this timeout expires, the
 	// transfer will proceed if gas costs are below TransferCostCapUUSDC.
 	// Set to -1 to disable the timeout.
-	ProfitabilityTimeout time.Duration `yaml:"profitable_relay_timeout"`
+	ProfitabilityTimeout time.Duration `yaml:"profitable_rebalance_timeout"`
 	// TransferCostCapUUSDC is the absolute maximum gas cost in uusdc that will
 	// be paid for a rebalancing transfer after TransferTimeout expires. This
 	// should be higher than MaxRebalancingGasCostUUSDC to prevent the solver from
 	// getting stuck with insufficient funds when gas costs are high. If gas costs
 	// exceed this cap even after timeout, the rebalancing will not occur.
-	TransferCostCapUUSDC string `yaml:"relay_cost_cap_uusdc"`
+	TransferCostCapUUSDC string `yaml:"transfer_cost_cap_uusdc"`
 }
 
 type TransferMonitorConfig struct {
