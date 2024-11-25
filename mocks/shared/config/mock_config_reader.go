@@ -577,54 +577,6 @@ func (_c *MockConfigReader_GetRPCEndpoint_Call) RunAndReturn(run func(string) (s
 	return _c
 }
 
-// GetRebalanceTransferTimeout provides a mock function with given fields: chainId
-func (_m *MockConfigReader) GetRebalanceTransferTimeout(chainId string) *time.Duration {
-	ret := _m.Called(chainId)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetRebalanceTransferTimeout")
-	}
-
-	var r0 *time.Duration
-	if rf, ok := ret.Get(0).(func(string) *time.Duration); ok {
-		r0 = rf(chainId)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*time.Duration)
-		}
-	}
-
-	return r0
-}
-
-// MockConfigReader_GetRebalanceTransferTimeout_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetRebalanceTransferTimeout'
-type MockConfigReader_GetRebalanceTransferTimeout_Call struct {
-	*mock.Call
-}
-
-// GetRebalanceTransferTimeout is a helper method to define mock.On call
-//   - chainId string
-func (_e *MockConfigReader_Expecter) GetRebalanceTransferTimeout(chainId interface{}) *MockConfigReader_GetRebalanceTransferTimeout_Call {
-	return &MockConfigReader_GetRebalanceTransferTimeout_Call{Call: _e.mock.On("GetRebalanceTransferTimeout", chainId)}
-}
-
-func (_c *MockConfigReader_GetRebalanceTransferTimeout_Call) Run(run func(chainId string)) *MockConfigReader_GetRebalanceTransferTimeout_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string))
-	})
-	return _c
-}
-
-func (_c *MockConfigReader_GetRebalanceTransferTimeout_Call) Return(_a0 *time.Duration) *MockConfigReader_GetRebalanceTransferTimeout_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *MockConfigReader_GetRebalanceTransferTimeout_Call) RunAndReturn(run func(string) *time.Duration) *MockConfigReader_GetRebalanceTransferTimeout_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetUSDCDenom provides a mock function with given fields: chainID
 func (_m *MockConfigReader) GetUSDCDenom(chainID string) (string, error) {
 	ret := _m.Called(chainID)
