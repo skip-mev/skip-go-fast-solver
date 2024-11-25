@@ -5,10 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"math/big"
 	"strings"
 	"time"
+
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
@@ -20,6 +21,7 @@ import (
 const (
 	relayInterval                  = 10 * time.Second
 	excessiveHyperlaneRelayLatency = 30 * time.Minute
+	relayRetryInterval             = 1 * time.Minute
 )
 
 type Database interface {
@@ -210,16 +212,27 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 		metrics.FromContext(ctx).IncHyperlaneMessages(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusAbandoned)
 		metrics.FromContext(ctx).ObserveHyperlaneLatency(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusAbandoned, time.Since(transfer.CreatedAt))
 
-		// for now we will not attempt to submit the hyperlane message more than once.
-		// this is to avoid the gas cost of repeatedly landing a failed hyperlane delivery tx.
-		// in the future we may add more sophistication around retries
+		lastAttempt := txs[len(txs)-1]
+		if time.Since(lastAttempt.CreatedAt) > relayRetryInterval {
+			lmt.Logger(ctx).Info(
+				"attempting to retry delivery of hyperlane message",
+				zap.String("sourceChainID", transfer.SourceChainID),
+				zap.String("destinationChainID", transfer.DestinationChainID),
+				zap.String("messageID", transfer.MessageID),
+				zap.String("previousAttemptTxHash", lastAttempt.TxHash),
+			)
+
+			return true, nil
+		}
+
 		lmt.Logger(ctx).Info(
-			"delivery attempt already made for message",
+			"delivery attempt already made for message, waiting for retry interval to pass",
 			zap.String("sourceChainID", transfer.SourceChainID),
 			zap.String("destinationChainID", transfer.DestinationChainID),
 			zap.String("messageID", transfer.MessageID),
 			zap.String("deliveryAttemptTxHash", txs[0].TxHash),
 		)
+
 		return false, nil
 	}
 
