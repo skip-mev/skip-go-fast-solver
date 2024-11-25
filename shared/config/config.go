@@ -65,9 +65,6 @@ type FundRebalancerConfig struct {
 	// before a rebalance is triggered to move uusdc from other chains to this
 	// chain.
 	MinAllowedAmount string `yaml:"min_allowed_amount"`
-	// TransferTimeout is the maximum amount of time to wait before marking
-	// a pending rebalance transfer status as abandoned
-	TransferTimeout *time.Duration `yaml:"transfer_timeout"`
 	// Maximum total gas cost for rebalancing txs per chain, fails if the sum
 	// of rebalancing txs in UUSDC exceeds this threshold
 	MaxRebalancingGasCostUUSDC string `yaml:"max_rebalancing_gas_cost_uusdc"`

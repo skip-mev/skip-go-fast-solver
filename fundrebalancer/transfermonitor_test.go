@@ -28,8 +28,6 @@ func TestTransferMonitor_UpdateTransfers(t *testing.T) {
 		mockDatabase := mock_database.NewMockDatabase(t)
 		mockConfigReader := mock_config.NewMockConfigReader(t)
 
-		timeout := 1 * time.Hour
-		mockConfigReader.On("GetRebalanceTransferTimeout", arbitrumChainID).Return(&timeout)
 		ctx = config.ConfigReaderContext(ctx, mockConfigReader)
 
 		// two osmosis pending tx's, one will fail and another will complete successfully
@@ -67,7 +65,7 @@ func TestTransferMonitor_UpdateTransfers(t *testing.T) {
 			Status: dbtypes.RebalanceTransferStatusFailed,
 		}).Return(nil)
 
-		tm := NewTransferTracker(mockSkipGo, mockDatabse)
+		tm := NewTransferTracker(mockSkipGo, mockDatabase)
 
 		assert.NoError(t, tm.UpdateTransfers(ctx))
 	})
@@ -78,24 +76,19 @@ func TestFundRebalancer_RebalanceWithAbandonedTransfer(t *testing.T) {
 
 	ctx := context.Background()
 	mockConfigReader := mock_config.NewMockConfigReader(t)
-	// Set a very short timeout for testing
-	timeout := 1 * time.Nanosecond
 	mockConfigReader.On("Config").Return(config.Config{
 		FundRebalancer: map[string]config.FundRebalancerConfig{
 			osmosisChainID: {
-				TargetAmount:             strconv.Itoa(osmosisTargetAmount),
-				MinAllowedAmount:         strconv.Itoa(osmosisMinAmount),
-				RebalanceTransferTimeout: &timeout,
+				TargetAmount:     strconv.Itoa(osmosisTargetAmount),
+				MinAllowedAmount: strconv.Itoa(osmosisMinAmount),
 			},
 			arbitrumChainID: {
-				TargetAmount:             strconv.Itoa(arbitrumTargetAmount),
-				MinAllowedAmount:         strconv.Itoa(arbitrumMinAmount),
-				RebalanceTransferTimeout: &timeout,
+				TargetAmount:     strconv.Itoa(arbitrumTargetAmount),
+				MinAllowedAmount: strconv.Itoa(arbitrumMinAmount),
 			},
 		},
 	})
 
-	mockConfigReader.EXPECT().GetRebalanceTransferTimeout(arbitrumChainID).Return(&timeout)
 	mockConfigReader.EXPECT().GetUSDCDenom(osmosisChainID).Return(osmosisUSDCDenom, nil)
 	mockConfigReader.EXPECT().GetUSDCDenom(arbitrumChainID).Return(arbitrumUSDCDenom, nil)
 	mockConfigReader.On("GetChainConfig", osmosisChainID).Return(
@@ -129,7 +122,7 @@ func TestFundRebalancer_RebalanceWithAbandonedTransfer(t *testing.T) {
 	keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 	assert.NoError(t, err)
 
-	rebalancer, err := fundrebalancer.NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, fakeDatabase, mockTxPriceOracle, mockEVMTxExecutor)
+	rebalancer, err := NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, fakeDatabase, mockTxPriceOracle, mockEVMTxExecutor)
 	assert.NoError(t, err)
 
 	// Insert an old pending transfer that should be abandoned
@@ -140,7 +133,7 @@ func TestFundRebalancer_RebalanceWithAbandonedTransfer(t *testing.T) {
 		Amount:             "50",
 	})
 	assert.NoError(t, err)
-	err = fakeDatabase.UpdateTransferCreatedAt(ctx, oldTransferID, time.Now().Add(-2*timeout))
+	err = fakeDatabase.UpdateTransferCreatedAt(ctx, oldTransferID, time.Now().Add(-2*transferTimeout))
 	assert.NoError(t, err)
 
 	mockSkipGo.EXPECT().Balance(ctx, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("0", nil)
@@ -168,7 +161,7 @@ func TestFundRebalancer_RebalanceWithAbandonedTransfer(t *testing.T) {
 	assert.Equal(t, len(transfers), 1)
 
 	// Update transfers to handle the abandoned transfer
-	tm := fundrebalancer.NewTransferTracker(mockSkipGo, fakeDatabase)
+	tm := NewTransferTracker(mockSkipGo, fakeDatabase)
 	assert.NoError(t, tm.UpdateTransfers(ctx))
 
 	// Call rebalance again after the old transfer is abandoned to create the new transfer

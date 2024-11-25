@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 type TxHash string
@@ -444,7 +445,14 @@ func (s *skipGoClient) TrackTx(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("status code %d returned from Skip Go when submitting transaction to /track %s: %w", resp.StatusCode, txHash, handleError(resp.Body))
+		e := handleError(resp.Body)
+		if strings.Contains(e.Error(), "failed to fetch tx from chain") {
+			return "", ErrTxNotFound{
+				TxHash:  txHash,
+				ChainID: chainID,
+			}
+		}
+		return "", fmt.Errorf("status code %d returned from Skip Go when submitting transaction to /track %s: %w", resp.StatusCode, txHash, e)
 	}
 
 	type TrackResponse struct {
@@ -604,4 +612,13 @@ func handleError(body io.Reader) error {
 		return fmt.Errorf("decoding skip go error: %w", err)
 	}
 	return e
+}
+
+type ErrTxNotFound struct {
+	TxHash  string
+	ChainID string
+}
+
+func (e ErrTxNotFound) Error() string {
+	return fmt.Sprintf("failed to fetch tx %s from chain %s", e.TxHash, e.ChainID)
 }

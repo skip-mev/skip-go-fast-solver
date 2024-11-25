@@ -30,6 +30,7 @@ import (
 const (
 	initialRebalancerLoopDelay = 1 * time.Nanosecond
 	rebalancerLoopDelay        = 1 * time.Minute
+	transferTimeout            = 10 * time.Minute
 )
 
 type Database interface {
