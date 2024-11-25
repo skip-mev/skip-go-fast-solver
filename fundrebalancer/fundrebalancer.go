@@ -39,15 +39,21 @@ type Database interface {
 	UpdateTransferStatus(ctx context.Context, arg db.UpdateTransferStatusParams) error
 }
 
+type profitabilityFailure struct {
+	firstFailureTime time.Time
+	chainID          string
+}
+
 type FundRebalancer struct {
-	chainIDToPrivateKey map[string]string
-	skipgo              skipgo.SkipGoClient
-	evmClientManager    evmrpc.EVMRPCClientManager
-	config              map[string]config.FundRebalancerConfig
-	database            Database
-	trasferTracker      *TransferTracker
-	evmTxExecutor       evmtxsubmission.EVMTxExecutor
-	evmTxPriceOracle    evmrpc.IOracle
+	chainIDToPrivateKey   map[string]string
+	skipgo                skipgo.SkipGoClient
+	evmClientManager      evmrpc.EVMRPCClientManager
+	config                map[string]config.FundRebalancerConfig
+	database              Database
+	trasferTracker        *TransferTracker
+	evmTxExecutor         evmtxsubmission.EVMTxExecutor
+	evmTxPriceOracle      evmrpc.IOracle
+	profitabilityFailures map[string]*profitabilityFailure
 }
 
 func NewFundRebalancer(
@@ -60,14 +66,15 @@ func NewFundRebalancer(
 	evmTxExecutor evmtxsubmission.EVMTxExecutor,
 ) (*FundRebalancer, error) {
 	return &FundRebalancer{
-		chainIDToPrivateKey: keystore,
-		skipgo:              skipgo,
-		evmClientManager:    evmClientManager,
-		config:              config.GetConfigReader(ctx).Config().FundRebalancer,
-		database:            database,
-		trasferTracker:      NewTransferTracker(skipgo, database),
-		evmTxPriceOracle:    evmTxPriceOracle,
-		evmTxExecutor:       evmTxExecutor,
+		chainIDToPrivateKey:   keystore,
+		skipgo:                skipgo,
+		evmClientManager:      evmClientManager,
+		config:                config.GetConfigReader(ctx).Config().FundRebalancer,
+		database:              database,
+		trasferTracker:        NewTransferTracker(skipgo, database),
+		evmTxPriceOracle:      evmTxPriceOracle,
+		evmTxExecutor:         evmTxExecutor,
+		profitabilityFailures: make(map[string]*profitabilityFailure),
 	}, nil
 }
 
@@ -248,18 +255,18 @@ func (r *FundRebalancer) MoveFundsToChain(
 			return nil, nil, fmt.Errorf("only single transaction transfers are supported")
 		}
 		txn := txns[0]
-		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(rebalanceFromChainID)
+		chainFundRebalancingConfig, err := config.GetConfigReader(ctx).GetFundRebalancingConfig(rebalanceFromChainID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("getting chain config for gas threshold check: %w", err)
 		}
 
-		if chainConfig.MaxRebalancingGasCostUUSDC != "" {
+		if chainFundRebalancingConfig.MaxRebalancingGasCostUUSDC != "" {
 			gasAcceptable, gasCostUUSDC, err := r.isGasAcceptable(ctx, txns, rebalanceFromChainID)
 			if err != nil {
 				return nil, nil, fmt.Errorf("checking if total rebalancing gas cost is acceptable: %w", err)
 			}
 			if !gasAcceptable {
-				maxCost, _ := new(big.Int).SetString(chainConfig.MaxRebalancingGasCostUUSDC, 10)
+				maxCost, _ := new(big.Int).SetString(chainFundRebalancingConfig.MaxRebalancingGasCostUUSDC, 10)
 				lmt.Logger(ctx).Info(
 					"skipping rebalance from chain "+rebalanceFromChainID+" due to high rebalancing gas cost",
 					zap.String("destinationChainID", rebalanceToChain),
@@ -662,6 +669,11 @@ func (r *FundRebalancer) isGasAcceptable(ctx context.Context, txns []SkipGoTxnWi
 		return false, "", fmt.Errorf("getting chain config: %w", err)
 	}
 
+	chainFundRebalancingConfig, err := config.GetConfigReader(ctx).GetFundRebalancingConfig(chainID)
+	if err != nil {
+		return false, "", fmt.Errorf("getting chain fund rebalancing config: %w", err)
+	}
+
 	gasCostUUSDC, err := r.evmTxPriceOracle.TxFeeUUSDC(ctx, types.NewTx(&types.DynamicFeeTx{
 		Gas:       totalGas,
 		GasFeeCap: gasPrice,
@@ -670,40 +682,34 @@ func (r *FundRebalancer) isGasAcceptable(ctx context.Context, txns []SkipGoTxnWi
 		return false, "", fmt.Errorf("calculating total fund rebalancing gas cost in UUSDC: %w", err)
 	}
 
-	maxCost, ok := new(big.Int).SetString(chainConfig.MaxRebalancingGasCostUUSDC, 10)
+	maxCost, ok := new(big.Int).SetString(chainFundRebalancingConfig.MaxRebalancingGasCostUUSDC, 10)
 	if !ok {
 		return false, "", fmt.Errorf("parsing max gas cost threshold")
 	}
 
 	if gasCostUUSDC.Cmp(maxCost) <= 0 {
+		// Gas cost is acceptable, clear any failure tracking for this chain
+		delete(r.profitabilityFailures, chainID)
 		return true, gasCostUUSDC.String(), nil
 	}
 
 	// No fund rebalancing timeout set
-	if *chainConfig.FundRebalancingTimeout == -1 {
+	if chainFundRebalancingConfig.ProfitabilityTimeout == -1 {
 		return false, gasCostUUSDC.String(), nil
 	}
 
-	transfers, err := r.database.GetPendingRebalanceTransfersToChain(ctx, chainID)
-	if err != nil {
-		return false, "", fmt.Errorf("getting pending transfers: %w", err)
-	}
-
-	if len(transfers) == 0 || chainConfig.FundRebalancingTimeout == nil {
-		return false, gasCostUUSDC.String(), nil
-	}
-
-	// Use oldest pending transfer
-	oldestTransfer := transfers[0]
-	for _, transfer := range transfers {
-		if transfer.CreatedAt.Before(oldestTransfer.CreatedAt) {
-			oldestTransfer = transfer
+	failure, exists := r.profitabilityFailures[chainID]
+	if !exists {
+		r.profitabilityFailures[chainID] = &profitabilityFailure{
+			firstFailureTime: time.Now(),
+			chainID:          chainID,
 		}
+		return false, gasCostUUSDC.String(), nil
 	}
 
-	// If timeout is exceeded, Use higher cost cap for timed out rebalancing
-	if time.Since(oldestTransfer.CreatedAt) > *chainConfig.FundRebalancingTimeout {
-		costCap, ok := new(big.Int).SetString(chainConfig.FundRebalancingCostCapUUSDC, 10)
+	// If timeout is exceeded, use higher cost cap for timed out rebalancing
+	if time.Since(failure.firstFailureTime) > chainFundRebalancingConfig.ProfitabilityTimeout {
+		costCap, ok := new(big.Int).SetString(chainFundRebalancingConfig.TransferCostCapUUSDC, 10)
 		if !ok {
 			return false, "", fmt.Errorf("parsing rebalancing cost cap")
 		}
@@ -713,7 +719,8 @@ func (r *FundRebalancer) isGasAcceptable(ctx context.Context, txns []SkipGoTxnWi
 			zap.String("chainID", chainID),
 			zap.String("gasCostUUSDC", gasCostUUSDC.String()),
 			zap.String("costCap", costCap.String()),
-			zap.Duration("timeoutDuration", *chainConfig.FundRebalancingTimeout),
+			zap.Duration("timeoutDuration", chainFundRebalancingConfig.ProfitabilityTimeout),
+			zap.Time("firstFailureTime", failure.firstFailureTime),
 		)
 
 		return gasCostUUSDC.Cmp(costCap) <= 0, gasCostUUSDC.String(), nil
