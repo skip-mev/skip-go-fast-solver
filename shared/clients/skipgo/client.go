@@ -605,12 +605,3 @@ func handleError(body io.Reader) error {
 	}
 	return e
 }
-
-type ErrTxNotFound struct {
-	TxHash  string
-	ChainID string
-}
-
-func (e ErrTxNotFound) Error() string {
-	return fmt.Sprintf("failed to fetch tx %s from chain %s", e.TxHash, e.ChainID)
-}
