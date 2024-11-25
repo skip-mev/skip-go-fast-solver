@@ -26,6 +26,7 @@ type Client interface {
 	IsContract(ctx context.Context, domain, address string) (bool, error)
 	GetHyperlaneDispatch(ctx context.Context, domain, originChainID, initiateTxHash string) (*types.MailboxDispatchEvent, *types.MailboxMerkleHookPostDispatchEvent, error)
 	QuoteProcessUUSDC(ctx context.Context, domain string, message []byte, metadata []byte) (*big.Int, error)
+	ListHyperlaneMessageSentTxs(ctx context.Context, domain string, startBlockHeight uint) ([]types.HyperlaneMessage, error)
 }
 
 type MultiClient struct {
@@ -147,4 +148,12 @@ func (c *MultiClient) GetHyperlaneDispatch(ctx context.Context, domain, originCh
 		return nil, nil, fmt.Errorf("no configured client for domain %s", domain)
 	}
 	return client.GetHyperlaneDispatch(ctx, domain, originChainID, initiateTxHash)
+}
+
+func (c *MultiClient) ListHyperlaneMessageSentTxs(ctx context.Context, domain string, startBlockHeight uint) ([]types.HyperlaneMessage, error) {
+	client, ok := c.clients[domain]
+	if !ok {
+		return nil, fmt.Errorf("no configured client for domain %s", domain)
+	}
+	return client.ListHyperlaneMessageSentTxs(ctx, domain, startBlockHeight)
 }

@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/signing/evm"
+	evmtxexecutor "github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 	"math/big"
 	"strings"
 	"sync"
-
-	"github.com/skip-mev/go-fast-solver/shared/signing/evm"
-	evmtxexecutor "github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
 	interchain_security_module "github.com/skip-mev/go-fast-solver/shared/contracts/hyperlane/InterchainSecurityModule"
 	mailbox "github.com/skip-mev/go-fast-solver/shared/contracts/hyperlane/Mailbox"
@@ -372,4 +371,8 @@ func (c *HyperlaneClient) signer(ctx context.Context, domain string) (signing.Si
 	}
 
 	return signing.NewLocalEthereumSigner(privateKey), nil
+}
+
+func (c *HyperlaneClient) ListHyperlaneMessageSentTxs(ctx context.Context, domain string, startBlockHeight uint) ([]types.HyperlaneMessage, error) {
+	panic("not implemented")
 }

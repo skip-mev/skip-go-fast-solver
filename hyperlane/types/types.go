@@ -221,3 +221,12 @@ type MailboxMerkleHookPostDispatchEvent struct {
 	MessageID string `json:"message_id"`
 	Index     uint64 `json:"index"`
 }
+
+type HyperlaneMessage struct {
+	TxHash            string
+	MessageID         string
+	SourceDomain      string
+	DestinationDomain string
+	IsSettlement      bool
+	IsTimeout         bool
+}

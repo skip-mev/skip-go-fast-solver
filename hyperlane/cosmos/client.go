@@ -2,10 +2,15 @@ package cosmos
 
 import (
 	"context"
+	"cosmossdk.io/math"
 	"crypto/tls"
 	"encoding/hex"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"go.uber.org/zap"
 	"math/big"
+	"strings"
+	"time"
 
 	"google.golang.org/grpc/credentials"
 
@@ -26,7 +31,9 @@ type HyperlaneClient struct {
 	hyperlaneDomain          string
 	validatorAnnounceAddress string
 	merkleHookAddress        string
+	mailBoxAddress           string
 	tmRPCManager             tmrpc.TendermintRPCClientManager
+	chainID                  string
 }
 
 func NewHyperlaneClient(ctx context.Context, hyperlaneDomain string) (*HyperlaneClient, error) {
@@ -57,7 +64,9 @@ func NewHyperlaneClient(ctx context.Context, hyperlaneDomain string) (*Hyperlane
 		hyperlaneDomain:          hyperlaneDomain,
 		validatorAnnounceAddress: chainConfig.Relayer.ValidatorAnnounceContractAddress,
 		merkleHookAddress:        chainConfig.Relayer.MerkleHookContractAddress,
+		mailBoxAddress:           chainConfig.Relayer.MailboxAddress,
 		tmRPCManager:             tmrpc.NewTendermintRPCClientManager(),
+		chainID:                  chainID,
 	}, nil
 }
 
@@ -245,4 +254,84 @@ func (c *HyperlaneClient) QuoteProcessUUSDC(ctx context.Context, domain string, 
 
 func (c *HyperlaneClient) IsContract(ctx context.Context, domain, address string) (bool, error) {
 	panic("not implemented")
+}
+
+func (c *HyperlaneClient) ListHyperlaneMessageSentTxs(ctx context.Context, domain string, startBlockHeight uint) ([]types.HyperlaneMessage, error) {
+	client, err := c.tmRPCManager.GetClient(ctx, c.chainID)
+	if err != nil {
+		return nil, err
+	}
+	status, err := client.Status(ctx)
+	if err != nil {
+		lmt.Logger(ctx).Error("Error fetching status", zap.Error(err))
+		return nil, err
+	}
+	//blocksProcessedPerIteration := uint(1000)
+	startBlockHeight = math.Max(startBlockHeight, uint(status.SyncInfo.EarliestBlockHeight))
+	//endBlockHeight := math.Min(uint(status.SyncInfo.LatestBlockHeight), startBlockHeight+blocksProcessedPerIteration)
+	endBlockHeight := uint(status.SyncInfo.LatestBlockHeight)
+	seenTxs := make(map[string]coretypes.ResultTx)
+	page := 1
+	for {
+		result, err := client.TxSearch(
+			ctx,
+			fmt.Sprintf(
+				//"wasm-mailbox_dispatch_id._contract_address='%s'",
+				"wasm-mailbox_dispatch_id._contract_address='%s' AND tx.height > %d AND tx.height < %d",
+				c.mailBoxAddress,
+				startBlockHeight,
+				endBlockHeight,
+			),
+			false,
+			&[]int{page}[0],
+			&[]int{100}[0],
+			"",
+		)
+		if err != nil {
+			if strings.Contains(err.Error(), "page should be within") {
+				break
+			}
+			lmt.Logger(ctx).Error("Error fetching txs", zap.Error(err))
+			return nil, err
+		}
+		for _, tx := range result.Txs {
+			seenTxs[tx.Hash.String()] = *tx
+		}
+		select {
+		case <-ctx.Done():
+			return nil, nil
+		case <-time.After(10 * time.Millisecond):
+		}
+		page++
+	}
+	var messages []types.HyperlaneMessage
+	for txHash, txResult := range seenTxs {
+		for i, event := range txResult.TxResult.Events {
+			if event.Type == "wasm-mailbox_dispatch_id" {
+				hyperlaneMessage := types.HyperlaneMessage{
+					TxHash:       txHash,
+					SourceDomain: domain,
+				}
+				txStr := string(txResult.Tx)
+				if strings.Contains(txStr, "timeout") {
+					hyperlaneMessage.IsTimeout = true
+				}
+				if strings.Contains(txStr, "settlement") {
+					hyperlaneMessage.IsSettlement = true
+				}
+				for _, attribute := range event.Attributes {
+					if attribute.Key == "message_id" {
+						hyperlaneMessage.MessageID = attribute.Value
+					}
+				}
+				for _, attribute := range txResult.TxResult.Events[i+1].Attributes {
+					if attribute.Key == "destination" {
+						hyperlaneMessage.DestinationDomain = attribute.Value
+					}
+				}
+				messages = append(messages, hyperlaneMessage)
+			}
+		}
+	}
+	return messages, nil
 }
