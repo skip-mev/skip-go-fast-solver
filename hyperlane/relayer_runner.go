@@ -21,7 +21,6 @@ import (
 const (
 	relayInterval                  = 10 * time.Second
 	excessiveHyperlaneRelayLatency = 30 * time.Minute
-	relayRetryInterval             = 1 * time.Minute
 )
 
 type Database interface {
