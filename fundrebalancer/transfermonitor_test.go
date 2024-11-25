@@ -77,8 +77,8 @@ func TestTransferMonitor_UpdateTransfers(t *testing.T) {
 
 		// two osmosis pending tx's, one will fail and another will complete successfully
 		mockDatabse.EXPECT().GetAllPendingRebalanceTransfers(mockContext).Return([]db.GetAllPendingRebalanceTransfersRow{
-			{ID: 1, TxHash: "hash", SourceChainID: arbitrumChainID, DestinationChainID: osmosisChainID, Amount: strconv.Itoa(osmosisTargetAmount)},
-			{ID: 2, TxHash: "hash2", SourceChainID: arbitrumChainID, DestinationChainID: osmosisChainID, Amount: strconv.Itoa(osmosisTargetAmount)},
+			{ID: 1, TxHash: "hash", SourceChainID: arbitrumChainID, DestinationChainID: osmosisChainID, Amount: strconv.Itoa(osmosisTargetAmount), CreatedAt: time.Now()},
+			{ID: 2, TxHash: "hash2", SourceChainID: arbitrumChainID, DestinationChainID: osmosisChainID, Amount: strconv.Itoa(osmosisTargetAmount), CreatedAt: time.Now()},
 		}, nil)
 
 		mockSkipGo.EXPECT().TrackTx(mockContext, "hash", arbitrumChainID).Return("hash", nil)
