@@ -647,7 +647,7 @@ func (r *FundRebalancer) estimateTotalGas(txns []SkipGoTxnWithMetadata) (uint64,
 }
 
 // isGasAcceptable checks if the gas cost for rebalancing transactions is acceptable based on configured thresholds
-// and timeouts. Returns (isAcceptable, gasCostUUSDC string, error)
+// and timeouts
 func (r *FundRebalancer) isGasAcceptable(ctx context.Context, txns []SkipGoTxnWithMetadata, chainID string) (bool, string, error) {
 	totalGas, err := r.estimateTotalGas(txns)
 	if err != nil {
