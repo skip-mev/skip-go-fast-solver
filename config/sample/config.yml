@@ -2,6 +2,7 @@
 # The solver will not starup with any unconfigured values in the final configuration.
 metrics:
   prometheus_address: "0.0.0.0:8001"
+
 coingecko:
   base_url: "https://pro-api.coingecko.com/api/v3/"
   # API key is optional here. If you do not have an API key, you can remove the
@@ -12,10 +13,13 @@ coingecko:
   api_key: <api_key>
   requests_per_minute: 2
   cache_refresh_interval: "15m"
+
 order_filler:
   worker_count: 10
+
 transfer_monitor:
   poll_interval: 5s
+
 # The fund_rebalancer config is optional. If you do not want the solver to
 # rebalance your funds across chains via Skip GO (via the CCTP slow path CCTP, they
 # will not be fast transferred via Skip Go Fast), you can omit the
@@ -63,6 +67,7 @@ fund_rebalancer:
     max_rebalancing_gas_cost_uusdc: <max_rebalancing_gas_cost_uusdc> # e.g. 1000000
     fund_rebalancing_timeout: <fund_rebalancing_timeout> # e.g. 1h
     fund_rebalancing_cost_cap_uusdc: <fund_rebalancing_cost_cap_uusdc> # e.g. 2000000
+
 chains:
   43114:
     chain_name: "avalanche"

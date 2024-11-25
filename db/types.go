@@ -22,9 +22,10 @@ const (
 	TxTypeHyperlaneMessageDelivery string = "HYPERLANE_MESSAGE_DELIVERY"
 	TxTypeInitiateTimeout          string = "INITIATE_TIMEOUT"
 
-	RebalanceTransactionStatusPending string = "PENDING"
-	RebalanceTransactionStatusSuccess string = "SUCCESS"
-	RebalanceTransactionStatusFailed  string = "FAILED"
+	RebalanceTransferStatusAbandoned string = "ABANDONED"
+	RebalanceTransferStatusPending   string = "PENDING"
+	RebalanceTransferStatusSuccess   string = "SUCCESS"
+	RebalanceTransferStatusFailed    string = "FAILED"
 
 	TransferStatusPending   string = "PENDING"
 	TransferStatusSuccess   string = "SUCCESS"
