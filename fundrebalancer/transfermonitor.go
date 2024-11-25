@@ -111,15 +111,19 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 	// all transfers have finished, grab the first error if any
 	var transferError string
 	for _, transfer := range currentStatus.Transfers {
-		// report the first error that occured, if any
+		// report the first error that occurred, if any
 		if transfer.State.IsCompletedError() {
-			transferError = *transfer.Error
+			if transfer.Error != nil {
+				transferError = *transfer.Error
+			} else {
+				transferError = "error occurred during transfer but reason could not be found. state is " + string(transfer.State)
+			}
 		}
 	}
 
 	if transferError != "" {
 		lmt.Logger(ctx).Info(
-			"rebalance transaction completed wtih an error",
+			"rebalance transaction completed with an error",
 			zap.String("txnHash", hash),
 			zap.String("sourceChainID", sourceChainID),
 			zap.String("destinationChainID", destinationChainID),
