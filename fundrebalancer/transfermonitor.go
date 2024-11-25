@@ -2,7 +2,6 @@ package fundrebalancer
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -77,22 +76,19 @@ func (t *TransferTracker) UpdateTransfers(ctx context.Context) error {
 }
 
 func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID int64, createdAt time.Time, hash, sourceChainID, destinationChainID string) error {
+	if time.Since(createdAt) > transferTimeout {
+		err := t.database.UpdateTransferStatus(ctx, genDB.UpdateTransferStatusParams{
+			Status: db.RebalanceTransferStatusAbandoned,
+			ID:     transferID,
+		})
+		if err != nil {
+			return fmt.Errorf("updating transfer status to abandoned for hash %s on chain %s: %w", hash, sourceChainID, err)
+		}
+		return nil
+	}
+
 	txHash, err := t.skipgo.TrackTx(ctx, hash, sourceChainID)
 	if err != nil {
-		var txNotFoundErr skipgo.ErrTxNotFound
-		if errors.As(err, &txNotFoundErr) {
-			if time.Since(createdAt) > transferTimeout {
-				err := t.database.UpdateTransferStatus(ctx, genDB.UpdateTransferStatusParams{
-					Status: db.RebalanceTransferStatusAbandoned,
-					ID:     transferID,
-				})
-				if err != nil {
-					return fmt.Errorf("updating transfer status to abandoned for hash %s on chain %s: %w", hash, sourceChainID, err)
-				}
-				return nil
-			}
-			return fmt.Errorf("failed to track transaction %s on chain %s: %w", hash, sourceChainID, err)
-		}
 		return fmt.Errorf("failed to track transaction %s on chain %s: %w", hash, sourceChainID, err)
 	}
 
