@@ -88,6 +88,7 @@ func TestFundRebalancer_RebalanceWithAbandonedTransfer(t *testing.T) {
 			},
 		},
 	})
+
 	mockConfigReader.On("GetFundRebalancingConfig", arbitrumChainID).Return(
 		config.FundRebalancerConfig{
 			TargetAmount:               strconv.Itoa(arbitrumTargetAmount),
