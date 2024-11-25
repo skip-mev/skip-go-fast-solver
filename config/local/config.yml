@@ -2,6 +2,7 @@
 # Do NOT leave any angle brackets in the final configuration.
 metrics:
   prometheus_address: "0.0.0.0:8001"
+
 coingecko:
   base_url: "https://pro-api.coingecko.com/api/v3/"
   # API key is optional here. If you do not have an API key, you can remove the
@@ -12,10 +13,13 @@ coingecko:
   api_key: <api_key>
   requests_per_minute: 2
   cache_refresh_interval: "15m"
+
 order_filler:
   worker_count: 10
+
 transfer_monitor:
   poll_interval: 5s
+
 # The fund_rebalancer config is optional. If you do not want the solver to
 # rebalance your funds across chains via Skip GO (via the CCTP slow path CCTP, they
 # will not be fast transferred via Skip Go Fast), you can omit the
@@ -27,42 +31,37 @@ fund_rebalancer:
     max_rebalancing_gas_cost_uusdc: "1000000"
     profitable_rebalance_timeout: 1h
     transfer_cost_cap_uusdc: 2000000
-    transfer_timeout: 1h
   43114:
     target_amount: 0
     min_allowed_amount: 0
     max_rebalancing_gas_cost_uusdc: "1000000"
     profitable_rebalance_timeout: 1h
     transfer_cost_cap_uusdc: "2000000"
-    transfer_timeout: 1h
   137:
     target_amount: 0
     min_allowed_amount: 0
     max_rebalancing_gas_cost_uusdc: "1000000"
     profitable_rebalance_timeout: 1h
     transfer_cost_cap_uusdc: "2000000"
-    transfer_timeout: 1h
   8453:
     target_amount: 0
     min_allowed_amount: 0
     max_rebalancing_gas_cost_uusdc: "1000000"
     profitable_rebalance_timeout: 1h
     transfer_cost_cap_uusdc: "2000000"
-    transfer_timeout: 1h
   10:
     target_amount: 0
     min_allowed_amount: 0
     max_rebalancing_gas_cost_uusdc: "1000000"
     profitable_rebalance_timeout: 1h
     transfer_cost_cap_uusdc: "2000000"
-    transfer_timeout: 1h
   osmosis-1:
     target_amount: 1000000000000000
     min_allowed_amount: 1000000000000000
     max_rebalancing_gas_cost_uusdc: "1000000"
     profitable_rebalance_timeout: 1h
     transfer_cost_cap_uusdc: "2000000"
-    transfer_timeout: 1h
+
 chains:
   43114:
     chain_name: "avalanche"
