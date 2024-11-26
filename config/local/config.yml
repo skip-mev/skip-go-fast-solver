@@ -25,12 +25,18 @@ transfer_monitor:
 # will not be fast transferred via Skip Go Fast), you can omit the
 # fund_rebalancer config all together.
 fund_rebalancer:
+  1:
+    target_amount: 0
+    min_allowed_amount: 0
+    max_rebalancing_gas_cost_uusdc: "10000000"
+    profitable_rebalance_timeout: 1h
+    transfer_cost_cap_uusdc: "30000000"
   42161:
     target_amount: 0
     min_allowed_amount: 0
     max_rebalancing_gas_cost_uusdc: "1000000"
     profitable_rebalance_timeout: 1h
-    transfer_cost_cap_uusdc: 2000000
+    transfer_cost_cap_uusdc: "2000000"
   43114:
     target_amount: 0
     min_allowed_amount: 0
