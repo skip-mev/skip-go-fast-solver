@@ -32,7 +32,8 @@ type EVMChainRPC interface {
 	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
 	GetUSDCBalance(ctx context.Context, contractAddress string, account string) (*big.Int, error)
 	Client() *ethclient.Client
-	CodeAt(ctx context.Context, address string, blockHeight *big.Int) ([]byte, error)
+	CodeAt(ctx context.Context, address common.Address, blockHeight *big.Int) ([]byte, error)
+	CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
 }
 
 type ERC20Transfer struct {
@@ -153,6 +154,10 @@ func (cr *chainRPCImpl) SuggestGasTipCap(ctx context.Context) (*big.Int, error) 
 	return cr.cc.SuggestGasTipCap(ctx)
 }
 
-func (cr *chainRPCImpl) CodeAt(ctx context.Context, address string, blockHeight *big.Int) ([]byte, error) {
-	return cr.cc.CodeAt(ctx, common.HexToAddress(address), blockHeight)
+func (cr *chainRPCImpl) CodeAt(ctx context.Context, address common.Address, blockHeight *big.Int) ([]byte, error) {
+	return cr.cc.CodeAt(ctx, address, blockHeight)
+}
+
+func (cr *chainRPCImpl) CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
+	return cr.cc.CallContract(ctx, call, blockNumber)
 }

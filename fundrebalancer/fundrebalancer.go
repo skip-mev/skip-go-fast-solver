@@ -612,7 +612,7 @@ func (r *FundRebalancer) NeedsERC20Approval(ctx context.Context, txn SkipGoTxnWi
 	}
 	spender := common.HexToAddress(approval.Spender)
 
-	caller, err := usdc.NewUsdcCaller(common.HexToAddress(approval.TokenContract), client.Client())
+	caller, err := usdc.NewUsdcCaller(common.HexToAddress(approval.TokenContract), client)
 	if err != nil {
 		return false, fmt.Errorf("creating new usdc contract caller at %s on chain %s: %w", approval.TokenContract, evmTx.ChainID, err)
 	}
