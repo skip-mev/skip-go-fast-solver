@@ -66,7 +66,7 @@ fund_rebalancer:
     min_allowed_amount: 1000000000000000
     max_rebalancing_gas_cost_uusdc: "1000000"
     profitable_rebalance_timeout: 1h
-    transfer_cost_cap_uusdc: "2000000"
+    transfer_cost_cap_uusdc: "4000000"
 
 chains:
   1:
