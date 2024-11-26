@@ -35,7 +35,7 @@ var params = Config{
 }
 
 const (
-	excessiveSettlementLatency = 30 * time.Minute
+	excessiveSettlementLatency = 1 * time.Hour
 )
 
 type Database interface {

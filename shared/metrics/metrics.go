@@ -140,7 +140,7 @@ func NewPromMetrics() Metrics {
 			Namespace: "solver",
 			Name:      "latency_per_fill_seconds",
 			Help:      "latency from source transaction to fill completion, paginated by source and destination chain id (in seconds)",
-			Buckets:   []float64{5, 10, 15, 20, 30, 40, 50, 60, 120, 300, 600},
+			Buckets:   []float64{1, 5, 10, 15, 20, 30, 40, 50, 60, 120, 300, 600},
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, orderStatusLabel}),
 		settlementLatency: prom.NewHistogramFrom(stdprom.HistogramOpts{
 			Namespace: "solver",
@@ -161,9 +161,9 @@ func NewPromMetrics() Metrics {
 		}, []string{}),
 		hplLatency: prom.NewHistogramFrom(stdprom.HistogramOpts{
 			Namespace: "solver",
-			Name:      "latency_per_hyperlane_message_minutes",
-			Help:      "latency for hyperlane message relaying, paginated by status, source and destination chain id (in minutes)",
-			Buckets:   []float64{1, 5, 15, 30, 60, 120, 180, 240, 300},
+			Name:      "latency_per_hyperlane_message_seconds",
+			Help:      "latency for hyperlane message relaying, paginated by status, source and destination chain id (in seconds)",
+			Buckets:   []float64{1, 5, 10, 15, 20, 30, 40, 50, 60, 120, 300, 600},
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, transferStatusLabel}),
 		hplRelayTooExpensive: prom.NewCounterFrom(stdprom.CounterOpts{
 			Namespace: "solver",
@@ -239,7 +239,7 @@ func (m *PromMetrics) ObserveSettlementLatency(sourceChainID, destinationChainID
 }
 
 func (m *PromMetrics) ObserveHyperlaneLatency(sourceChainID, destinationChainID, transferStatus string, latency time.Duration) {
-	m.hplLatency.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, transferStatusLabel, transferStatus).Observe(latency.Minutes())
+	m.hplLatency.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, transferStatusLabel, transferStatus).Observe(latency.Seconds())
 }
 
 func (m *PromMetrics) IncFillOrderStatusChange(sourceChainID, destinationChainID, orderStatus string) {
