@@ -267,7 +267,10 @@ func (r *FundRebalancer) MoveFundsToChain(
 				return nil, nil, fmt.Errorf("checking if total rebalancing gas cost is acceptable: %w", err)
 			}
 			if !gasAcceptable {
-				maxCost, _ := new(big.Int).SetString(chainFundRebalancingConfig.MaxRebalancingGasCostUUSDC, 10)
+				maxCost, ok := new(big.Int).SetString(chainFundRebalancingConfig.MaxRebalancingGasCostUUSDC, 10)
+				if !ok {
+					return nil, nil, fmt.Errorf("parsing max rebalancing gas cost uusdc %s for chain %s to *big.Int", chainFundRebalancingConfig.MaxRebalancingGasCostUUSDC, rebalanceFromChainID)
+				}
 				lmt.Logger(ctx).Info(
 					"skipping rebalance from chain "+rebalanceFromChainID+" due to high rebalancing gas cost",
 					zap.String("destinationChainID", rebalanceToChain),
