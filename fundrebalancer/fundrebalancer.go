@@ -626,7 +626,11 @@ func (r *FundRebalancer) NeedsERC20Approval(ctx context.Context, txn SkipGoTxnWi
 		return false, fmt.Errorf("querying for erc20 allowance for solver %s at contract %s for spender %s: %w", chainConfig.SolverAddress, approval.TokenContract, spender.String(), err)
 	}
 
-	return allowance.Cmp(txn.amount) < 0, nil
+	necessaryApprovalAmount, ok := new(big.Int).SetString(approval.Amount, 10)
+	if !ok {
+		return false, fmt.Errorf("converting approval amount %s to *big.Int", approval.Amount)
+	}
+	return allowance.Cmp(necessaryApprovalAmount) < 0, nil
 }
 
 func (r *FundRebalancer) ERC20Approval(ctx context.Context, txn SkipGoTxnWithMetadata) error {
