@@ -69,6 +69,35 @@ fund_rebalancer:
     transfer_cost_cap_uusdc: "2000000"
 
 chains:
+  1:
+    chain_name: "ethereum"
+    chain_id: "1"
+    type: "evm"
+    environment: "mainnet"
+    gas_token_symbol: "ethereum"
+    gas_token_decimals: 18
+    gas_token_coingecko_id: "ETH"
+    hyperlane_domain: "1"
+    fast_transfer_contract_address: 0xe7935104c9670015b21c6300e5b95d2f75474cda
+    quick_start_num_blocks_back: 300000
+    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
+    max_rebalancing_gas_cost_uusdc: "20000000"
+    solver_address: <solver_address>
+    usdc_denom: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    min_fee_bps: 10
+    batch_uusdc_settle_up_threshold: <settle_up_threshold> # 1/2 of destination inventory evenly distributed across source chains
+    min_profit_margin_bps: 8
+    evm:
+      rpc: <ethereum_rpc_server_url>
+      rpc_basic_auth_var: <env_var_with_server_password>
+      signer_gas_balance:
+        warning_threshold_wei: 1000000
+        critical_threshold_wei: 1000000
+    relayer:
+      mailbox_address: "0xc005dc82818d67AF737725bD4bf75435d065D239"
+      profitable_relay_timeout: 1h
+      relay_cost_cap_uusdc: 20000000
+
   43114:
     chain_name: "avalanche"
     chain_id: "43114"

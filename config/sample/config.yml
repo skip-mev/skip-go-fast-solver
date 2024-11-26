@@ -69,6 +69,36 @@ fund_rebalancer:
     transfer_cost_cap_uusdc: <transfer_cost_cap_uusdc> # e.g. 2000000
 
 chains:
+  1:
+    chain_name: "ethereum"
+    chain_id: "1"
+    type: "evm"
+    environment: "mainnet"
+    gas_token_symbol: "ethereum"
+    gas_token_decimals: 18
+    gas_token_coingecko_id: "ETH"
+    hyperlane_domain: "1"
+    fast_transfer_contract_address: 0xe7935104c9670015b21c6300e5b95d2f75474cda
+    quick_start_num_blocks_back: 300000
+    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
+    max_rebalancing_gas_cost_uusdc: "20000000"
+    solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    usdc_denom: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    evm:
+      rpc: <ethereum_rpc_server_url> # e.g. "https://api.avax.network/ext/bc/C/rpc"
+      rpc_basic_auth_var: <server_password>
+      signer_gas_balance:
+        warning_threshold_wei: <warning_threshold_wei> # e.g. 1720000000000000000
+        critical_threshold_wei: <critical_threshold_wei> # e.g. 580000000000000000
+    relayer:
+      mailbox_address: "0xc005dc82818d67AF737725bD4bf75435d065D239"
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
+
   43114:
     chain_name: "avalanche"
     chain_id: "43114"
