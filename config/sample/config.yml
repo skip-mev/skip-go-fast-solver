@@ -89,7 +89,7 @@ chains:
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
     evm:
-      rpc: <ethereum_rpc_server_url> # e.g. "https://api.avax.network/ext/bc/C/rpc"
+      rpc: <ethereum_rpc_server_url> # e.g. "https://eth.llamarpc.com"
       rpc_basic_auth_var: <server_password>
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 1720000000000000000
