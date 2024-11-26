@@ -34,6 +34,10 @@ var params = Config{
 	Delay: 20 * time.Second,
 }
 
+const (
+	excessiveSettlementLatency = 30 * time.Minute
+)
+
 type Database interface {
 	GetAllOrderSettlementsWithSettlementStatus(ctx context.Context, settlementStatus string) ([]db.OrderSettlement, error)
 
@@ -551,6 +555,9 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 	}
 	if !settlement.InitiateSettlementTx.Valid {
 		return errors.New("message received txHash is null")
+	}
+	if settlement.CreatedAt.Add(excessiveSettlementLatency).Before(time.Now()) {
+		metrics.FromContext(ctx).IncExcessiveOrderSettlementLatency(settlement.SourceChainID, settlement.DestinationChainID, settlement.SettlementStatus)
 	}
 
 	if settlement.SettlementStatus == dbtypes.SettlementStatusPending {
