@@ -10,6 +10,7 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/keys"
 	evmtxsubmission "github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
@@ -478,14 +479,20 @@ func (r *FundRebalancer) GetRebalanceTxns(
 				return nil, fmt.Errorf("hex decoding evm call data: %w", err)
 			}
 
-			// This approval is needed for gas estimation
-			if err := r.ERC20Approval(ctx, SkipGoTxnWithMetadata{
+			approvalTxn := SkipGoTxnWithMetadata{
 				tx:                 skipgo.Tx{EVMTx: txn.EVMTx},
 				sourceChainID:      sourceChainID,
 				destinationChainID: destChainID,
 				amount:             amount,
-			}); err != nil {
-				return nil, fmt.Errorf("handling ERC20 approval: %w", err)
+			}
+			needsApproal, err := r.NeedsERC20Approval(ctx, approvalTxn)
+			if err != nil {
+				return nil, fmt.Errorf("checking if ERC20 approval is necessary for rebalance txn from %s to %s for amount %s: %w", sourceChainID, destChainID, amount.String(), err)
+			}
+			if needsApproal {
+				if err := r.ERC20Approval(ctx, approvalTxn); err != nil {
+					return nil, fmt.Errorf("handling ERC20 approval for rebalance txn from %s to %s for amount %s: %w", sourceChainID, destChainID, amount.String(), err)
+				}
 			}
 
 			txBuilder := evm.NewTxBuilder(client)
@@ -568,6 +575,55 @@ func (r *FundRebalancer) SignAndSubmitTxn(
 	default:
 		return "", fmt.Errorf("no valid txHash types returned from Skip Go")
 	}
+}
+
+func (r *FundRebalancer) NeedsERC20Approval(ctx context.Context, txn SkipGoTxnWithMetadata) (bool, error) {
+	if txn.tx.EVMTx == nil {
+		// if this isnt an evm tx, no erc20 approvals are required
+		return false, nil
+	}
+	evmTx := txn.tx.EVMTx
+	if len(evmTx.RequiredERC20Approvals) == 0 {
+		// if no approvals are required, return with no error
+		return false, nil
+	}
+	if len(evmTx.RequiredERC20Approvals) > 1 {
+		// only support single approval
+		return false, fmt.Errorf("expected 1 required erc20 approval but got %d", len(evmTx.RequiredERC20Approvals))
+	}
+	approval := evmTx.RequiredERC20Approvals[0]
+
+	chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(evmTx.ChainID)
+	if err != nil {
+		return false, fmt.Errorf("getting config for chain %s: %w", evmTx.ChainID, err)
+	}
+	usdcDenom, err := config.GetConfigReader(ctx).GetUSDCDenom(evmTx.ChainID)
+	if err != nil {
+		return false, fmt.Errorf("fetching usdc denom on chain %s: %w", evmTx.ChainID, err)
+	}
+	client, err := r.evmClientManager.GetClient(ctx, evmTx.ChainID)
+	if err != nil {
+		return false, fmt.Errorf("getting evm rpc client for chain %s: %w", evmTx.ChainID, err)
+	}
+
+	// sanity check on the address being returned to be what the solver expects
+	if !strings.EqualFold(approval.TokenContract, usdcDenom) {
+		return false, fmt.Errorf("expected required approval for usdc token contract %s, but got %s", usdcDenom, approval.TokenContract)
+	}
+	spender := common.HexToAddress(approval.Spender)
+
+	caller, err := usdc.NewUsdcCaller(common.HexToAddress(approval.TokenContract), client.Client())
+	if err != nil {
+		return false, fmt.Errorf("creating new usdc contract caller at %s on chain %s: %w", approval.TokenContract, evmTx.ChainID, err)
+	}
+
+	opts := &bind.CallOpts{Context: ctx}
+	allowance, err := caller.Allowance(opts, common.HexToAddress(chainConfig.SolverAddress), spender)
+	if err != nil {
+		return false, fmt.Errorf("querying for erc20 allowance for solver %s at contract %s for spender %s: %w", chainConfig.SolverAddress, approval.TokenContract, spender.String(), err)
+	}
+
+	return allowance.Cmp(txn.amount) < 0, nil
 }
 
 func (r *FundRebalancer) ERC20Approval(ctx context.Context, txn SkipGoTxnWithMetadata) error {
