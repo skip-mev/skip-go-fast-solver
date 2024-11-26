@@ -24,14 +24,19 @@ var initiateTimeoutCmd = &cobra.Command{
 	Short: "Initiate timeout for an expired order",
 	Long: `Initiate timeout for an expired order that hasn't been filled.
 Example:
-  ./build/solvercli initiate-timeout --order-id <order_id> --config ./config/local/config.yml`,
+  ./build/solvercli initiate-timeout \
+  --order-id <order_id> \
+  --config ./config/local/config.yml \
+  --key-store-type plaintext-file \
+  --keys ./config/local/keys.json \
+  --sqlite-db-path ./solver.db \
+  --migrations-path ./db/migrations`,
 	Run: initiateTimeout,
 }
 
 func init() {
 	rootCmd.AddCommand(initiateTimeoutCmd)
 	initiateTimeoutCmd.Flags().String("order-id", "", "ID of the order to timeout")
-	initiateTimeoutCmd.Flags().String("config", "", "Path to config file")
 	initiateTimeoutCmd.MarkFlagRequired("order-id")
 }
 
