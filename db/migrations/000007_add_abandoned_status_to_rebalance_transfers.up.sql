@@ -1,5 +1,3 @@
-BEGIN;
-
 ALTER TABLE rebalance_transfers RENAME TO rebalance_transfers_old;
 
 CREATE TABLE rebalance_transfers (
@@ -18,5 +16,3 @@ INSERT INTO rebalance_transfers
 SELECT * FROM rebalance_transfers_old;
 
 DROP TABLE rebalance_transfers_old;
-
-COMMIT; 
