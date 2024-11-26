@@ -30,7 +30,11 @@ var settleCmd = &cobra.Command{
 	Short: "Settle pending order batches",
 	Long: `Settle all pending order batches immediately without any threshold checks (ignoring configured BatchUUSDCSettleUpThreshold).
 Example:
-  ./build/solvercli settle-orders --config ./config/local/config.yml`,
+  ./build/solvercli settle-orders --config ./config/local/config.yml \
+	  --key-store-type plaintext-file \
+	  --keys ./config/local/keys.json \
+	  --sqlite-db-path ./solver.db \
+	  --migrations-path ./db/migrations`,
 	Run: settleOrders,
 }
 
