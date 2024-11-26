@@ -10,5 +10,5 @@ CREATE TABLE IF NOT EXISTS rebalance_transfers (
     amount TEXT NOT NULL,
     status         TEXT NOT NULL DEFAULT 'PENDING',
 
-    CHECK (status IN ('PENDING', 'SUCCESS', 'FAILED'))
+    CHECK (status IN ('PENDING', 'SUCCESS', 'FAILED', 'ABANDONED'))
 );
