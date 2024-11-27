@@ -1,6 +1,7 @@
 package evm
 
 import (
+	"encoding/base64"
 	"sync"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 )
 
 type EVMTxExecutor interface {
-	ExecuteTx(ctx context.Context, chainID string, signerAddress string, data []byte, value string, to string, signer signing.Signer) (txHash string, err error)
+	ExecuteTx(ctx context.Context, chainID string, signerAddress string, data []byte, value string, to string, signer signing.Signer) (txHash string, rawTxB64 string, err error)
 }
 
 type SerializedEVMTxExecutor struct {
@@ -36,18 +37,10 @@ func NewSerializedEVMTxExecutor(clientManager evmrpc.EVMRPCClientManager, txSubm
 	}
 }
 
-func (s *SerializedEVMTxExecutor) ExecuteTx(
-	ctx context.Context,
-	chainID string,
-	signerAddress string,
-	data []byte,
-	value string,
-	to string,
-	signer signing.Signer,
-) (txHash string, err error) {
+func (s *SerializedEVMTxExecutor) ExecuteTx(ctx context.Context, chainID string, signerAddress string, data []byte, value string, to string, signer signing.Signer) (txHash string, rawTxB64 string, err error) {
 	client, err := s.clientManager.GetClient(ctx, chainID)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	s.lock.Lock()
 	defer func() {
@@ -59,15 +52,15 @@ func (s *SerializedEVMTxExecutor) ExecuteTx(
 	select {
 	case <-time.After(time.Until(s.lastSubmissionTime.Add(s.txSubmissionDelay))):
 	case <-ctx.Done():
-		return "", ctx.Err()
+		return "", "", ctx.Err()
 	}
 
 	chainCfg, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if chainCfg.EVM == nil {
-		return "", fmt.Errorf("EVM chain config is null for chain id %s", chainID)
+		return "", "", fmt.Errorf("EVM chain config is null for chain id %s", chainID)
 	}
 	var minGasTipCap *big.Int
 	if chainCfg.EVM.MinGasTipCap != nil {
@@ -76,7 +69,7 @@ func (s *SerializedEVMTxExecutor) ExecuteTx(
 
 	nonce, err := client.PendingNonceAt(ctx, common.HexToAddress(signerAddress))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	tx, err := evm.NewTxBuilder(client).Build(
 		ctx,
@@ -91,15 +84,19 @@ func (s *SerializedEVMTxExecutor) ExecuteTx(
 	)
 	signedTx, err := signer.Sign(ctx, chainID, tx)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	signedTxBytes, err := signedTx.MarshalBinary()
 	if err != nil {
-		return "", err
+		return "", "", err
+	}
+	txJsonBytes, err := signedTx.MarshalJSON()
+	if err != nil {
+		return "", "", err
 	}
 	txHash, err = client.SendTx(ctx, signedTxBytes)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return txHash, nil
+	return txHash, base64.StdEncoding.EncodeToString(txJsonBytes), nil
 }

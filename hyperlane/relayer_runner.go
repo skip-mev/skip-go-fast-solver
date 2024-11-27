@@ -77,7 +77,7 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 					continue
 				}
 
-				destinationTxHash, destinationChainID, err := r.relayTransfer(ctx, transfer)
+				destinationTxHash, destinationChainID, rawTx, err := r.relayTransfer(ctx, transfer)
 				if err != nil {
 					switch {
 					case errors.Is(err, ErrRelayTooExpensive):
@@ -127,7 +127,7 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 					HyperlaneTransferID: sql.NullInt64{Int64: transfer.ID, Valid: true},
 					ChainID:             destinationChainID,
 					TxHash:              destinationTxHash,
-					RawTx:               "",
+					RawTx:               rawTx,
 					TxType:              dbtypes.TxTypeHyperlaneMessageDelivery,
 					TxStatus:            dbtypes.TxStatusPending,
 				}); err != nil {
@@ -146,26 +146,26 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 // relayTransfer constructs relay options and calls the relayer to relay
 // preform a hyperlane relay on a dispatch message. Returning the destination
 // chain tx hash and the destination chain id.
-func (r *RelayerRunner) relayTransfer(ctx context.Context, transfer db.HyperlaneTransfer) (string, string, error) {
+func (r *RelayerRunner) relayTransfer(ctx context.Context, transfer db.HyperlaneTransfer) (string, string, string, error) {
 	var maxRelayTxFeeUUSDC *big.Int
 	if transfer.MaxTxFeeUusdc.Valid {
 		maxTxFeeUUSDC, ok := new(big.Int).SetString(transfer.MaxTxFeeUusdc.String, 10)
 		if !ok {
-			return "", "", fmt.Errorf("converting max tx fee uusdc %s to *big.Int", transfer.MaxTxFeeUusdc.String)
+			return "", "", "", fmt.Errorf("converting max tx fee uusdc %s to *big.Int", transfer.MaxTxFeeUusdc.String)
 		}
 		maxRelayTxFeeUUSDC = maxTxFeeUUSDC
 	}
 	costCap, err := r.getRelayCostCap(ctx, transfer.DestinationChainID, maxRelayTxFeeUUSDC, transfer.CreatedAt)
 	if err != nil {
-		return "", "", fmt.Errorf("getting relay cost cap for transfer from %s to %s: %w", transfer.SourceChainID, transfer.DestinationChainID, err)
+		return "", "", "", fmt.Errorf("getting relay cost cap for transfer from %s to %s: %w", transfer.SourceChainID, transfer.DestinationChainID, err)
 	}
 
-	destinationTxHash, destinationChainID, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx, costCap)
+	destinationTxHash, destinationChainID, rawTx, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx, costCap)
 	if err != nil {
-		return "", "", fmt.Errorf("relaying pending hyperlane transfer with tx hash %s from chainID %s: %w", transfer.MessageSentTx, transfer.SourceChainID, err)
+		return "", "", "", fmt.Errorf("relaying pending hyperlane transfer with tx hash %s from chainID %s: %w", transfer.MessageSentTx, transfer.SourceChainID, err)
 	}
 
-	return destinationTxHash, destinationChainID, err
+	return destinationTxHash, destinationChainID, rawTx, err
 }
 
 // checkHyperlaneTransferStatus checks if a hyperlane transfer should be

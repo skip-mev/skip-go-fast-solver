@@ -20,7 +20,7 @@ import (
 )
 
 type Relayer interface {
-	Relay(ctx context.Context, originChainID string, initiateTxHash string, maxTxFeeUUSDC *big.Int) (destinationTxHash string, destinationChainID string, err error)
+	Relay(ctx context.Context, originChainID string, initiateTxHash string, maxTxFeeUUSDC *big.Int) (destinationTxHash string, destinationChainID string, rawTx string, err error)
 }
 
 type relayer struct {
@@ -41,48 +41,48 @@ var (
 	ErrNotEnoughSignaturesFound = errors.New("number of signatures found in multisig signed checkpoint is below expected threshold")
 )
 
-func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHash string, maxTxFeeUUSDC *big.Int) (destinationTxHash string, destinationChainID string, err error) {
+func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHash string, maxTxFeeUUSDC *big.Int) (destinationTxHash string, destinationChainID string, rawTx string, err error) {
 	originChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(originChainID)
 	if err != nil {
-		return "", "", fmt.Errorf("getting chain config for chainID %s: %w", originChainID, err)
+		return "", "", "", fmt.Errorf("getting chain config for chainID %s: %w", originChainID, err)
 	}
 	dispatch, merkleHookPostDispatch, err := r.hyperlane.GetHyperlaneDispatch(ctx, originChainConfig.HyperlaneDomain, originChainID, initiateTxHash)
 	if err != nil {
-		return "", "", fmt.Errorf("parsing tx results: %w", err)
+		return "", "", "", fmt.Errorf("parsing tx results: %w", err)
 	}
 	destinationChainID, err = config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(dispatch.DestinationDomain)
 	if err != nil {
-		return "", "", fmt.Errorf("getting destination chainID by hyperlane domain %s: %w", dispatch.DestinationDomain, err)
+		return "", "", "", fmt.Errorf("getting destination chainID by hyperlane domain %s: %w", dispatch.DestinationDomain, err)
 	}
 	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(destinationChainID)
 	if err != nil {
-		return "", "", fmt.Errorf("getting destination chain config for chainID %s: %w", destinationChainID, err)
+		return "", "", "", fmt.Errorf("getting destination chain config for chainID %s: %w", destinationChainID, err)
 	}
 
 	delivered, err := r.hyperlane.HasBeenDelivered(ctx, dispatch.DestinationDomain, dispatch.MessageID)
 	if err != nil {
-		return "", "", fmt.Errorf("checking if message with id %s has been delivered: %w", dispatch.MessageID, err)
+		return "", "", "", fmt.Errorf("checking if message with id %s has been delivered: %w", dispatch.MessageID, err)
 	}
 	if delivered {
-		return "", "", ErrMessageAlreadyDelivered
+		return "", "", "", ErrMessageAlreadyDelivered
 	}
 
 	isContract, err := r.hyperlane.IsContract(ctx, dispatch.DestinationDomain, dispatch.Recipient)
 	if err != nil {
-		return "", "", fmt.Errorf("checking if recipient %s is a contract: %w", dispatch.Recipient, err)
+		return "", "", "", fmt.Errorf("checking if recipient %s is a contract: %w", dispatch.Recipient, err)
 	}
 	if !isContract {
-		return "", "", fmt.Errorf("recipient %s is not a contract", dispatch.Recipient)
+		return "", "", "", fmt.Errorf("recipient %s is not a contract", dispatch.Recipient)
 	}
 
 	// fetch all validators that should validate this message according to the
 	// destination chains ism, and get how many of them need to validate
 	validators, threshold, err := r.hyperlane.ValidatorsAndThreshold(ctx, dispatch.DestinationDomain, dispatch.Recipient, dispatch.Message)
 	if err != nil {
-		return "", "", fmt.Errorf("getting validators and quorum threshold from doamin %s for recipient %s: %w", dispatch.DestinationDomain, dispatch.Recipient, err)
+		return "", "", "", fmt.Errorf("getting validators and quorum threshold from doamin %s for recipient %s: %w", dispatch.DestinationDomain, dispatch.Recipient, err)
 	}
 	if len(validators) == 0 {
-		return "", "", fmt.Errorf("no validator set received from multisig ism")
+		return "", "", "", fmt.Errorf("no validator set received from multisig ism")
 	}
 
 	lmt.Logger(ctx).Debug(
@@ -95,7 +95,7 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 	// chains validator announce contract
 	validatorStorageLocations, err := r.hyperlane.ValidatorStorageLocations(ctx, originChainConfig.HyperlaneDomain, validators)
 	if err != nil {
-		return "", "", fmt.Errorf("getting validator storage locations on domain %s for validators %v: %w", originChainConfig.HyperlaneDomain, validators, err)
+		return "", "", "", fmt.Errorf("getting validator storage locations on domain %s for validators %v: %w", originChainConfig.HyperlaneDomain, validators, err)
 	}
 
 	lmt.Logger(ctx).Debug(
@@ -115,7 +115,7 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 
 		fetcher, err := NewCheckpointFetcherFromStorageLocation(storageLocation, validator)
 		if err != nil {
-			return "", "", fmt.Errorf("creating checkpoint fetcher from storage location %s for validator %s: %w", storageLocation, validator, err)
+			return "", "", "", fmt.Errorf("creating checkpoint fetcher from storage location %s for validator %s: %w", storageLocation, validator, err)
 		}
 		checkpointFetchers = append(checkpointFetchers, fetcher)
 	}
@@ -124,7 +124,7 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 	// there
 	quorumCheckpoint, err := r.checkpointAtIndex(ctx, merkleHookPostDispatch.Index, checkpointFetchers, threshold, dispatch.MessageID)
 	if err != nil {
-		return "", "", fmt.Errorf("getting checkpoint at index %d: %w", merkleHookPostDispatch.Index, err)
+		return "", "", "", fmt.Errorf("getting checkpoint at index %d: %w", merkleHookPostDispatch.Index, err)
 	}
 
 	lmt.Logger(ctx).Debug("found checkpoint with quorum", zap.Uint64("index", merkleHookPostDispatch.Index))
@@ -133,14 +133,14 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 	// for verification
 	metadata, err := quorumCheckpoint.ToMetadata()
 	if err != nil {
-		return "", "", fmt.Errorf("creating message metadata from multisig checkpoint: %w", err)
+		return "", "", "", fmt.Errorf("creating message metadata from multisig checkpoint: %w", err)
 	}
 
 	// submit the message to the destination mailbox for processing (ism
 	// verification, emit events, calling recipient contract)
 	message, err := hex.DecodeString(dispatch.Message)
 	if err != nil {
-		return "", "", fmt.Errorf("hex decoding dispatch message to bytes: %w", err)
+		return "", "", "", fmt.Errorf("hex decoding dispatch message to bytes: %w", err)
 	}
 
 	// if the user specified a max tx fee, ensure that the tx fee to relay will
@@ -148,18 +148,18 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 	if maxTxFeeUUSDC != nil {
 		isFeeLessThanMax, err := r.isRelayFeeLessThanMax(ctx, dispatch.DestinationDomain, message, metadata, maxTxFeeUUSDC)
 		if err != nil {
-			return "", "", fmt.Errorf("checking if relay to domain %s is profitable: %w", dispatch.DestinationDomain, err)
+			return "", "", "", fmt.Errorf("checking if relay to domain %s is profitable: %w", dispatch.DestinationDomain, err)
 		}
 		if !isFeeLessThanMax {
 			metrics.FromContext(ctx).IncHyperlaneRelayTooExpensive(originChainID, destinationChainID)
-			return "", "", ErrRelayTooExpensive
+			return "", "", "", ErrRelayTooExpensive
 		}
 	}
 
-	hash, err := r.hyperlane.Process(ctx, dispatch.DestinationDomain, message, metadata)
+	hash, rawTx, err := r.hyperlane.Process(ctx, dispatch.DestinationDomain, message, metadata)
 	metrics.FromContext(ctx).IncTransactionSubmitted(err == nil, destinationChainID, dbtypes.TxTypeHyperlaneMessageDelivery)
 	if err != nil {
-		return "", "", fmt.Errorf("processing message on domain %s: %w", dispatch.DestinationDomain, err)
+		return "", "", "", fmt.Errorf("processing message on domain %s: %w", dispatch.DestinationDomain, err)
 	}
 
 	lmt.Logger(ctx).Info(
@@ -168,7 +168,7 @@ func (r *relayer) Relay(ctx context.Context, originChainID string, initiateTxHas
 		zap.String("destinationProcessTxHash", hex.EncodeToString(hash)),
 	)
 
-	return hex.EncodeToString(hash), destinationChainID, nil
+	return hex.EncodeToString(hash), destinationChainID, rawTx, nil
 }
 
 func (r *relayer) checkpointAtIndex(
