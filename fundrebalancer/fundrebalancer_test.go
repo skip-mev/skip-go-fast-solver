@@ -2,6 +2,7 @@ package fundrebalancer
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -230,9 +231,25 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClient.EXPECT().SuggestGasPrice(mockContext).Return(big.NewInt(100), nil)
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
-		mockDatabse.EXPECT().InsertSubmittedTx(mockContext, mock.Anything).Return(db.SubmittedTx{}, nil)
+		submittedTx := db.SubmittedTx{
+			ChainID:             arbitrumChainID,
+			TxHash:              "arbitrum hash",
+			RawTx:               "raw tx",
+			TxType:              "FUND_REBALANCE",
+			TxStatus:            "PENDING",
+			RebalanceTransferID: sql.NullInt64{Int64: 1, Valid: true},
+		}
+		insertSubmittedTxParams := db.InsertSubmittedTxParams{
+			ChainID:             arbitrumChainID,
+			TxHash:              "arbitrum hash",
+			RawTx:               "raw tx",
+			TxType:              "FUND_REBALANCE",
+			TxStatus:            "PENDING",
+			RebalanceTransferID: sql.NullInt64{Int64: 1, Valid: true},
+		}
+		mockDatabse.EXPECT().InsertSubmittedTx(mockContext, insertSubmittedTxParams).Return(submittedTx, nil)
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
-		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", "", nil)
+		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", "raw tx", nil)
 		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
 		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything, mock.Anything).Return(big.NewInt(75), nil)
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
@@ -659,7 +676,36 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClient.EXPECT().CallContract(mock.Anything, msg, nilBigInt).Return(common.LeftPadBytes(big.NewInt(100).Bytes(), 32), nil)
 
 		mockDatabse := mock_database.NewMockDatabase(t)
-		mockDatabse.EXPECT().InsertSubmittedTx(mockContext, mock.Anything).Return(db.SubmittedTx{}, nil)
+
+		erc20ApprovalSubmittedTx := db.SubmittedTx{
+			ChainID:  arbitrumChainID,
+			TxHash:   "arbitrum hash",
+			TxType:   "ERC20_APPROVAL",
+			TxStatus: "PENDING",
+		}
+		erc20ApprovalInsertSubmittedTxParams := db.InsertSubmittedTxParams{
+			ChainID:  arbitrumChainID,
+			TxHash:   "arbitrum hash",
+			TxType:   "ERC20_APPROVAL",
+			TxStatus: "PENDING",
+		}
+		mockDatabse.EXPECT().InsertSubmittedTx(mockContext, erc20ApprovalInsertSubmittedTxParams).Return(erc20ApprovalSubmittedTx, nil).Once()
+
+		fundRebalanceSubmittedTx := db.SubmittedTx{
+			ChainID:             arbitrumChainID,
+			TxHash:              "arbitrum hash",
+			TxType:              "FUND_REBALANCE",
+			TxStatus:            "PENDING",
+			RebalanceTransferID: sql.NullInt64{Int64: 1, Valid: true},
+		}
+		fundRebalanceInsertSubmittedTxParams := db.InsertSubmittedTxParams{
+			ChainID:             arbitrumChainID,
+			TxHash:              "arbitrum hash",
+			TxType:              "FUND_REBALANCE",
+			TxStatus:            "PENDING",
+			RebalanceTransferID: sql.NullInt64{Int64: 1, Valid: true},
+		}
+		mockDatabse.EXPECT().InsertSubmittedTx(mockContext, fundRebalanceInsertSubmittedTxParams).Return(fundRebalanceSubmittedTx, nil).Once()
 
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", "", nil)
@@ -785,7 +831,21 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClient.EXPECT().CallContract(mock.Anything, msg, nilBigInt).Return(common.LeftPadBytes(big.NewInt(10000).Bytes(), 32), nil)
 
 		mockDatabse := mock_database.NewMockDatabase(t)
-		mockDatabse.EXPECT().InsertSubmittedTx(mockContext, mock.Anything).Return(db.SubmittedTx{}, nil)
+		submittedTx := db.SubmittedTx{
+			ChainID:             arbitrumChainID,
+			TxHash:              "arbitrum hash",
+			TxType:              "FUND_REBALANCE",
+			TxStatus:            "PENDING",
+			RebalanceTransferID: sql.NullInt64{Int64: 1, Valid: true},
+		}
+		insertSubmittedTxParams := db.InsertSubmittedTxParams{
+			ChainID:             arbitrumChainID,
+			TxHash:              "arbitrum hash",
+			TxType:              "FUND_REBALANCE",
+			TxStatus:            "PENDING",
+			RebalanceTransferID: sql.NullInt64{Int64: 1, Valid: true},
+		}
+		mockDatabse.EXPECT().InsertSubmittedTx(mockContext, insertSubmittedTxParams).Return(submittedTx, nil).Once()
 
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", "", nil)
