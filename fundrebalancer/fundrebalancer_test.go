@@ -230,6 +230,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClient.EXPECT().SuggestGasPrice(mockContext).Return(big.NewInt(100), nil)
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
+		mockDatabse.EXPECT().InsertSubmittedTx(mockContext, mock.Anything).Return(db.SubmittedTx{}, nil)
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", "", nil)
 		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
@@ -658,6 +659,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClient.EXPECT().CallContract(mock.Anything, msg, nilBigInt).Return(common.LeftPadBytes(big.NewInt(100).Bytes(), 32), nil)
 
 		mockDatabse := mock_database.NewMockDatabase(t)
+		mockDatabse.EXPECT().InsertSubmittedTx(mockContext, mock.Anything).Return(db.SubmittedTx{}, nil)
 
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", "", nil)
@@ -783,6 +785,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClient.EXPECT().CallContract(mock.Anything, msg, nilBigInt).Return(common.LeftPadBytes(big.NewInt(10000).Bytes(), 32), nil)
 
 		mockDatabse := mock_database.NewMockDatabase(t)
+		mockDatabse.EXPECT().InsertSubmittedTx(mockContext, mock.Anything).Return(db.SubmittedTx{}, nil)
 
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", "", nil)

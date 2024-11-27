@@ -1,6 +1,7 @@
 package fundrebalancer
 
 import (
+	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -39,6 +40,7 @@ type Database interface {
 	InsertRebalanceTransfer(ctx context.Context, arg db.InsertRebalanceTransferParams) (int64, error)
 	GetAllPendingRebalanceTransfers(ctx context.Context) ([]db.GetAllPendingRebalanceTransfersRow, error)
 	UpdateTransferStatus(ctx context.Context, arg db.UpdateTransferStatusParams) error
+	InsertSubmittedTx(ctx context.Context, arg db.InsertSubmittedTxParams) (db.SubmittedTx, error)
 }
 
 type profitabilityFailure struct {
@@ -543,7 +545,7 @@ func (r *FundRebalancer) SignAndSubmitTxn(
 			return "", fmt.Errorf("decoding hex data from Skip Go: %w", err)
 		}
 
-		txHash, _, err := r.evmTxExecutor.ExecuteTx(
+		txHash, rawTx, err := r.evmTxExecutor.ExecuteTx(
 			ctx,
 			txn.sourceChainID,
 			txn.tx.EVMTx.SignerAddress,
@@ -569,8 +571,22 @@ func (r *FundRebalancer) SignAndSubmitTxn(
 			DestinationChainID: txn.destinationChainID,
 			Amount:             txn.amount.String(),
 		}
-		if _, err := r.database.InsertRebalanceTransfer(ctx, args); err != nil {
+		rebalanceID, err := r.database.InsertRebalanceTransfer(ctx, args)
+		if err != nil {
 			return "", fmt.Errorf("inserting rebalance txHash with hash %s into db: %w", txHash, err)
+		}
+
+		// add rebalance tx to submitted txs table
+		rebalanceTx := db.InsertSubmittedTxParams{
+			RebalanceTransferID: sql.NullInt64{Int64: rebalanceID, Valid: true},
+			ChainID:             txn.sourceChainID,
+			TxHash:              txHash,
+			RawTx:               rawTx,
+			TxType:              dbtypes.TxTypeFundRebalnance,
+			TxStatus:            dbtypes.TxStatusPending,
+		}
+		if _, err = r.database.InsertSubmittedTx(ctx, rebalanceTx); err != nil {
+			return "", fmt.Errorf("inserting submitted tx for rebalance transfer with hash %s into db: %w", txHash, err)
 		}
 
 		return skipgo.TxHash(txHash), nil
@@ -686,7 +702,7 @@ func (r *FundRebalancer) ERC20Approval(ctx context.Context, txn SkipGoTxnWithMet
 		return fmt.Errorf("packing input to erc20 approval tx: %w", err)
 	}
 
-	_, _, err = r.evmTxExecutor.ExecuteTx(
+	txHash, rawTx, err := r.evmTxExecutor.ExecuteTx(
 		ctx,
 		evmTx.ChainID,
 		chainConfig.SolverAddress,
@@ -697,6 +713,18 @@ func (r *FundRebalancer) ERC20Approval(ctx context.Context, txn SkipGoTxnWithMet
 	)
 	if err != nil {
 		return fmt.Errorf("executing erc20 approve for %s at contract %s for spender %s on %s: %w", amount.String(), approval.TokenContract, approval.Spender, evmTx.ChainID, err)
+	}
+
+	// add erc20 approval tx to submitted txs table
+	approveTx := db.InsertSubmittedTxParams{
+		ChainID:  txn.sourceChainID,
+		TxHash:   txHash,
+		RawTx:    rawTx,
+		TxType:   dbtypes.TxTypeERC20Approval,
+		TxStatus: dbtypes.TxStatusPending,
+	}
+	if _, err = r.database.InsertSubmittedTx(ctx, approveTx); err != nil {
+		return fmt.Errorf("inserting submitted tx for erc20 approval with hash %s into db: %w", txHash, err)
 	}
 
 	return nil
