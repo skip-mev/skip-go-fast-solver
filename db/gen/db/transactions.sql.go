@@ -11,7 +11,7 @@ import (
 )
 
 const getSubmittedTxsByHyperlaneTransferId = `-- name: GetSubmittedTxsByHyperlaneTransferId :many
-SELECT id, created_at, updated_at, order_id, order_settlement_id, hyperlane_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status, tx_status_message FROM submitted_txs WHERE hyperlane_transfer_id = ?
+SELECT id, created_at, updated_at, order_id, order_settlement_id, hyperlane_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status, tx_status_message, rebalance_transfer_id FROM submitted_txs WHERE hyperlane_transfer_id = ?
 `
 
 func (q *Queries) GetSubmittedTxsByHyperlaneTransferId(ctx context.Context, hyperlaneTransferID sql.NullInt64) ([]SubmittedTx, error) {
@@ -36,6 +36,7 @@ func (q *Queries) GetSubmittedTxsByHyperlaneTransferId(ctx context.Context, hype
 			&i.TxType,
 			&i.TxStatus,
 			&i.TxStatusMessage,
+			&i.RebalanceTransferID,
 		); err != nil {
 			return nil, err
 		}
@@ -51,7 +52,7 @@ func (q *Queries) GetSubmittedTxsByHyperlaneTransferId(ctx context.Context, hype
 }
 
 const getSubmittedTxsByOrderIdAndType = `-- name: GetSubmittedTxsByOrderIdAndType :many
-SELECT id, created_at, updated_at, order_id, order_settlement_id, hyperlane_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status, tx_status_message FROM submitted_txs WHERE order_id = ? AND tx_type = ?
+SELECT id, created_at, updated_at, order_id, order_settlement_id, hyperlane_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status, tx_status_message, rebalance_transfer_id FROM submitted_txs WHERE order_id = ? AND tx_type = ?
 `
 
 type GetSubmittedTxsByOrderIdAndTypeParams struct {
@@ -81,6 +82,7 @@ func (q *Queries) GetSubmittedTxsByOrderIdAndType(ctx context.Context, arg GetSu
 			&i.TxType,
 			&i.TxStatus,
 			&i.TxStatusMessage,
+			&i.RebalanceTransferID,
 		); err != nil {
 			return nil, err
 		}
@@ -96,7 +98,7 @@ func (q *Queries) GetSubmittedTxsByOrderIdAndType(ctx context.Context, arg GetSu
 }
 
 const getSubmittedTxsByOrderStatusAndType = `-- name: GetSubmittedTxsByOrderStatusAndType :many
-SELECT submitted_txs.id, submitted_txs.created_at, submitted_txs.updated_at, submitted_txs.order_id, submitted_txs.order_settlement_id, submitted_txs.hyperlane_transfer_id, submitted_txs.chain_id, submitted_txs.tx_hash, submitted_txs.raw_tx, submitted_txs.tx_type, submitted_txs.tx_status, submitted_txs.tx_status_message FROM submitted_txs INNER JOIN orders on submitted_txs.order_id = orders.id WHERE orders.order_status = ? AND submitted_txs.tx_type = ?
+SELECT submitted_txs.id, submitted_txs.created_at, submitted_txs.updated_at, submitted_txs.order_id, submitted_txs.order_settlement_id, submitted_txs.hyperlane_transfer_id, submitted_txs.chain_id, submitted_txs.tx_hash, submitted_txs.raw_tx, submitted_txs.tx_type, submitted_txs.tx_status, submitted_txs.tx_status_message, submitted_txs.rebalance_transfer_id FROM submitted_txs INNER JOIN orders on submitted_txs.order_id = orders.id WHERE orders.order_status = ? AND submitted_txs.tx_type = ?
 `
 
 type GetSubmittedTxsByOrderStatusAndTypeParams struct {
@@ -126,6 +128,7 @@ func (q *Queries) GetSubmittedTxsByOrderStatusAndType(ctx context.Context, arg G
 			&i.TxType,
 			&i.TxStatus,
 			&i.TxStatusMessage,
+			&i.RebalanceTransferID,
 		); err != nil {
 			return nil, err
 		}
@@ -141,7 +144,7 @@ func (q *Queries) GetSubmittedTxsByOrderStatusAndType(ctx context.Context, arg G
 }
 
 const getSubmittedTxsWithStatus = `-- name: GetSubmittedTxsWithStatus :many
-SELECT id, created_at, updated_at, order_id, order_settlement_id, hyperlane_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status, tx_status_message FROM submitted_txs WHERE tx_status = ?
+SELECT id, created_at, updated_at, order_id, order_settlement_id, hyperlane_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status, tx_status_message, rebalance_transfer_id FROM submitted_txs WHERE tx_status = ?
 `
 
 func (q *Queries) GetSubmittedTxsWithStatus(ctx context.Context, txStatus string) ([]SubmittedTx, error) {
@@ -166,6 +169,7 @@ func (q *Queries) GetSubmittedTxsWithStatus(ctx context.Context, txStatus string
 			&i.TxType,
 			&i.TxStatus,
 			&i.TxStatusMessage,
+			&i.RebalanceTransferID,
 		); err != nil {
 			return nil, err
 		}
@@ -181,13 +185,14 @@ func (q *Queries) GetSubmittedTxsWithStatus(ctx context.Context, txStatus string
 }
 
 const insertSubmittedTx = `-- name: InsertSubmittedTx :one
-INSERT INTO submitted_txs (order_id, order_settlement_id, hyperlane_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, created_at, updated_at, order_id, order_settlement_id, hyperlane_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status, tx_status_message
+INSERT INTO submitted_txs (order_id, order_settlement_id, hyperlane_transfer_id, rebalance_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, created_at, updated_at, order_id, order_settlement_id, hyperlane_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status, tx_status_message, rebalance_transfer_id
 `
 
 type InsertSubmittedTxParams struct {
 	OrderID             sql.NullInt64
 	OrderSettlementID   sql.NullInt64
 	HyperlaneTransferID sql.NullInt64
+	RebalanceTransferID sql.NullInt64
 	ChainID             string
 	TxHash              string
 	RawTx               string
@@ -200,6 +205,7 @@ func (q *Queries) InsertSubmittedTx(ctx context.Context, arg InsertSubmittedTxPa
 		arg.OrderID,
 		arg.OrderSettlementID,
 		arg.HyperlaneTransferID,
+		arg.RebalanceTransferID,
 		arg.ChainID,
 		arg.TxHash,
 		arg.RawTx,
@@ -220,12 +226,13 @@ func (q *Queries) InsertSubmittedTx(ctx context.Context, arg InsertSubmittedTxPa
 		&i.TxType,
 		&i.TxStatus,
 		&i.TxStatusMessage,
+		&i.RebalanceTransferID,
 	)
 	return i, err
 }
 
 const setSubmittedTxStatus = `-- name: SetSubmittedTxStatus :one
-UPDATE submitted_txs SET tx_status = ?, tx_status_message = ?, updated_at = CURRENT_TIMESTAMP WHERE tx_hash = ? AND chain_id = ? RETURNING id, created_at, updated_at, order_id, order_settlement_id, hyperlane_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status, tx_status_message
+UPDATE submitted_txs SET tx_status = ?, tx_status_message = ?, updated_at = CURRENT_TIMESTAMP WHERE tx_hash = ? AND chain_id = ? RETURNING id, created_at, updated_at, order_id, order_settlement_id, hyperlane_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status, tx_status_message, rebalance_transfer_id
 `
 
 type SetSubmittedTxStatusParams struct {
@@ -256,6 +263,7 @@ func (q *Queries) SetSubmittedTxStatus(ctx context.Context, arg SetSubmittedTxSt
 		&i.TxType,
 		&i.TxStatus,
 		&i.TxStatusMessage,
+		&i.RebalanceTransferID,
 	)
 	return i, err
 }

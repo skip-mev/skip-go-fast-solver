@@ -120,3 +120,7 @@ func (fdb *FakeDatabase) UpdateTransferCreatedAt(ctx context.Context, id int64, 
 	}
 	return fmt.Errorf("transfer with id %d not found", id)
 }
+
+func (fdb *FakeDatabase) InsertSubmittedTx(ctx context.Context, arg db.InsertSubmittedTxParams) (db.SubmittedTx, error) {
+	return db.SubmittedTx{}, nil
+}

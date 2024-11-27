@@ -1,5 +1,5 @@
 -- name: InsertSubmittedTx :one
-INSERT INTO submitted_txs (order_id, order_settlement_id, hyperlane_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
+INSERT INTO submitted_txs (order_id, order_settlement_id, hyperlane_transfer_id, rebalance_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *;
 
 -- name: GetSubmittedTxsByOrderIdAndType :many
 SELECT * FROM submitted_txs WHERE order_id = ? AND tx_type = ?;
