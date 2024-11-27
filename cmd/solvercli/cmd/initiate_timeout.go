@@ -37,7 +37,10 @@ Example:
 func init() {
 	rootCmd.AddCommand(initiateTimeoutCmd)
 	initiateTimeoutCmd.Flags().String("order-id", "", "ID of the order to timeout")
-	initiateTimeoutCmd.MarkFlagRequired("order-id")
+	if err := initiateTimeoutCmd.MarkFlagRequired("order-id"); err != nil {
+		panic(fmt.Sprintf("failed to mark order-id flag as required: %v", err))
+	}
+
 }
 
 func initiateTimeout(cmd *cobra.Command, args []string) {
