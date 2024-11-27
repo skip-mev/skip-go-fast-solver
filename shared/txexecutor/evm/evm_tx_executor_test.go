@@ -43,7 +43,7 @@ func TestSerializedEVMTxExecutor_ExecuteTx_NoDelay(t *testing.T) {
 
 	// call ExecuteTx and ensure that it returns immediately since it is the first invocation
 	start := time.Now()
-	response, err := executor.ExecuteTx(
+	response, _, err := executor.ExecuteTx(
 		ctx,
 		"chainID",
 		"signerAddress",
@@ -61,7 +61,7 @@ func TestSerializedEVMTxExecutor_ExecuteTx_WithDelay(t *testing.T) {
 	executor, signer, ctx := setupExecutor(t, 2*time.Second, "chainID")
 
 	// call ExecuteTx to start delay timer
-	response, err := executor.ExecuteTx(
+	response, _, err := executor.ExecuteTx(
 		ctx,
 		"chainID",
 		"signerAddress",
@@ -75,7 +75,7 @@ func TestSerializedEVMTxExecutor_ExecuteTx_WithDelay(t *testing.T) {
 
 	// call ExecuteTx again and ensure that it returns after the configured delay\
 	start := time.Now()
-	response, err = executor.ExecuteTx(
+	response, _, err = executor.ExecuteTx(
 		ctx,
 		"chainID",
 		"signerAddress",
@@ -93,7 +93,7 @@ func TestSerializedEVMTxExecutor_ExecuteTx_DelayCancelled(t *testing.T) {
 	executor, signer, ctx := setupExecutor(t, 10*time.Second, "chainID")
 
 	// call ExecuteTx to start delay timer
-	response, err := executor.ExecuteTx(
+	response, _, err := executor.ExecuteTx(
 		ctx,
 		"chainID",
 		"signerAddress",
@@ -109,7 +109,7 @@ func TestSerializedEVMTxExecutor_ExecuteTx_DelayCancelled(t *testing.T) {
 	start := time.Now()
 	cancelCtx, cancelFn := context.WithCancel(context.Background())
 	cancelFn()
-	_, err = executor.ExecuteTx(
+	_, _, err = executor.ExecuteTx(
 		cancelCtx,
 		"chainID",
 		"signerAddress",

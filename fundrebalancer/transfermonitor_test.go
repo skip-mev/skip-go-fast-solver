@@ -212,7 +212,7 @@ func TestFundRebalancer_RebalanceWithAbandonedTransfer(t *testing.T) {
 		Return(txs, nil)
 
 	mockEVMClient.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100), nil)
-	mockEVMTxExecutor.On("ExecuteTx", ctx, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("new_hash", nil)
+	mockEVMTxExecutor.On("ExecuteTx", ctx, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("new_hash", "", nil)
 
 	// Rebalancer sees the pending transfer and doesn't create a new one
 	rebalancer.Rebalance(ctx)

@@ -604,7 +604,7 @@ func (r *FundRebalancer) SignAndSubmitTxn(
 			return "", fmt.Errorf("decoding hex data from Skip Go: %w", err)
 		}
 
-		txHash, err := r.evmTxExecutor.ExecuteTx(
+		txHash, _, err := r.evmTxExecutor.ExecuteTx(
 			ctx,
 			txn.sourceChainID,
 			txn.tx.EVMTx.SignerAddress,
@@ -741,7 +741,7 @@ func (r *FundRebalancer) ERC20Approval(ctx context.Context, txn skipgo.Tx) (stri
 		return "", fmt.Errorf("packing input to erc20 approval tx: %w", err)
 	}
 
-	hash, err := r.evmTxExecutor.ExecuteTx(
+	hash, _, err := r.evmTxExecutor.ExecuteTx(
 		ctx,
 		evmTx.ChainID,
 		chainConfig.SolverAddress,
