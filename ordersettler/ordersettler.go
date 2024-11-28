@@ -140,7 +140,14 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 
 			sourceChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(strconv.Itoa(int(fill.SourceDomain)))
 			if err != nil {
-				return fmt.Errorf("getting source chainID: %w", err)
+				lmt.Logger(ctx).Warn(
+					"failed to get source chain ID by hyperlane domain. skipping order settlement. it may be unsettled.",
+					zap.Uint32("hyperlaneDomain", fill.SourceDomain),
+					zap.String("orderID", fill.OrderID),
+					zap.Error(err),
+				)
+				r.ordersSeen[fill.OrderID] = true
+				continue
 			}
 			sourceGatewayAddress, err := config.GetConfigReader(ctx).GetGatewayContractAddress(sourceChainID)
 			if err != nil {
@@ -177,13 +184,11 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 				continue
 			}
 
-			orderDetails, err := sourceBridgeClient.QueryOrderSubmittedEvent(ctx, sourceGatewayAddress, fill.OrderID)
+			orderFillEvent, _, err := bridgeClient.QueryOrderFillEvent(ctx, chain.FastTransferContractAddress, fill.OrderID)
 			if err != nil {
-				return fmt.Errorf("getting order submitted event on chain %s for order %s: %w", sourceChainID, fill.OrderID, err)
-			} else if orderDetails == nil {
-				return fmt.Errorf("could not find order submitted event on chain %s for order %s", sourceChainID, fill.OrderID)
+				return fmt.Errorf("querying for order fill event on destination chain at address %s for order id %s: %w", chain.FastTransferContractAddress, fill.OrderID, err)
 			}
-			profit := big.NewInt(0).Sub(orderDetails.AmountIn, orderDetails.AmountOut)
+			profit := new(big.Int).Sub(amount, orderFillEvent.FillAmount)
 
 			_, err = r.db.InsertOrderSettlement(ctx, db.InsertOrderSettlementParams{
 				SourceChainID:                     sourceChainID,

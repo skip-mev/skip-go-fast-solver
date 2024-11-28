@@ -2,6 +2,7 @@
 # The solver will not starup with any unconfigured values in the final configuration.
 metrics:
   prometheus_address: "0.0.0.0:8001"
+
 coingecko:
   base_url: "https://pro-api.coingecko.com/api/v3/"
   # API key is optional here. If you do not have an API key, you can remove the
@@ -12,8 +13,13 @@ coingecko:
   api_key: <api_key>
   requests_per_minute: 2
   cache_refresh_interval: "15m"
+
 order_filler:
   worker_count: 10
+
+transfer_monitor:
+  poll_interval: 5s
+
 # The fund_rebalancer config is optional. If you do not want the solver to
 # rebalance your funds across chains via Skip GO (via the CCTP slow path CCTP, they
 # will not be fast transferred via Skip Go Fast), you can omit the
@@ -22,13 +28,77 @@ fund_rebalancer:
   1:
     target_amount: <target_amount> # e.g. "1000000000"
     min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
+    max_rebalancing_gas_cost_uusdc: <max_rebalancing_gas_cost_uusdc> # e.g. 1000000
+    profitable_rebalance_timeout: <profitable_rebalance_timeout> # e.g. 1h
+    transfer_cost_cap_uusdc: <transfer_cost_cap_uusdc> # e.g. 2000000
   42161:
     target_amount: <target_amount> # e.g. "1000000000"
     min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
+    max_rebalancing_gas_cost_uusdc: <max_rebalancing_gas_cost_uusdc> # e.g. 1000000
+    profitable_rebalance_timeout: <profitable_rebalance_timeout> # e.g. 1h
+    transfer_cost_cap_uusdc: <transfer_cost_cap_uusdc> # e.g. 2000000
+  43114:
+    target_amount: <target_amount> # e.g. "1000000000"
+    min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
+    max_rebalancing_gas_cost_uusdc: <max_rebalancing_gas_cost_uusdc> # e.g. 1000000
+    profitable_rebalance_timeout: <profitable_rebalance_timeout> # e.g. 1h
+    transfer_cost_cap_uusdc: <transfer_cost_cap_uusdc> # e.g. 2000000
+  137:
+    target_amount: <target_amount> # e.g. "1000000000"
+    min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
+    max_rebalancing_gas_cost_uusdc: <max_rebalancing_gas_cost_uusdc> # e.g. 1000000
+    profitable_rebalance_timeout: <profitable_rebalance_timeout> # e.g. 1h
+    transfer_cost_cap_uusdc: <transfer_cost_cap_uusdc> # e.g. 2000000
+  8453:
+    target_amount: <target_amount> # e.g. "1000000000"
+    min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
+    max_rebalancing_gas_cost_uusdc: <max_rebalancing_gas_cost_uusdc> # e.g. 1000000
+    profitable_rebalance_timeout: <profitable_rebalance_timeout> # e.g. 1h
+    transfer_cost_cap_uusdc: <transfer_cost_cap_uusdc> # e.g. 2000000
+  10:
+    target_amount: <target_amount> # e.g. "1000000000"
+    min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
+    max_rebalancing_gas_cost_uusdc: <max_rebalancing_gas_cost_uusdc> # e.g. 1000000
+    profitable_rebalance_timeout: <profitable_rebalance_timeout> # e.g. 1h
+    transfer_cost_cap_uusdc: <transfer_cost_cap_uusdc> # e.g. 2000000
   osmosis-1:
     target_amount: <target_amount> # e.g. "1000000000"
     min_allowed_amount: <min_allowed_amount> # e.g. "500000000"
+    max_rebalancing_gas_cost_uusdc: <max_rebalancing_gas_cost_uusdc> # e.g. 1000000
+    profitable_rebalance_timeout: <profitable_rebalance_timeout> # e.g. 1h
+    transfer_cost_cap_uusdc: <transfer_cost_cap_uusdc> # e.g. 2000000
+
 chains:
+  1:
+    chain_name: "ethereum"
+    chain_id: "1"
+    type: "evm"
+    environment: "mainnet"
+    gas_token_symbol: "ethereum"
+    gas_token_decimals: 18
+    gas_token_coingecko_id: "ETH"
+    hyperlane_domain: "1"
+    fast_transfer_contract_address: 0xe7935104c9670015b21c6300e5b95d2f75474cda
+    quick_start_num_blocks_back: 300000
+    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
+    max_rebalancing_gas_cost_uusdc: "20000000"
+    solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    usdc_denom: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    evm:
+      rpc: <ethereum_rpc_server_url> # e.g. "https://eth.llamarpc.com"
+      rpc_basic_auth_var: <server_password>
+      signer_gas_balance:
+        warning_threshold_wei: <warning_threshold_wei> # e.g. 1720000000000000000
+        critical_threshold_wei: <critical_threshold_wei> # e.g. 580000000000000000
+    relayer:
+      mailbox_address: "0xc005dc82818d67AF737725bD4bf75435d065D239"
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
+
   43114:
     chain_name: "avalanche"
     chain_id: "43114"
@@ -40,7 +110,6 @@ chains:
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     hyperlane_domain: "43114"
     quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
-    max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     fast_transfer_contract_address: "0xD415B02A7E91dBAf92EAa4721F9289CFB7f4E1cF"
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     usdc_denom: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
@@ -70,7 +139,6 @@ chains:
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     hyperlane_domain: "10"
     quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
-    max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     fast_transfer_contract_address: "0x0f479de4fd3144642f1af88e3797b1821724f703"
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     usdc_denom: "0x0b2c639c533813f4aa9d7837caf62653d097ff85"
@@ -100,7 +168,6 @@ chains:
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     hyperlane_domain: "42161"
     quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
-    max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     fast_transfer_contract_address: "0x23cb6147e5600c23d1fb5543916d3d5457c9b54c"
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     usdc_denom: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
@@ -131,9 +198,6 @@ chains:
     solver_address: <solver_address>
     hyperlane_domain: "875"
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    min_fill_size: <min_fill_size> # e.g. 5000000
-    max_fill_size: <max_fill_size> # e.g. 10000000000
-    max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     usdc_denom: "ibc/498A0751C798A0D9A389AA3691123DADA57DAA4FE165D5C75894505B876BA6E4"
     cosmos:
       address_prefix: "osmo"
@@ -141,6 +205,8 @@ chains:
       rpc_basic_auth_var: <server_password>
       grpc: <osmosis_grpc_server_url> # e.g. "grpc.osmosis.zone:9090"
       grpc_tls_enabled: <grpc_tls_enabled> # e.g. false
+      min_fill_size: <min_fill_size> # e.g. 5000000
+      max_fill_size: <max_fill_size> # e.g. 10000000000
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 42860000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 14290000
@@ -164,7 +230,6 @@ chains:
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     hyperlane_domain: "8453"
     quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
-    max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     fast_transfer_contract_address: "0x43d090025aaa6c8693b71952b910ac55ccb56bbb"
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     usdc_denom: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
@@ -194,7 +259,6 @@ chains:
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
     hyperlane_domain: "137"
     quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
-    max_rebalancing_gas_threshold: <max_rebalancing_gas_threshold> # e.g. 1000000
     fast_transfer_contract_address: "0x3ffaf8d0d33226302e3a0ae48367cf1dd2023b1f"
     solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
     usdc_denom: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359"

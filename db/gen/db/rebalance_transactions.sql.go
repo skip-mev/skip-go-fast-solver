@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"time"
 )
 
 const getAllPendingRebalanceTransfers = `-- name: GetAllPendingRebalanceTransfers :many
@@ -15,7 +16,8 @@ SELECT
     tx_hash,
     source_chain_id,
     destination_chain_id,
-    amount 
+    amount,
+    created_at
 FROM rebalance_transfers 
 WHERE status = 'PENDING'
 `
@@ -26,6 +28,7 @@ type GetAllPendingRebalanceTransfersRow struct {
 	SourceChainID      string
 	DestinationChainID string
 	Amount             string
+	CreatedAt          time.Time
 }
 
 func (q *Queries) GetAllPendingRebalanceTransfers(ctx context.Context) ([]GetAllPendingRebalanceTransfersRow, error) {
@@ -43,6 +46,7 @@ func (q *Queries) GetAllPendingRebalanceTransfers(ctx context.Context) ([]GetAll
 			&i.SourceChainID,
 			&i.DestinationChainID,
 			&i.Amount,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -63,8 +67,8 @@ SELECT
     tx_hash,
     source_chain_id,
     destination_chain_id,
-    amount 
-FROM rebalance_transfers 
+    amount
+FROM rebalance_transfers
 WHERE destination_chain_id = ? AND status = 'PENDING'
 `
 
@@ -133,6 +137,28 @@ func (q *Queries) InsertRebalanceTransfer(ctx context.Context, arg InsertRebalan
 	return id, err
 }
 
+const insertUnsentRebalanceTransfer = `-- name: InsertUnsentRebalanceTransfer :one
+INSERT INTO rebalance_transfers (
+    tx_hash,
+    source_chain_id,
+    destination_chain_id,
+    amount
+) VALUES ('', ?, ?, ?) RETURNING id
+`
+
+type InsertUnsentRebalanceTransferParams struct {
+	SourceChainID      string
+	DestinationChainID string
+	Amount             string
+}
+
+func (q *Queries) InsertUnsentRebalanceTransfer(ctx context.Context, arg InsertUnsentRebalanceTransferParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, insertUnsentRebalanceTransfer, arg.SourceChainID, arg.DestinationChainID, arg.Amount)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const updateTransferStatus = `-- name: UpdateTransferStatus :exec
 UPDATE rebalance_transfers
 SET updated_at=CURRENT_TIMESTAMP, status = ?
@@ -146,5 +172,21 @@ type UpdateTransferStatusParams struct {
 
 func (q *Queries) UpdateTransferStatus(ctx context.Context, arg UpdateTransferStatusParams) error {
 	_, err := q.db.ExecContext(ctx, updateTransferStatus, arg.Status, arg.ID)
+	return err
+}
+
+const updateTransferTxHash = `-- name: UpdateTransferTxHash :exec
+UPDATE rebalance_transfers
+SET updated_at=CURRENT_TIMESTAMP, tx_hash = ?
+WHERE id = ?
+`
+
+type UpdateTransferTxHashParams struct {
+	TxHash string
+	ID     int64
+}
+
+func (q *Queries) UpdateTransferTxHash(ctx context.Context, arg UpdateTransferTxHashParams) error {
+	_, err := q.db.ExecContext(ctx, updateTransferTxHash, arg.TxHash, arg.ID)
 	return err
 }

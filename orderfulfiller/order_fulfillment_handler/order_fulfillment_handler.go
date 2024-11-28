@@ -73,17 +73,18 @@ func (r *orderFulfillmentHandler) UpdateFulfillmentStatus(ctx context.Context, o
 		metrics.FromContext(ctx).IncExcessiveOrderFulfillmentLatency(order.SourceChainID, order.DestinationChainID, order.OrderStatus)
 	}
 
-	// if the order is already filled, set the status to filled
-	fillTx, filler, timestamp, err := destinationChainBridgeClient.QueryOrderFillEvent(ctx, destinationChainGatewayContractAddress, order.OrderID)
+	orderFillEvent, timestamp, err := destinationChainBridgeClient.QueryOrderFillEvent(ctx, destinationChainGatewayContractAddress, order.OrderID)
 	if err != nil {
 		return "", fmt.Errorf("querying for order fill event on chainID %s at contract %s for order %s: %w", order.DestinationChainID, destinationChainGatewayContractAddress, order.OrderID, err)
-	} else if fillTx != nil && filler != nil {
+	}
+	if orderFillEvent != nil {
+		// if the order is already filled, set the status to filled
 		metrics.FromContext(ctx).IncFillOrderStatusChange(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusFilled)
 		metrics.FromContext(ctx).ObserveFillLatency(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusFilled, time.Since(order.CreatedAt))
 
 		if _, err := r.db.SetFillTx(ctx, db.SetFillTxParams{
-			FillTx:                            sql.NullString{String: *fillTx, Valid: true},
-			Filler:                            sql.NullString{String: *filler, Valid: true},
+			FillTx:                            sql.NullString{String: orderFillEvent.TxHash, Valid: true},
+			Filler:                            sql.NullString{String: orderFillEvent.Filler, Valid: true},
 			SourceChainID:                     order.SourceChainID,
 			OrderID:                           order.OrderID,
 			SourceChainGatewayContractAddress: order.SourceChainGatewayContractAddress,
@@ -122,16 +123,17 @@ func (r *orderFulfillmentHandler) UpdateFulfillmentStatus(ctx context.Context, o
 			return dbtypes.OrderStatusRefunded, nil
 		}
 
-		metrics.FromContext(ctx).IncFillOrderStatusChange(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusExpiredPendingRefund)
-
 		if _, err := r.db.SetOrderStatus(ctx, db.SetOrderStatusParams{
 			SourceChainID:                     order.SourceChainID,
 			OrderID:                           order.OrderID,
 			SourceChainGatewayContractAddress: order.SourceChainGatewayContractAddress,
 			OrderStatus:                       dbtypes.OrderStatusExpiredPendingRefund,
 		}); err != nil {
-
 			return "", err
+		}
+
+		if order.OrderStatus == dbtypes.OrderStatusPending {
+			metrics.FromContext(ctx).IncFillOrderStatusChange(order.SourceChainID, order.DestinationChainID, dbtypes.OrderStatusExpiredPendingRefund)
 		}
 		return dbtypes.OrderStatusExpiredPendingRefund, nil
 
@@ -247,20 +249,20 @@ func (r *orderFulfillmentHandler) checkOrderAssetBalance(ctx context.Context, de
 }
 
 func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destinationChainConfig config.ChainConfig, orderFill db.Order) (withinTransferLimits bool, err error) {
-	transferAmount := new(big.Int)
-	if _, ok := transferAmount.SetString(orderFill.AmountOut, 10); !ok {
-		return false, fmt.Errorf("failed to parse transfer amount: %s", orderFill.AmountOut)
+	amountIn, ok := new(big.Int).SetString(orderFill.AmountIn, 10)
+	if !ok {
+		return false, fmt.Errorf("could not convert order amount in %s to *big.Int", orderFill.AmountIn)
 	}
 
 	var abandonmentReason string
 	var amountOutOfRange int64
 	switch {
-	case transferAmount.Cmp(&destinationChainConfig.Cosmos.MinFillSize) < 0:
+	case amountIn.Cmp(destinationChainConfig.Cosmos.MinFillSize) < 0:
 		abandonmentReason = "transfer amount is below configured min fill size for chain " + orderFill.DestinationChainID
-		amountOutOfRange = transferAmount.Sub(transferAmount, &destinationChainConfig.Cosmos.MinFillSize).Int64()
-	case transferAmount.Cmp(&destinationChainConfig.Cosmos.MaxFillSize) > 0:
+		amountOutOfRange = amountIn.Sub(amountIn, destinationChainConfig.Cosmos.MinFillSize).Int64()
+	case amountIn.Cmp(destinationChainConfig.Cosmos.MaxFillSize) > 0:
 		abandonmentReason = "transfer amount exceeds configured max fill size for chain" + orderFill.DestinationChainID
-		amountOutOfRange = transferAmount.Sub(transferAmount, &destinationChainConfig.Cosmos.MaxFillSize).Int64()
+		amountOutOfRange = amountIn.Sub(amountIn, destinationChainConfig.Cosmos.MaxFillSize).Int64()
 	default:
 		return true, nil
 	}
@@ -269,9 +271,9 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 		"abandoning transaction due to amount exceeding max fill size",
 		zap.String("orderID", orderFill.OrderID),
 		zap.String("sourceChainID", orderFill.SourceChainID),
-		zap.String("orderAmountOut", orderFill.AmountOut),
-		zap.Any("minAllowedFillSize", destinationChainConfig.Cosmos.MinFillSize),
-		zap.Any("maxAllowedFillSize", destinationChainConfig.Cosmos.MaxFillSize),
+		zap.String("orderAmountIn", orderFill.AmountIn),
+		zap.String("minAllowedFillSize", destinationChainConfig.Cosmos.MinFillSize.String()),
+		zap.String("maxAllowedFillSize", destinationChainConfig.Cosmos.MaxFillSize.String()),
 	)
 
 	_, err = r.db.SetOrderStatus(ctx, db.SetOrderStatusParams{
@@ -289,9 +291,9 @@ func (r *orderFulfillmentHandler) checkTransferSize(ctx context.Context, destina
 		"abandoning transaction, "+abandonmentReason,
 		zap.String("orderID", orderFill.OrderID),
 		zap.String("sourceChainID", orderFill.SourceChainID),
-		zap.String("orderAmountOut", orderFill.AmountOut),
-		zap.Any("minAllowedFillSize", destinationChainConfig.Cosmos.MinFillSize),
-		zap.Any("maxAllowedFillSize", destinationChainConfig.Cosmos.MaxFillSize),
+		zap.String("orderAmountIn", orderFill.AmountIn),
+		zap.String("minAllowedFillSize", destinationChainConfig.Cosmos.MinFillSize.String()),
+		zap.String("maxAllowedFillSize", destinationChainConfig.Cosmos.MaxFillSize.String()),
 	)
 
 	metrics.FromContext(ctx).IncFillOrderStatusChange(orderFill.SourceChainID, destinationChainConfig.ChainID, dbtypes.OrderStatusAbandoned)

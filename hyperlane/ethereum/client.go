@@ -326,7 +326,7 @@ func (c *HyperlaneClient) ValidatorStorageLocations(
 }
 
 func (c *HyperlaneClient) IsContract(ctx context.Context, domain, address string) (bool, error) {
-	contractCode, err := c.client.CodeAt(ctx, address, nil)
+	contractCode, err := c.client.CodeAt(ctx, common.HexToAddress(address), nil)
 	if err != nil {
 		return false, err
 	}

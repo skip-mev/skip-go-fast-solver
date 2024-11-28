@@ -29,6 +29,7 @@ type Querier interface {
 	InsertRebalanceTransfer(ctx context.Context, arg InsertRebalanceTransferParams) (int64, error)
 	InsertSubmittedTx(ctx context.Context, arg InsertSubmittedTxParams) (SubmittedTx, error)
 	InsertTransferMonitorMetadata(ctx context.Context, arg InsertTransferMonitorMetadataParams) (TransferMonitorMetadatum, error)
+	InsertUnsentRebalanceTransfer(ctx context.Context, arg InsertUnsentRebalanceTransferParams) (int64, error)
 	SetCompleteSettlementTx(ctx context.Context, arg SetCompleteSettlementTxParams) (OrderSettlement, error)
 	SetFillTx(ctx context.Context, arg SetFillTxParams) (Order, error)
 	SetInitiateSettlementTx(ctx context.Context, arg SetInitiateSettlementTxParams) (OrderSettlement, error)
@@ -38,6 +39,7 @@ type Querier interface {
 	SetSettlementStatus(ctx context.Context, arg SetSettlementStatusParams) (OrderSettlement, error)
 	SetSubmittedTxStatus(ctx context.Context, arg SetSubmittedTxStatusParams) (SubmittedTx, error)
 	UpdateTransferStatus(ctx context.Context, arg UpdateTransferStatusParams) error
+	UpdateTransferTxHash(ctx context.Context, arg UpdateTransferTxHashParams) error
 }
 
 var _ Querier = (*Queries)(nil)

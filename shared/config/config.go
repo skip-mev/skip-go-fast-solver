@@ -29,10 +29,11 @@ const (
 
 // Config Schema
 type Config struct {
-	Chains            map[string]ChainConfig `yaml:"chains"`
-	Metrics           MetricsConfig          `yaml:"metrics"`
-	OrderFillerConfig OrderFillerConfig      `yaml:"order_filler_config"`
-	Coingecko         CoingeckoConfig
+	Chains                map[string]ChainConfig `yaml:"chains"`
+	Metrics               MetricsConfig          `yaml:"metrics"`
+	OrderFillerConfig     OrderFillerConfig      `yaml:"order_filler_config"`
+	TransferMonitorConfig TransferMonitorConfig  `yaml:"transfer_monitor"`
+	Coingecko             CoingeckoConfig
 	// FundRebalancer is an optional configuration to aid in inventory
 	// management. You can set per chain target amounts and min allowed
 	// amounts, and the FundRebalancer will use skip go to move funds between
@@ -64,6 +65,25 @@ type FundRebalancerConfig struct {
 	// before a rebalance is triggered to move uusdc from other chains to this
 	// chain.
 	MinAllowedAmount string `yaml:"min_allowed_amount"`
+	// Maximum total gas cost for rebalancing txs per chain, fails if the sum
+	// of rebalancing txs in UUSDC exceeds this threshold
+	MaxRebalancingGasCostUUSDC string `yaml:"max_rebalancing_gas_cost_uusdc"`
+	// ProfitabilityTimeout specifies how long to delay a rebalancing transfer when
+	// gas costs exceed MaxRebalancingGasCostUUSDC. After this timeout expires, the
+	// transfer will proceed if gas costs are below TransferCostCapUUSDC.
+	// Set to -1 to disable the timeout.
+	ProfitabilityTimeout time.Duration `yaml:"profitable_rebalance_timeout"`
+	// TransferCostCapUUSDC is the absolute maximum gas cost in uusdc that will
+	// be paid for a rebalancing transfer after TransferTimeout expires. This
+	// should be higher than MaxRebalancingGasCostUUSDC to prevent the solver from
+	// getting stuck with insufficient funds when gas costs are high. If gas costs
+	// exceed this cap even after timeout, the rebalancing will not occur.
+	TransferCostCapUUSDC string `yaml:"transfer_cost_cap_uusdc"`
+}
+
+type TransferMonitorConfig struct {
+	// PollInterval controls how often the transfer monitor will query the chain for new orders
+	PollInterval *time.Duration `yaml:"poll_interval"`
 }
 
 type ChainConfig struct {
@@ -94,9 +114,6 @@ type ChainConfig struct {
 	// QuickStartNumBlocksBack specifies how many blocks back to start scanning
 	// from when the solver is initialized
 	QuickStartNumBlocksBack uint64 `yaml:"quick_start_num_blocks_back"`
-	// Maximum total gas cost for rebalancing txs per chain, fails if gas sum
-	// of rebalancing txs exceeds this threshold
-	MaxRebalancingGasThreshold uint64 `yaml:"max_rebalancing_gas_threshold"`
 	// FastTransferContractAddress is the address of the Skip Go Fast Transfer
 	// Protocol contract deployed on this chain
 	FastTransferContractAddress string `yaml:"fast_transfer_contract_address"`
@@ -266,10 +283,10 @@ type CosmosConfig struct {
 	GasDenom string `yaml:"gas_denom"`
 	// MinFillSize is the minimum amount of USDC that can be processed in a single
 	// order fill. Orders below this size will be abandoned
-	MinFillSize big.Int `yaml:"min_fill_size"`
+	MinFillSize *big.Int `yaml:"min_fill_size"`
 	// MaxFillSize is the maximum amount of USDC that can be processed in a single
 	// order fill. Orders exceeding this size will be abandoned
-	MaxFillSize big.Int `yaml:"max_fill_size"`
+	MaxFillSize *big.Int `yaml:"max_fill_size"`
 }
 
 type EVMConfig struct {
@@ -360,6 +377,7 @@ type ConfigReader interface {
 	GetUSDCDenom(chainID string) (string, error)
 
 	GetGasAlertThresholds(chainID string) (warningThreshold, criticalThreshold *big.Int, err error)
+	GetFundRebalancingConfig(chainID string) (FundRebalancerConfig, error)
 }
 
 type configReader struct {
@@ -521,6 +539,16 @@ func (r configReader) GetUSDCDenom(chainID string) (string, error) {
 	return chainConfig.USDCDenom, nil
 }
 
+// GetFundRebalancingConfig returns the fund rebalancing config for a specified chain
+func (r configReader) GetFundRebalancingConfig(chainID string) (FundRebalancerConfig, error) {
+	fundRebalancingConfig, ok := r.config.FundRebalancer[chainID]
+	if !ok {
+		return FundRebalancerConfig{}, fmt.Errorf("chain id %s fund rebalancing config not found", chainID)
+	}
+
+	return fundRebalancingConfig, nil
+}
+
 func ValidateChainConfig(chain ChainConfig) error {
 	if chain.ChainName == "" {
 		return fmt.Errorf("chain_name is required")
@@ -548,9 +576,6 @@ func ValidateChainConfig(chain ChainConfig) error {
 	}
 	if chain.QuickStartNumBlocksBack == 0 {
 		return fmt.Errorf("quick_start_num_blocks_back is required")
-	}
-	if chain.MaxRebalancingGasThreshold == 0 {
-		return fmt.Errorf("max_rebalancing_gas_threshold is required")
 	}
 	if chain.FastTransferContractAddress == "" {
 		return fmt.Errorf("fast_transfer_contract_address is required")
@@ -615,6 +640,15 @@ func validateCosmosConfig(config *CosmosConfig, relayerConfig *RelayerConfig) er
 	}
 	if config.GasDenom == "" {
 		return fmt.Errorf("cosmos.gas_denom is required")
+	}
+	if config.MinFillSize == nil {
+		return fmt.Errorf("cosmos.min_fill_size is required")
+	}
+	if config.MaxFillSize == nil {
+		return fmt.Errorf("cosmos.max_fill_size is required")
+	}
+	if config.MaxFillSize.Cmp(config.MinFillSize) < 0 {
+		return fmt.Errorf("cosmos.max_fill_size must be greater than cosmos.min_fill_size")
 	}
 
 	if config.SignerGasBalance.WarningThresholdWei == "" {

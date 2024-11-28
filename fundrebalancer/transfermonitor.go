@@ -58,7 +58,7 @@ func (t *TransferTracker) UpdateTransfers(ctx context.Context) error {
 	}
 
 	for _, pendingTransfer := range pendingTransfers {
-		err := t.updateTransferStatus(ctx, pendingTransfer.ID, pendingTransfer.TxHash, pendingTransfer.SourceChainID, pendingTransfer.DestinationChainID)
+		err := t.updateTransferStatus(ctx, pendingTransfer.ID, pendingTransfer.CreatedAt, pendingTransfer.TxHash, pendingTransfer.SourceChainID, pendingTransfer.DestinationChainID)
 		if err != nil {
 			lmt.Logger(ctx).Error(
 				"error tracking transfer",
@@ -75,7 +75,18 @@ func (t *TransferTracker) UpdateTransfers(ctx context.Context) error {
 	return nil
 }
 
-func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID int64, hash string, sourceChainID, destinationChainID string) error {
+func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID int64, createdAt time.Time, hash, sourceChainID, destinationChainID string) error {
+	if time.Since(createdAt) > transferTimeout {
+		err := t.database.UpdateTransferStatus(ctx, genDB.UpdateTransferStatusParams{
+			Status: db.RebalanceTransferStatusAbandoned,
+			ID:     transferID,
+		})
+		if err != nil {
+			return fmt.Errorf("updating transfer status to abandoned for hash %s on chain %s: %w", hash, sourceChainID, err)
+		}
+		return nil
+	}
+
 	txHash, err := t.skipgo.TrackTx(ctx, hash, sourceChainID)
 	if err != nil {
 		return fmt.Errorf("failed to track transaction %s on chain %s: %w", hash, sourceChainID, err)
@@ -111,24 +122,28 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 	// all transfers have finished, grab the first error if any
 	var transferError string
 	for _, transfer := range currentStatus.Transfers {
-		// report the first error that occured, if any
+		// report the first error that occurred, if any
 		if transfer.State.IsCompletedError() {
-			transferError = *transfer.Error
+			if transfer.Error != nil {
+				transferError = *transfer.Error
+			} else {
+				transferError = "error occurred during transfer but reason could not be found. state is " + string(transfer.State)
+			}
 		}
 	}
 
 	if transferError != "" {
 		lmt.Logger(ctx).Info(
-			"rebalance transaction completed wtih an error",
+			"rebalance transaction completed with an error",
 			zap.String("txnHash", hash),
 			zap.String("sourceChainID", sourceChainID),
 			zap.String("destinationChainID", destinationChainID),
 			zap.String("error", transferError),
 		)
-		metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(sourceChainID, destinationChainID, db.RebalanceTransactionStatusFailed)
+		metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(sourceChainID, destinationChainID, db.RebalanceTransferStatusFailed)
 
 		err = t.database.UpdateTransferStatus(ctx, genDB.UpdateTransferStatusParams{
-			Status: db.RebalanceTransactionStatusFailed,
+			Status: db.RebalanceTransferStatusFailed,
 			ID:     transferID,
 		})
 		if err != nil {
@@ -144,10 +159,10 @@ func (t *TransferTracker) updateTransferStatus(ctx context.Context, transferID i
 		zap.String("sourceChainID", sourceChainID),
 		zap.String("destinationChainID", destinationChainID),
 	)
-	metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(sourceChainID, destinationChainID, db.RebalanceTransactionStatusSuccess)
+	metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(sourceChainID, destinationChainID, db.RebalanceTransferStatusSuccess)
 
 	err = t.database.UpdateTransferStatus(ctx, genDB.UpdateTransferStatusParams{
-		Status: db.RebalanceTransactionStatusSuccess,
+		Status: db.RebalanceTransferStatusSuccess,
 		ID:     transferID,
 	})
 	if err != nil {

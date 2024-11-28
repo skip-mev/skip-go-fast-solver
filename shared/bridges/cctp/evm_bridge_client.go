@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -91,6 +92,10 @@ func (c *EVMBridgeClient) InitiateTimeout(ctx context.Context, order db.Order, g
 func (c *EVMBridgeClient) GetTxResult(ctx context.Context, txHash string) (*big.Int, *TxFailure, error) {
 	receipt, err := c.client.TransactionReceipt(ctx, common.HexToHash(txHash))
 	if err != nil {
+		if errors.Is(err, ethereum.NotFound) {
+			return nil, nil, ErrTxResultNotFound{TxHash: txHash}
+		}
+
 		return nil, nil, err
 	}
 	if receipt == nil {
@@ -205,8 +210,8 @@ func (c *EVMBridgeClient) IsOrderRefunded(ctx context.Context, gatewayContractAd
 	return false, "", nil
 }
 
-func (c *EVMBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayContractAddress, orderID string) (*string, *string, time.Time, error) {
-	return nil, nil, time.Time{}, errors.New("not implemented")
+func (c *EVMBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayContractAddress, orderID string) (*OrderFillEvent, time.Time, error) {
+	return nil, time.Time{}, errors.New("not implemented")
 }
 
 func (c *EVMBridgeClient) ShouldRetryTx(ctx context.Context, txHash string, submitTime pgtype.Timestamp, txExpirationHeight *uint64) (bool, error) {

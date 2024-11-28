@@ -24,9 +24,10 @@ const (
 	TxTypeERC20Approval            string = "ERC20_APPROVAL"
 	TxTypeFundRebalnance           string = "FUND_REBALANCE"
 
-	RebalanceTransactionStatusPending string = "PENDING"
-	RebalanceTransactionStatusSuccess string = "SUCCESS"
-	RebalanceTransactionStatusFailed  string = "FAILED"
+	RebalanceTransferStatusAbandoned string = "ABANDONED"
+	RebalanceTransferStatusPending   string = "PENDING"
+	RebalanceTransferStatusSuccess   string = "SUCCESS"
+	RebalanceTransferStatusFailed    string = "FAILED"
 
 	TransferStatusPending   string = "PENDING"
 	TransferStatusSuccess   string = "SUCCESS"

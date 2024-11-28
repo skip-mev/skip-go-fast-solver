@@ -16,9 +16,12 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
 
 	sdkgrpc "github.com/cosmos/cosmos-sdk/types/grpc"
-	"google.golang.org/grpc/metadata"
+
+	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
+	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/ordersettler/types"
@@ -26,6 +29,7 @@ import (
 	"cosmossdk.io/math"
 	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
 	"github.com/avast/retry-go/v4"
+	abcitypes "github.com/cometbft/cometbft/abci/types"
 	rpcclient "github.com/cometbft/cometbft/rpc/client"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -166,6 +170,9 @@ func (c *CosmosBridgeClient) GetTxResult(ctx context.Context, txHash string) (*b
 
 	result, err := c.rpcClient.Tx(ctx, txHashBytes, false)
 	if err != nil {
+		if strings.HasSuffix(err.Error(), "not found") {
+			return nil, nil, ErrTxResultNotFound{TxHash: txHash}
+		}
 		return nil, nil, err
 	}
 
@@ -441,29 +448,38 @@ func (c *CosmosBridgeClient) InitiateBatchSettlement(ctx context.Context, batch 
 	return txHash, base64.StdEncoding.EncodeToString(txBytes), nil
 }
 
-func (c *CosmosBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayContractAddress, orderID string) (*string, *string, time.Time, error) {
-	wasmQueryClient := wasmtypes.NewQueryClient(c.grpcClient)
+type OrderFillEvent struct {
+	Filler     string
+	FillAmount *big.Int
+	TxHash     string
+}
+
+// QueryOrderFillEvent gets order fill information. Note that the time
+// stamp being returned is the block time that the query for the order fill
+// event occurred at. This is necessary in order to determine if an order
+// is timed out based on this call. If the order fill is not found on
+// chain, the order fill event and error will be nil, while the timestamp
+// is the ts of the block that the query for the fill occurred in. This is
+// due to the fact that the node we are querying could be lagging behind
+// others, and a fill has actually occurred on chain but our node has not
+// caught up to the latest height, and therefore the order should not yet
+// be timed out (if the time at that height is behind the timeout timestamp
+// of the order).
+func (c *CosmosBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayContractAddress, orderID string) (*OrderFillEvent, time.Time, error) {
 	var header metadata.MD
-	resp, err := wasmQueryClient.SmartContractState(ctx, &wasmtypes.QuerySmartContractStateRequest{
+	resp, err := wasmtypes.NewQueryClient(c.grpcClient).SmartContractState(ctx, &wasmtypes.QuerySmartContractStateRequest{
 		Address:   gatewayContractAddress,
 		QueryData: []byte(fmt.Sprintf(`{"order_fill":{"order_id":"%s"}}`, orderID)),
 	}, grpc.Header(&header))
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			blockHeight := header.Get(sdkgrpc.GRPCBlockHeightHeader)
-			blockHeightInt, err := strconv.ParseInt(blockHeight[0], 10, 64)
+			ts, err := c.blockTimeFromHeightHeader(ctx, header)
 			if err != nil {
-				return nil, nil, time.Time{}, fmt.Errorf("parsing block height: %w", err)
+				return nil, time.Time{}, fmt.Errorf("fetching time stamp from query header: %w", err)
 			}
-
-			headerResp, err := c.rpcClient.Header(ctx, &blockHeightInt)
-			if err != nil {
-				return nil, nil, time.Time{}, fmt.Errorf("fetching block header at height %d: %w", blockHeightInt, err)
-			}
-
-			return nil, nil, headerResp.Header.Time, nil
+			return nil, ts, nil
 		}
-		return nil, nil, time.Time{}, fmt.Errorf("failed to query smart contract state: %w", err)
+		return nil, time.Time{}, fmt.Errorf("querying for order fill of order %s at gateway %s: %w", orderID, gatewayContractAddress, err)
 	}
 
 	var fill struct {
@@ -471,18 +487,77 @@ func (c *CosmosBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayCon
 		OrderID string `json:"order_id"`
 	}
 	if err := json.Unmarshal(resp.Data, &fill); err != nil {
-		return nil, nil, time.Time{}, fmt.Errorf("failed to unmarshal response: %w", err)
+		return nil, time.Time{}, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
+
+	query := fmt.Sprintf("wasm.action='order_filled' AND wasm.order_id='%s'", orderID)
+	searchResult, err := c.rpcClient.TxSearch(ctx, query, false, nil, nil, "")
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("searching for order fill tx for order %s at gateway %s: %w", orderID, gatewayContractAddress, err)
+	}
+	if searchResult.TotalCount != 1 {
+		return nil, time.Time{}, fmt.Errorf("expected only 1 tx to be returned from search for order filled events with order id %s at gateway %s, but instead got %d", orderID, gatewayContractAddress, searchResult.TotalCount)
+	}
+	tx := searchResult.Txs[0]
+
+	fillAmount, err := parseAmountFromFillTx(tx.TxResult, fill.Filler, gatewayContractAddress)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("parsing fill amount from fill tx with hash %s: %w", tx.Hash.String(), err)
+	}
+
+	ts, err := c.blockTimeFromHeightHeader(ctx, header)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("fetching time stamp from query header: %w", err)
+	}
+
+	return &OrderFillEvent{Filler: fill.Filler, FillAmount: fillAmount, TxHash: tx.Hash.String()}, ts, nil
+}
+
+func (c *CosmosBridgeClient) blockTimeFromHeightHeader(ctx context.Context, header metadata.MD) (time.Time, error) {
 	blockHeight := header.Get(sdkgrpc.GRPCBlockHeightHeader)
 	blockHeightInt, err := strconv.ParseInt(blockHeight[0], 10, 64)
 	if err != nil {
-		return nil, nil, time.Time{}, fmt.Errorf("parsing block height: %w", err)
+		return time.Time{}, fmt.Errorf("parsing block height: %w", err)
 	}
+
 	headerResp, err := c.rpcClient.Header(ctx, &blockHeightInt)
 	if err != nil {
-		return nil, nil, time.Time{}, fmt.Errorf("fetching block header at height %d: %w", blockHeightInt, err)
+		return time.Time{}, fmt.Errorf("fetching block header at height %d: %w", blockHeightInt, err)
 	}
-	return &[]string{"txhash"}[0], &fill.Filler, headerResp.Header.Time, nil // TODO query for the actual txhash once the event is implemented
+
+	return headerResp.Header.Time, nil
+}
+
+func parseAmountFromFillTx(tx abcitypes.ExecTxResult, filler string, gatewayContractAddress string) (*big.Int, error) {
+	containsKV := func(event abcitypes.Event, key, value string) bool {
+		for _, attribute := range event.GetAttributes() {
+			if attribute.GetKey() == key && attribute.GetValue() == value {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, event := range tx.GetEvents() {
+		if event.GetType() != "transfer" {
+			continue
+		}
+
+		if containsKV(event, "recipient", gatewayContractAddress) && containsKV(event, "sender", filler) {
+			for _, attribute := range event.GetAttributes() {
+				if attribute.GetKey() == "amount" {
+					fillAmount, err := sdk.ParseCoinNormalized(attribute.GetValue())
+					if err != nil {
+						return nil, fmt.Errorf("parsing amount string %s to coin: %w", attribute.GetValue(), err)
+					}
+					return fillAmount.Amount.BigInt(), nil
+				}
+			}
+			return nil, fmt.Errorf("found event with correct recipient and sender but no amount transferred")
+		}
+	}
+
+	return nil, fmt.Errorf("could not find transfer event where recipient is %s and sender is %s", gatewayContractAddress, filler)
 }
 
 func (c *CosmosBridgeClient) IsOrderRefunded(ctx context.Context, gatewayContractAddress, orderID string) (bool, string, error) {

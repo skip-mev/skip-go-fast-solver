@@ -42,15 +42,20 @@ type TransferMonitor struct {
 	tmRPCManager  tmrpc.TendermintRPCClientManager
 	quickStart    bool
 	didQuickStart map[string]bool // Track which chains have been quick-started
+	ticker        *time.Ticker
 }
 
-func NewTransferMonitor(db MonitorDBQueries, quickStart bool) *TransferMonitor {
+func NewTransferMonitor(db MonitorDBQueries, quickStart bool, pollInterval *time.Duration) *TransferMonitor {
+	if pollInterval == nil {
+		pollInterval = &[]time.Duration{5 * time.Second}[0]
+	}
 	return &TransferMonitor{
 		db:            db,
 		clients:       make(map[string]*ethclient.Client),
 		tmRPCManager:  tmrpc.NewTendermintRPCClientManager(),
 		quickStart:    quickStart,
 		didQuickStart: make(map[string]bool),
+		ticker:        time.NewTicker(*pollInterval),
 	}
 }
 
@@ -71,7 +76,7 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		default:
+		case <-t.ticker.C:
 			for _, chain := range chains {
 				chainID, err := getChainID(chain)
 				if err != nil {
@@ -168,7 +173,6 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 					continue
 				}
 			}
-			time.Sleep(15 * time.Second)
 		}
 	}
 }

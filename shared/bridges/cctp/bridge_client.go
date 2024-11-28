@@ -3,9 +3,10 @@ package cctp
 import (
 	"context"
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"math/big"
 	"time"
+
+	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/ordersettler/types"
@@ -49,6 +50,14 @@ func (e ErrReceiveNotFound) Error() string {
 	return fmt.Sprintf("receive not found for tx: %s", e.TxHash)
 }
 
+type ErrTxResultNotFound struct {
+	TxHash string
+}
+
+func (e ErrTxResultNotFound) Error() string {
+	return fmt.Sprintf("tx result not found for tx: %s", e.TxHash)
+}
+
 type BridgeClient interface {
 	BlockHeight(ctx context.Context) (uint64, error)
 	SignerGasTokenBalance(ctx context.Context) (*big.Int, error)
@@ -57,7 +66,7 @@ type BridgeClient interface {
 	InitiateBatchSettlement(ctx context.Context, batch types.SettlementBatch) (string, string, error)
 	IsSettlementComplete(ctx context.Context, gatewayContractAddress, orderID string) (bool, error)
 	OrderFillsByFiller(ctx context.Context, gatewayContractAddress, fillerAddress string) ([]Fill, error)
-	QueryOrderFillEvent(ctx context.Context, gatewayContractAddress, orderID string) (fillTx *string, filler *string, blockTimestamp time.Time, err error)
+	QueryOrderFillEvent(ctx context.Context, gatewayContractAddress, orderID string) (*OrderFillEvent, time.Time, error)
 	Balance(ctx context.Context, address, denom string) (*big.Int, error)
 	OrderExists(ctx context.Context, gatewayContractAddress, orderID string, blockNumber *big.Int) (exists bool, amount *big.Int, err error)
 	IsOrderRefunded(ctx context.Context, gatewayContractAddress, orderID string) (bool, string, error)

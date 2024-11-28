@@ -21,6 +21,9 @@ func main() {
 	aesKey := []byte("0123456789abcdef0123456789abcdef")
 	aesKeyHex := hex.EncodeToString(aesKey)
 
+	// set key environment variable
+	os.Setenv("AES_KEY_HEX", aesKeyHex)
+
 	// Encrypt the test data
 	encryptedData := encryptSolverKeys(jsonData, aesKey)
 	encryptedDataHex := hex.EncodeToString(encryptedData)
@@ -30,7 +33,7 @@ func main() {
 	defer os.Remove(testFile.Name())
 
 	// Load keys from encrypted file
-	result, _ := keys.LoadKeyStoreFromEncryptedFile(testFile.Name(), aesKeyHex)
+	result, _ := keys.LoadKeyStoreFromEncryptedFile(testFile.Name())
 	resultJson, _ := json.Marshal(result)
 
 	// This is just an example, of course don't log your real private keys
