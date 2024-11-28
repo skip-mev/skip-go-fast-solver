@@ -115,7 +115,7 @@ func NewPromMetrics() Metrics {
 			Namespace: "solver",
 			Name:      "excessive_order_settlement_latency_counter",
 			Help:      "number of observations of excessive order settlement latency, paginated by source and destination chain and status",
-		}, []string{sourceChainIDLabel, destinationChainIDLabel, orderStatusLabel}),
+		}, []string{sourceChainIDLabel, destinationChainIDLabel, settlementStatusLabel}),
 		orderSettlementStatusChange: prom.NewCounterFrom(stdprom.CounterOpts{
 			Namespace: "solver",
 			Name:      "order_settlement_status_change_counter",
