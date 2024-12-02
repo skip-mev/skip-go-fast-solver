@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/skip-mev/go-fast-solver/shared/keys"
+	"github.com/skip-mev/go-fast-solver/shared/oracle"
 	evmtxsubmission "github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -37,12 +38,13 @@ const (
 
 type Database interface {
 	GetPendingRebalanceTransfersToChain(ctx context.Context, destinationChainID string) ([]db.GetPendingRebalanceTransfersToChainRow, error)
+	GetPendingRebalanceTransfersBetweenChains(ctx context.Context, arg db.GetPendingRebalanceTransfersBetweenChainsParams) ([]db.GetPendingRebalanceTransfersBetweenChainsRow, error)
 	InsertRebalanceTransfer(ctx context.Context, arg db.InsertRebalanceTransferParams) (int64, error)
 	GetAllPendingRebalanceTransfers(ctx context.Context) ([]db.GetAllPendingRebalanceTransfersRow, error)
 	UpdateTransferStatus(ctx context.Context, arg db.UpdateTransferStatusParams) error
 	InsertSubmittedTx(ctx context.Context, arg db.InsertSubmittedTxParams) (db.SubmittedTx, error)
-	UpdateTransferTxHash(ctx context.Context, arg db.UpdateTransferTxHashParams) error
-	InsertUnsentRebalanceTransfer(ctx context.Context, arg db.InsertUnsentRebalanceTransferParams) (int64, error)
+	UpdateTransfer(ctx context.Context, arg db.UpdateTransferParams) error
+	InitializeRebalanceTransfer(ctx context.Context, arg db.InitializeRebalanceTransferParams) (int64, error)
 }
 
 type profitabilityFailure struct {
@@ -58,7 +60,7 @@ type FundRebalancer struct {
 	database              Database
 	trasferTracker        *TransferTracker
 	evmTxExecutor         evmtxsubmission.EVMTxExecutor
-	evmTxPriceOracle      evmrpc.IOracle
+	txPriceOracle         oracle.TxPriceOracle
 	profitabilityFailures map[string]*profitabilityFailure
 }
 
@@ -68,7 +70,7 @@ func NewFundRebalancer(
 	skipgo skipgo.SkipGoClient,
 	evmClientManager evmrpc.EVMRPCClientManager,
 	database Database,
-	evmTxPriceOracle evmrpc.IOracle,
+	txPriceOracle oracle.TxPriceOracle,
 	evmTxExecutor evmtxsubmission.EVMTxExecutor,
 ) (*FundRebalancer, error) {
 	return &FundRebalancer{
@@ -78,7 +80,7 @@ func NewFundRebalancer(
 		config:                config.GetConfigReader(ctx).Config().FundRebalancer,
 		database:              database,
 		trasferTracker:        NewTransferTracker(skipgo, database),
-		evmTxPriceOracle:      evmTxPriceOracle,
+		txPriceOracle:         txPriceOracle,
 		evmTxExecutor:         evmTxExecutor,
 		profitabilityFailures: make(map[string]*profitabilityFailure),
 	}, nil
@@ -217,14 +219,14 @@ func (r *FundRebalancer) USDCNeeded(
 // rebalanceToChain.
 func (r *FundRebalancer) MoveFundsToChain(
 	ctx context.Context,
-	rebalanceToChain string,
+	rebalanceToChainID string,
 	usdcToReachTarget *big.Int,
 ) ([]skipgo.TxHash, *big.Int, error) {
 	var hashes []skipgo.TxHash
 	totalUSDCcMoved := big.NewInt(0)
 	remainingUSDCNeeded := usdcToReachTarget
 	for rebalanceFromChainID := range r.config {
-		if rebalanceFromChainID == rebalanceToChain {
+		if rebalanceFromChainID == rebalanceToChainID {
 			// do not try and rebalance funds from the same chain
 			continue
 		}
@@ -253,7 +255,7 @@ func (r *FundRebalancer) MoveFundsToChain(
 			usdcToRebalance = usdcToSpare
 		}
 
-		txns, err := r.GetRebalanceTxns(ctx, usdcToRebalance, rebalanceFromChainID, rebalanceToChain)
+		txns, err := r.GetRebalanceTxns(ctx, usdcToRebalance, rebalanceFromChainID, rebalanceToChainID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("getting txns required for fund rebalancing: %w", err)
 		}
@@ -262,20 +264,26 @@ func (r *FundRebalancer) MoveFundsToChain(
 		}
 		txn := txns[0]
 
+		rebalanceID, err := r.rebalanceID(ctx, rebalanceFromChainID, rebalanceToChainID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("getting rebalance id between chains %s and %s: %w", rebalanceFromChainID, rebalanceToChainID, err)
+		}
+
 		approvalHash, err := r.ApproveTxn(ctx, rebalanceFromChainID, txn)
 		if err != nil {
 			return nil, nil, fmt.Errorf("approving rebalance txn from %s: %w", rebalanceFromChainID, err)
 		}
-
-		approveTx := db.InsertSubmittedTxParams{
-			RebalanceTransferID: sql.NullInt64{Int64: rebalanceID, Valid: true},
-			ChainID:             chainID,
-			TxHash:              hash,
-			TxType:              dbtypes.TxTypeERC20Approval,
-			TxStatus:            dbtypes.TxStatusPending,
-		}
-		if _, err = r.database.InsertSubmittedTx(ctx, approveTx); err != nil {
-			return "", fmt.Errorf("inserting submitted tx for erc20 approval with hash %s into db: %w", hash, err)
+		if approvalHash != "" {
+			approveTx := db.InsertSubmittedTxParams{
+				RebalanceTransferID: sql.NullInt64{Int64: rebalanceID, Valid: true},
+				ChainID:             rebalanceFromChainID,
+				TxHash:              approvalHash,
+				TxType:              dbtypes.TxTypeERC20Approval,
+				TxStatus:            dbtypes.TxStatusPending,
+			}
+			if _, err = r.database.InsertSubmittedTx(ctx, approveTx); err != nil {
+				return nil, nil, fmt.Errorf("inserting submitted tx for erc20 approval with hash %s on chain %s into db: %w", approvalHash, rebalanceFromChainID, err)
+			}
 		}
 
 		txnWithMetadata, err := r.TxnWithMetadata(ctx, rebalanceFromChainID, rebalanceFromChainID, usdcToRebalance, txn)
@@ -300,7 +308,7 @@ func (r *FundRebalancer) MoveFundsToChain(
 				}
 				lmt.Logger(ctx).Info(
 					"skipping rebalance from chain "+rebalanceFromChainID+" due to high rebalancing gas cost",
-					zap.String("destinationChainID", rebalanceToChain),
+					zap.String("destinationChainID", rebalanceToChainID),
 					zap.String("estimatedGasCostUUSDC", gasCostUUSDC),
 					zap.String("maxRebalancingGasCostUUSDC", maxCost.String()),
 				)
@@ -312,22 +320,16 @@ func (r *FundRebalancer) MoveFundsToChain(
 		if err != nil {
 			return nil, nil, fmt.Errorf("signing and submitting transaction: %w", err)
 		}
-		metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(rebalanceFromChainID, rebalanceToChain, dbtypes.RebalanceTransferStatusPending)
+		metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(rebalanceFromChainID, rebalanceToChainID, dbtypes.RebalanceTransferStatusPending)
 
 		// add rebalance transfer to the db
-		rebalanceTransfer := db.InsertRebalanceTransferParams{
-			TxHash:             string(rebalanceHash),
-			SourceChainID:      txnWithMetadata.sourceChainID,
-			DestinationChainID: txnWithMetadata.destinationChainID,
-			Amount:             txnWithMetadata.amount.String(),
+		rebalanceTransfer := db.UpdateTransferParams{
+			TxHash: string(rebalanceHash),
+			Amount: txnWithMetadata.amount.String(),
+			ID:     rebalanceID,
 		}
-		rebalanceID, err := r.database.InsertRebalanceTransfer(ctx, rebalanceTransfer)
-		if err != nil {
-			return nil, nil, fmt.Errorf("inserting rebalance transfer with hash %s into db: %w", rebalanceHash, err)
-		}
-
-		// add erc20 approval tx to submitted txs table
-		if approvalHash != "" {
+		if err := r.database.UpdateTransfer(ctx, rebalanceTransfer); err != nil {
+			return nil, nil, fmt.Errorf("updating rebalance transfer with hash %s: %w", string(rebalanceHash), err)
 		}
 
 		// add rebalance tx to submitted txs table
@@ -354,6 +356,33 @@ func (r *FundRebalancer) MoveFundsToChain(
 
 	// we have moved all available funds from all available chains
 	return hashes, totalUSDCcMoved, nil
+}
+
+func (r *FundRebalancer) rebalanceID(
+	ctx context.Context,
+	rebalanceFromChainID string,
+	rebalanceToChainID string,
+) (int64, error) {
+	chains := db.GetPendingRebalanceTransfersBetweenChainsParams{SourceChainID: rebalanceFromChainID, DestinationChainID: rebalanceToChainID}
+	transfers, err := r.database.GetPendingRebalanceTransfersBetweenChains(ctx, chains)
+	if err != nil {
+		return 0, fmt.Errorf("getting pending rebalance transfers between chains source chain %s and destination chain %s: %w", rebalanceFromChainID, rebalanceToChainID, err)
+	}
+
+	switch len(transfers) {
+	case 0:
+		// this is the first time we are seeing this rebalance, initialize it in the db
+		rebalance := db.InitializeRebalanceTransferParams{SourceChainID: rebalanceFromChainID, DestinationChainID: rebalanceToChainID}
+		id, err := r.database.InitializeRebalanceTransfer(ctx, rebalance)
+		if err != nil {
+			return 0, fmt.Errorf("initializing rebalance transfer from %s to %s in db: %w", rebalanceFromChainID, rebalanceToChainID, err)
+		}
+		return id, nil
+	case 1:
+		return transfers[0].ID, nil
+	default:
+		return 0, fmt.Errorf("expected to find 0 or 1 rebalance transfers between chains but instead found %d", len(transfers))
+	}
 }
 
 func (r *FundRebalancer) ApproveTxn(
@@ -639,11 +668,11 @@ func (r *FundRebalancer) NeedsERC20Approval(
 	ctx context.Context,
 	txn skipgo.Tx,
 ) (bool, error) {
-	if txn.tx.EVMTx == nil {
+	if txn.EVMTx == nil {
 		// if this isnt an evm tx, no erc20 approvals are required
 		return false, nil
 	}
-	evmTx := txn.tx.EVMTx
+	evmTx := txn.EVMTx
 	if len(evmTx.RequiredERC20Approvals) == 0 {
 		// if no approvals are required, return with no error
 		return false, nil
@@ -773,20 +802,15 @@ func (r *FundRebalancer) isGasAcceptable(ctx context.Context, txn SkipGoTxnWithM
 		return false, "", fmt.Errorf("getting gas price: %w", err)
 	}
 
-	chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
-	if err != nil {
-		return false, "", fmt.Errorf("getting chain config: %w", err)
-	}
-
 	chainFundRebalancingConfig, err := config.GetConfigReader(ctx).GetFundRebalancingConfig(chainID)
 	if err != nil {
 		return false, "", fmt.Errorf("getting chain fund rebalancing config: %w", err)
 	}
 
-	gasCostUUSDC, err := r.evmTxPriceOracle.TxFeeUUSDC(ctx, types.NewTx(&types.DynamicFeeTx{
+	gasCostUUSDC, err := r.txPriceOracle.TxFeeUUSDC(ctx, types.NewTx(&types.DynamicFeeTx{
 		Gas:       txn.gasEstimate,
 		GasFeeCap: gasPrice,
-	}), chainConfig.GasTokenCoingeckoID)
+	}))
 	if err != nil {
 		return false, "", fmt.Errorf("calculating total fund rebalancing gas cost in UUSDC: %w", err)
 	}

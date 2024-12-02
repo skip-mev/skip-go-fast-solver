@@ -2,6 +2,7 @@ package fundrebalancer
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -14,11 +15,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	evm2 "github.com/skip-mev/go-fast-solver/mocks/shared/txexecutor/evm"
 
+	dbtypes "github.com/skip-mev/go-fast-solver/db"
+
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	mock_database "github.com/skip-mev/go-fast-solver/mocks/fundrebalancer"
 	mock_skipgo "github.com/skip-mev/go-fast-solver/mocks/shared/clients/skipgo"
 	mock_config "github.com/skip-mev/go-fast-solver/mocks/shared/config"
 	mock_evmrpc "github.com/skip-mev/go-fast-solver/mocks/shared/evmrpc"
+	mock_oracle "github.com/skip-mev/go-fast-solver/mocks/shared/oracle"
 	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/contracts/usdc"
@@ -96,8 +100,6 @@ func loadKeysFile(keys any) (*os.File, error) {
 
 func TestFundRebalancer_Rebalance(t *testing.T) {
 	t.Run("no rebalancing necessary", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := context.Background()
 		mockConfigReader := mock_config.NewMockConfigReader(t)
 		mockConfigReader.On("Config").Return(config.Config{
@@ -147,7 +149,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
-		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
+		mockTxPriceOracle := mock_oracle.NewMockTxPriceOracle(t)
 
 		rebalancer, err := NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
 		assert.NoError(t, err)
@@ -167,9 +169,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		// submit a rebalance txn, etc
 	})
 
-	t.Run("single arbitrum -> osmosis rebalance necessary", func(t *testing.T) {
-		t.Parallel()
-
+	t.Run("single arbitrum to osmosis rebalance necessary", func(t *testing.T) {
 		ctx := context.Background()
 		mockConfigReader := mock_config.NewMockConfigReader(t)
 		mockConfigReader.On("Config").Return(config.Config{
@@ -230,10 +230,20 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClient.EXPECT().SuggestGasPrice(mockContext).Return(big.NewInt(100), nil)
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
+
+		pending := db.GetPendingRebalanceTransfersBetweenChainsParams{SourceChainID: arbitrumChainID, DestinationChainID: osmosisChainID}
+		mockDatabse.EXPECT().GetPendingRebalanceTransfersBetweenChains(mock.Anything, pending).Return(nil, nil)
+
+		// basic initialization of a rebalance transfer
+		init := db.InitializeRebalanceTransferParams{SourceChainID: arbitrumChainID, DestinationChainID: osmosisChainID}
+		mockDatabse.EXPECT().InitializeRebalanceTransfer(mock.Anything, init).Return(0, nil)
+
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", nil)
-		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
+
+		mockTxPriceOracle := mock_oracle.NewMockTxPriceOracle(t)
 		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything, mock.Anything).Return(big.NewInt(75), nil)
+
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
 
@@ -264,20 +274,22 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 
 		mockEVMClient.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100), nil).Once()
 
-		// should insert once rebalance transaction from arbitrum to osmosis
-		mockDatabse.EXPECT().InsertRebalanceTransfer(mockContext, db.InsertRebalanceTransferParams{
-			TxHash:             "arbitrum hash",
-			SourceChainID:      arbitrumChainID,
-			DestinationChainID: osmosisChainID,
-			Amount:             strconv.Itoa(osmosisTargetAmount),
-		}).Return(1, nil).Once()
+		update := db.UpdateTransferParams{TxHash: "arbitrum hash", Amount: strconv.Itoa(osmosisTargetAmount), ID: 0}
+		mockDatabse.EXPECT().UpdateTransfer(mockContext, update).Return(nil)
+
+		// insert tx into submitted txs table
+		mockDatabse.EXPECT().InsertSubmittedTx(mockContext, db.InsertSubmittedTxParams{
+			RebalanceTransferID: sql.NullInt64{Int64: 0, Valid: true},
+			ChainID:             arbitrumChainID,
+			TxHash:              "arbitrum hash",
+			TxType:              dbtypes.TxTypeFundRebalnance,
+			TxStatus:            dbtypes.TxStatusPending,
+		}).Return(db.SubmittedTx{}, nil).Once()
 
 		rebalancer.Rebalance(ctx)
 	})
 
-	t.Run("arbitrum + ethereum -> osmosis rebalance", func(t *testing.T) {
-		t.Parallel()
-
+	t.Run("arbitrum and ethereum to osmosis rebalance", func(t *testing.T) {
 		ctx := context.Background()
 		mockConfigReader := mock_config.NewMockConfigReader(t)
 		mockConfigReader.On("Config").Return(config.Config{
@@ -351,7 +363,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, "42161", arbitrumAddress, []byte{}, "0", osmosisAddress, mock.Anything).Return("arbhash", nil)
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, "1", ethAddress, []byte{}, "0", osmosisAddress, mock.Anything).Return("ethhash", nil)
-		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
+		mockTxPriceOracle := mock_oracle.NewMockTxPriceOracle(t)
 
 		// using an in memory database for this test
 		mockDatabse := mock_database.NewFakeDatabase()
@@ -421,8 +433,6 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 	})
 
 	t.Run("in flight transfers are counted towards balance", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := context.Background()
 		mockConfigReader := mock_config.NewMockConfigReader(t)
 		mockConfigReader.On("Config").Return(config.Config{
@@ -464,7 +474,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClientManager := mock_evmrpc.NewMockEVMRPCClientManager(t)
 		mockDatabse := mock_database.NewMockDatabase(t)
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
-		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
+		mockTxPriceOracle := mock_oracle.NewMockTxPriceOracle(t)
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
 
@@ -491,7 +501,6 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 	})
 
 	t.Run("skips rebalance when gas threshold exceeded and timeout is set to -1", func(t *testing.T) {
-		t.Parallel()
 		ctx := context.Background()
 		mockConfigReader := mock_config.NewMockConfigReader(t)
 		mockConfigReader.On("Config").Return(config.Config{
@@ -549,10 +558,21 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
 		mockEVMClient.EXPECT().SuggestGasPrice(mockContext).Return(big.NewInt(1000000000), nil) // high gas price
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
+
 		mockDatabse := mock_database.NewMockDatabase(t)
+		// no pending rebalance transfers already in db
+		pending := db.GetPendingRebalanceTransfersBetweenChainsParams{SourceChainID: arbitrumChainID, DestinationChainID: osmosisChainID}
+		mockDatabse.EXPECT().GetPendingRebalanceTransfersBetweenChains(mock.Anything, pending).Return(nil, nil)
+
+		// basic initialization of a rebalance transfer
+		init := db.InitializeRebalanceTransferParams{SourceChainID: arbitrumChainID, DestinationChainID: osmosisChainID}
+		mockDatabse.EXPECT().InitializeRebalanceTransfer(mock.Anything, init).Return(0, nil)
+
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
-		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
+
+		mockTxPriceOracle := mock_oracle.NewMockTxPriceOracle(t)
 		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything, mock.Anything).Return(big.NewInt(51), nil)
+
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
 
@@ -595,8 +615,6 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 	})
 
 	t.Run("submits required erc20 approvals returned from Skip Go", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := context.Background()
 		mockConfigReader := mock_config.NewMockConfigReader(t)
 		mockConfigReader.On("Config").Return(config.Config{
@@ -659,16 +677,31 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 
 		mockDatabse := mock_database.NewMockDatabase(t)
 
+		pending := db.GetPendingRebalanceTransfersBetweenChainsParams{SourceChainID: arbitrumChainID, DestinationChainID: osmosisChainID}
+		mockDatabse.EXPECT().GetPendingRebalanceTransfersBetweenChains(mock.Anything, pending).Return(nil, nil)
+
+		// basic initialization of a rebalance transfer
+		init := db.InitializeRebalanceTransferParams{SourceChainID: arbitrumChainID, DestinationChainID: osmosisChainID}
+		mockDatabse.EXPECT().InitializeRebalanceTransfer(mock.Anything, init).Return(0, nil)
+
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", nil)
 
 		// mock executing the approval tx
-		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, mock.Anything, "0", arbitrumUSDCDenom, mock.Anything).Return("arbitrum hash", nil)
+		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, mock.Anything, "0", arbitrumUSDCDenom, mock.Anything).Return("arbitrum approval hash", nil)
+
+		mockDatabse.EXPECT().InsertSubmittedTx(mockContext, db.InsertSubmittedTxParams{
+			RebalanceTransferID: sql.NullInt64{Int64: 0, Valid: true},
+			ChainID:             arbitrumChainID,
+			TxHash:              "arbitrum approval hash",
+			TxType:              dbtypes.TxTypeERC20Approval,
+			TxStatus:            dbtypes.TxStatusPending,
+		}).Return(db.SubmittedTx{}, nil).Once()
 
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
 
-		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
+		mockTxPriceOracle := mock_oracle.NewMockTxPriceOracle(t)
 
 		rebalancer, err := NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
 		assert.NoError(t, err)
@@ -708,20 +741,22 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 
 		mockEVMClient.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100), nil)
 
-		// should insert once rebalance transaction from arbitrum to osmosis
-		mockDatabse.EXPECT().InsertRebalanceTransfer(mockContext, db.InsertRebalanceTransferParams{
-			TxHash:             "arbitrum hash",
-			SourceChainID:      arbitrumChainID,
-			DestinationChainID: osmosisChainID,
-			Amount:             strconv.Itoa(osmosisTargetAmount),
-		}).Return(1, nil).Once()
+		update := db.UpdateTransferParams{TxHash: "arbitrum hash", Amount: strconv.Itoa(osmosisTargetAmount), ID: 0}
+		mockDatabse.EXPECT().UpdateTransfer(mockContext, update).Return(nil)
+
+		// insert tx into submitted txs table
+		mockDatabse.EXPECT().InsertSubmittedTx(mockContext, db.InsertSubmittedTxParams{
+			RebalanceTransferID: sql.NullInt64{Int64: 0, Valid: true},
+			ChainID:             arbitrumChainID,
+			TxHash:              "arbitrum hash",
+			TxType:              dbtypes.TxTypeFundRebalnance,
+			TxStatus:            dbtypes.TxStatusPending,
+		}).Return(db.SubmittedTx{}, nil).Once()
 
 		rebalancer.Rebalance(ctx)
 	})
 
 	t.Run("does not submit erc20 approval when erc20 allowance is greater than necessary approval", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := context.Background()
 		mockConfigReader := mock_config.NewMockConfigReader(t)
 		mockConfigReader.On("Config").Return(config.Config{
@@ -783,6 +818,12 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClient.EXPECT().CallContract(mock.Anything, msg, nilBigInt).Return(common.LeftPadBytes(big.NewInt(10000).Bytes(), 32), nil)
 
 		mockDatabse := mock_database.NewMockDatabase(t)
+		pending := db.GetPendingRebalanceTransfersBetweenChainsParams{SourceChainID: arbitrumChainID, DestinationChainID: osmosisChainID}
+		mockDatabse.EXPECT().GetPendingRebalanceTransfersBetweenChains(mock.Anything, pending).Return(nil, nil)
+
+		// basic initialization of a rebalance transfer
+		init := db.InitializeRebalanceTransferParams{SourceChainID: arbitrumChainID, DestinationChainID: osmosisChainID}
+		mockDatabse.EXPECT().InitializeRebalanceTransfer(mock.Anything, init).Return(0, nil)
 
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", nil)
@@ -790,7 +831,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
 
-		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
+		mockTxPriceOracle := mock_oracle.NewMockTxPriceOracle(t)
 
 		rebalancer, err := NewFundRebalancer(ctx, keystore, mockSkipGo, mockEVMClientManager, mockDatabse, mockTxPriceOracle, mockEVMTxExecutor)
 		assert.NoError(t, err)
@@ -830,13 +871,18 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 
 		mockEVMClient.On("EstimateGas", mock.Anything, mock.Anything).Return(uint64(100), nil)
 
-		// should insert once rebalance transaction from arbitrum to osmosis
-		mockDatabse.EXPECT().InsertRebalanceTransfer(mockContext, db.InsertRebalanceTransferParams{
-			TxHash:             "arbitrum hash",
-			SourceChainID:      arbitrumChainID,
-			DestinationChainID: osmosisChainID,
-			Amount:             strconv.Itoa(osmosisTargetAmount),
-		}).Return(1, nil).Once()
+		// update the initialized tx with hash and amount
+		update := db.UpdateTransferParams{TxHash: "arbitrum hash", Amount: strconv.Itoa(osmosisTargetAmount), ID: 0}
+		mockDatabse.EXPECT().UpdateTransfer(mockContext, update).Return(nil)
+
+		// insert tx into submitted txs table
+		mockDatabse.EXPECT().InsertSubmittedTx(mockContext, db.InsertSubmittedTxParams{
+			RebalanceTransferID: sql.NullInt64{Int64: 0, Valid: true},
+			ChainID:             arbitrumChainID,
+			TxHash:              "arbitrum hash",
+			TxType:              dbtypes.TxTypeFundRebalnance,
+			TxStatus:            dbtypes.TxStatusPending,
+		}).Return(db.SubmittedTx{}, nil).Once()
 
 		rebalancer.Rebalance(ctx)
 	})
@@ -844,7 +890,6 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 
 func TestFundRebalancer_GasAcceptability(t *testing.T) {
 	t.Run("accepts transaction above threshold but below cap after timeout", func(t *testing.T) {
-		t.Parallel()
 		ctx := context.Background()
 		mockContext := mock.Anything
 		timeout := 1 * time.Hour
@@ -870,28 +915,22 @@ func TestFundRebalancer_GasAcceptability(t *testing.T) {
 			},
 			nil,
 		)
-		mockConfigReader.On("GetChainConfig", arbitrumChainID).Return(
-			config.ChainConfig{
-				Type: config.ChainType_EVM,
-			},
-			nil,
-		)
 		ctx = config.ConfigReaderContext(ctx, mockConfigReader)
 
 		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
 		mockEVMClient.EXPECT().SuggestGasPrice(mockContext).Return(big.NewInt(1000000000), nil)
-		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
-		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything, mock.Anything).Return(big.NewInt(75), nil)
+		mockTxPriceOracle := mock_oracle.NewMockTxPriceOracle(t)
+		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything).Return(big.NewInt(75), nil)
 
 		rebalancer := setupRebalancer(t, ctx, mockEVMClient, mockTxPriceOracle, nil)
 
-		txns := []SkipGoTxnWithMetadata{{
+		txn := SkipGoTxnWithMetadata{
 			tx:          skipgo.Tx{EVMTx: &skipgo.EVMTx{ChainID: arbitrumChainID}},
 			gasEstimate: 100000,
-		}}
+		}
 
 		// First attempt should fail and start tracking
-		acceptable, cost, err := rebalancer.isGasAcceptable(ctx, txns, arbitrumChainID)
+		acceptable, cost, err := rebalancer.isGasAcceptable(ctx, txn, arbitrumChainID)
 		assert.NoError(t, err)
 		assert.False(t, acceptable)
 		assert.Equal(t, "75", cost)
@@ -900,14 +939,13 @@ func TestFundRebalancer_GasAcceptability(t *testing.T) {
 		rebalancer.profitabilityFailures[arbitrumChainID].firstFailureTime = time.Now().Add(-2 * time.Hour)
 
 		// Second attempt should succeed due to timeout
-		acceptable, cost, err = rebalancer.isGasAcceptable(ctx, txns, arbitrumChainID)
+		acceptable, cost, err = rebalancer.isGasAcceptable(ctx, txn, arbitrumChainID)
 		assert.NoError(t, err)
 		assert.True(t, acceptable)
 		assert.Equal(t, "75", cost)
 	})
 
 	t.Run("rejects transaction above cap even after timeout", func(t *testing.T) {
-		t.Parallel()
 		ctx := context.Background()
 		mockContext := mock.Anything
 		timeout := 1 * time.Hour
@@ -933,28 +971,22 @@ func TestFundRebalancer_GasAcceptability(t *testing.T) {
 			},
 			nil,
 		)
-		mockConfigReader.On("GetChainConfig", arbitrumChainID).Return(
-			config.ChainConfig{
-				Type: config.ChainType_EVM,
-			},
-			nil,
-		)
 		ctx = config.ConfigReaderContext(ctx, mockConfigReader)
 
 		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
 		mockEVMClient.EXPECT().SuggestGasPrice(mockContext).Return(big.NewInt(1000000000), nil)
-		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
-		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything, mock.Anything).Return(big.NewInt(150), nil)
+		mockTxPriceOracle := mock_oracle.NewMockTxPriceOracle(t)
+		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything).Return(big.NewInt(150), nil)
 
 		rebalancer := setupRebalancer(t, ctx, mockEVMClient, mockTxPriceOracle, nil)
 
-		txns := []SkipGoTxnWithMetadata{{
+		txn := SkipGoTxnWithMetadata{
 			tx:          skipgo.Tx{EVMTx: &skipgo.EVMTx{ChainID: arbitrumChainID}},
 			gasEstimate: 100000,
-		}}
+		}
 
 		// First attempt should fail and start tracking
-		acceptable, cost, err := rebalancer.isGasAcceptable(ctx, txns, arbitrumChainID)
+		acceptable, cost, err := rebalancer.isGasAcceptable(ctx, txn, arbitrumChainID)
 		assert.NoError(t, err)
 		assert.False(t, acceptable)
 		assert.Equal(t, "150", cost)
@@ -963,14 +995,13 @@ func TestFundRebalancer_GasAcceptability(t *testing.T) {
 		rebalancer.profitabilityFailures[arbitrumChainID].firstFailureTime = time.Now().Add(-2 * time.Hour)
 
 		// Second attempt should still fail due to being above cap
-		acceptable, cost, err = rebalancer.isGasAcceptable(ctx, txns, arbitrumChainID)
+		acceptable, cost, err = rebalancer.isGasAcceptable(ctx, txn, arbitrumChainID)
 		assert.NoError(t, err)
 		assert.False(t, acceptable)
 		assert.Equal(t, "150", cost)
 	})
 
 	t.Run("clears failure tracking when gas becomes acceptable", func(t *testing.T) {
-		t.Parallel()
 		ctx := context.Background()
 		mockContext := mock.Anything
 		timeout := 1 * time.Hour
@@ -996,44 +1027,38 @@ func TestFundRebalancer_GasAcceptability(t *testing.T) {
 			},
 			nil,
 		)
-		mockConfigReader.On("GetChainConfig", arbitrumChainID).Return(
-			config.ChainConfig{
-				Type: config.ChainType_EVM,
-			},
-			nil,
-		)
 		ctx = config.ConfigReaderContext(ctx, mockConfigReader)
 
 		mockEVMClient := mock_evmrpc.NewMockEVMChainRPC(t)
-		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
+		mockTxPriceOracle := mock_oracle.NewMockTxPriceOracle(t)
 		rebalancer := setupRebalancer(t, ctx, mockEVMClient, mockTxPriceOracle, nil)
 
-		txns := []SkipGoTxnWithMetadata{{
+		txn := SkipGoTxnWithMetadata{
 			tx:          skipgo.Tx{EVMTx: &skipgo.EVMTx{ChainID: arbitrumChainID}},
 			gasEstimate: 100000,
-		}}
+		}
 
 		// First attempt with high gas
 		mockEVMClient.EXPECT().SuggestGasPrice(mockContext).Return(big.NewInt(1000000000), nil)
-		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything, mock.Anything).Return(big.NewInt(75), nil).Once()
+		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything).Return(big.NewInt(75), nil).Once()
 
-		acceptable, _, err := rebalancer.isGasAcceptable(ctx, txns, arbitrumChainID)
+		acceptable, _, err := rebalancer.isGasAcceptable(ctx, txn, arbitrumChainID)
 		assert.NoError(t, err)
 		assert.False(t, acceptable)
 		assert.NotNil(t, rebalancer.profitabilityFailures[arbitrumChainID])
 
 		// Second attempt with low gas
 		mockEVMClient.EXPECT().SuggestGasPrice(mockContext).Return(big.NewInt(500000000), nil)
-		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything, mock.Anything).Return(big.NewInt(25), nil).Once()
+		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything).Return(big.NewInt(25), nil).Once()
 
-		acceptable, _, err = rebalancer.isGasAcceptable(ctx, txns, arbitrumChainID)
+		acceptable, _, err = rebalancer.isGasAcceptable(ctx, txn, arbitrumChainID)
 		assert.NoError(t, err)
 		assert.True(t, acceptable)
 		assert.Nil(t, rebalancer.profitabilityFailures[arbitrumChainID])
 	})
 }
 
-func setupRebalancer(t *testing.T, ctx context.Context, mockEVMClient *mock_evmrpc.MockEVMChainRPC, mockTxPriceOracle *mock_evmrpc.MockOracle, mockDatabase *mock_database.MockDatabase) *FundRebalancer {
+func setupRebalancer(t *testing.T, ctx context.Context, mockEVMClient *mock_evmrpc.MockEVMChainRPC, mockTxPriceOracle *mock_oracle.MockTxPriceOracle, mockDatabase *mock_database.MockDatabase) *FundRebalancer {
 	mockEVMClientManager := mock_evmrpc.NewMockEVMRPCClientManager(t)
 	mockEVMClientManager.EXPECT().GetClient(mock.Anything, arbitrumChainID).Return(mockEVMClient, nil)
 	mockSkipGo := mock_skipgo.NewMockSkipGoClient(t)
