@@ -65,7 +65,6 @@ func main() {
 	if err != nil {
 		lmt.Logger(ctx).Fatal("Unable to load config", zap.Error(err))
 	}
-
 	redactedConfig := redactConfig(&cfg)
 
 	lmt.Logger(ctx).Info("starting skip go fast solver",

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	bridgeclient "github.com/skip-mev/go-fast-solver/shared/bridges/cctp"
 	"math"
 	"math/big"
 	"strconv"
@@ -33,6 +34,10 @@ type Config struct {
 var params = Config{
 	Delay: 20 * time.Second,
 }
+
+const (
+	excessiveSettlementLatency = 1 * time.Hour
+)
 
 type Database interface {
 	GetAllOrderSettlementsWithSettlementStatus(ctx context.Context, settlementStatus string) ([]db.OrderSettlement, error)
@@ -186,6 +191,16 @@ func (r *OrderSettler) findNewSettlements(ctx context.Context) error {
 
 			orderFillEvent, _, err := bridgeClient.QueryOrderFillEvent(ctx, chain.FastTransferContractAddress, fill.OrderID)
 			if err != nil {
+				if _, ok := err.(bridgeclient.ErrOrderFillEventNotFound); ok {
+					lmt.Logger(ctx).Warn(
+						"failed to find order fill event",
+						zap.String("fastTransferGatewayAddress", chain.FastTransferContractAddress),
+						zap.String("orderID", fill.OrderID),
+						zap.String("chainID", chain.ChainID),
+						zap.Error(err),
+					)
+					continue
+				}
 				return fmt.Errorf("querying for order fill event on destination chain at address %s for order id %s: %w", chain.FastTransferContractAddress, fill.OrderID, err)
 			}
 			profit := new(big.Int).Sub(amount, orderFillEvent.FillAmount)
@@ -551,6 +566,9 @@ func (r *OrderSettler) verifyOrderSettlement(ctx context.Context, settlement db.
 	}
 	if !settlement.InitiateSettlementTx.Valid {
 		return errors.New("message received txHash is null")
+	}
+	if settlement.CreatedAt.Add(excessiveSettlementLatency).Before(time.Now()) {
+		metrics.FromContext(ctx).IncExcessiveOrderSettlementLatency(settlement.SourceChainID, settlement.DestinationChainID, settlement.SettlementStatus)
 	}
 
 	if settlement.SettlementStatus == dbtypes.SettlementStatusPending {

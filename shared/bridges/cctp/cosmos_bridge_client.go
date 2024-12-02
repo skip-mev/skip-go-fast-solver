@@ -495,6 +495,9 @@ func (c *CosmosBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayCon
 	if err != nil {
 		return nil, time.Time{}, fmt.Errorf("searching for order fill tx for order %s at gateway %s: %w", orderID, gatewayContractAddress, err)
 	}
+	if searchResult.TotalCount == 0 {
+		return nil, time.Time{}, ErrOrderFillEventNotFound{OrderID: orderID}
+	}
 	if searchResult.TotalCount != 1 {
 		return nil, time.Time{}, fmt.Errorf("expected only 1 tx to be returned from search for order filled events with order id %s at gateway %s, but instead got %d", orderID, gatewayContractAddress, searchResult.TotalCount)
 	}
