@@ -14,6 +14,16 @@ const (
 	coingeckoUSDCurrency = "usd"
 )
 
+type TxPriceOracle interface {
+	// TxFeeUUSDC estimates what the cost in uusdc would be to execute a tx. The
+	// tx's gas fee cap and gas limit must be set.
+	TxFeeUUSDC(ctx context.Context, tx *types.Transaction) (*big.Int, error)
+
+	// GasCostUUSDC converts a tx fee to uusdc based on the current CoinGecko of
+	// the gas token in usd.
+	GasCostUUSDC(ctx context.Context, txFee *big.Int, chainID string) (*big.Int, error)
+}
+
 // Oracle is a evm uusdc tx execution price oracle that determines the price of
 // executing a tx on chain in uusdc.
 type Oracle struct {
