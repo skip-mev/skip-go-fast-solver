@@ -12,9 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
-	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
-
 	sdkgrpc "github.com/cosmos/cosmos-sdk/types/grpc"
 
 	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
