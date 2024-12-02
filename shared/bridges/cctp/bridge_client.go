@@ -58,6 +58,14 @@ func (e ErrTxResultNotFound) Error() string {
 	return fmt.Sprintf("tx result not found for tx: %s", e.TxHash)
 }
 
+type ErrOrderFillEventNotFound struct {
+	OrderID string
+}
+
+func (e ErrOrderFillEventNotFound) Error() string {
+	return fmt.Sprintf("order fill event not found for order: %s", e.OrderID)
+}
+
 type BridgeClient interface {
 	BlockHeight(ctx context.Context) (uint64, error)
 	SignerGasTokenBalance(ctx context.Context) (*big.Int, error)
