@@ -83,6 +83,15 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 					case errors.Is(err, ErrRelayTooExpensive):
 						lmt.Logger(ctx).Warn(
 							"relaying transfer is too expensive, waiting for better conditions",
+							zap.Int64("transferId", transfer.ID),
+							zap.String("sourceChainID", transfer.SourceChainID),
+							zap.String("destChainID", transfer.DestinationChainID),
+							zap.String("txHash", transfer.MessageSentTx),
+						)
+					case errors.Is(err, ErrCouldNotDetermineRelayFee):
+						lmt.Logger(ctx).Warn(
+							"could not determine relay fee, retrying",
+							zap.Int64("transferId", transfer.ID),
 							zap.String("sourceChainID", transfer.SourceChainID),
 							zap.String("destChainID", transfer.DestinationChainID),
 							zap.String("txHash", transfer.MessageSentTx),
@@ -116,7 +125,9 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 						lmt.Logger(ctx).Error(
 							"error relaying pending hyperlane transfer",
 							zap.Error(err),
+							zap.Int64("transferId", transfer.ID),
 							zap.String("sourceChainID", transfer.SourceChainID),
+							zap.String("destChainID", transfer.DestinationChainID),
 							zap.String("txHash", transfer.MessageSentTx),
 						)
 					}
@@ -134,7 +145,9 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 					lmt.Logger(ctx).Error(
 						"error inserting submitted tx for hyperlane transfer",
 						zap.Error(err),
+						zap.Int64("transferId", transfer.ID),
 						zap.String("sourceChainID", transfer.SourceChainID),
+						zap.String("destChainID", transfer.DestinationChainID),
 						zap.String("txHash", transfer.MessageSentTx),
 					)
 				}
