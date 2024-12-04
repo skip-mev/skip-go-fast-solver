@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"math/big"
 	"os/signal"
+	"strings"
 	"syscall"
 
-	"github.com/skip-mev/go-fast-solver/db/connect"
-	"github.com/skip-mev/go-fast-solver/db/gen/db"
-	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
+	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
+	"github.com/skip-mev/go-fast-solver/shared/keys"
+	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
+
+	"github.com/skip-mev/go-fast-solver/ordersettler"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/evmrpc"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
@@ -19,61 +22,68 @@ import (
 
 var inventoryCmd = &cobra.Command{
 	Use:   "inventory",
-	Short: "Show current solver inventory across all chains",
+	Short: "Show current solver inventory across all chains (excluding pending fund rebalances)",
 	Run: func(cmd *cobra.Command, args []string) {
+		ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer cancel()
+
+		lmt.ConfigureLogger()
+		ctx = lmt.LoggerContext(ctx)
+		lmt.Logger(ctx).Info("entered inventory function")
+
 		configPath, err := cmd.Flags().GetString("config")
 		if err != nil {
-			lmt.Logger(context.Background()).Fatal("Failed to get config path", zap.Error(err))
+			lmt.Logger(ctx).Fatal("Failed to get config path", zap.Error(err))
 		}
 
 		cfg, err := config.LoadConfig(configPath)
 		if err != nil {
-			lmt.Logger(context.Background()).Fatal("Failed to load config", zap.Error(err))
+			lmt.Logger(ctx).Fatal("Failed to load config", zap.Error(err))
 		}
 
-		fmt.Println("loaded config:")
-
-		ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-		defer cancel()
+		lmt.Logger(ctx).Info("loaded config")
 
 		ctx = config.ConfigReaderContext(ctx, config.NewConfigReader(cfg))
 
-		sqliteDBPath, err := cmd.Flags().GetString("sqlite-db-path")
+		evmClientManager := evmrpc.NewEVMRPCClientManager()
+
+		ctx = config.ConfigReaderContext(ctx, config.NewConfigReader(cfg))
+
+		keysPath, err := cmd.Flags().GetString("keys")
 		if err != nil {
 			lmt.Logger(ctx).Error("Error reading keys command line argument", zap.Error(err))
 			return
 		}
-		fmt.Println("sqlllittttt:")
-
-		migrationsPath, err := cmd.Flags().GetString("migrations-path")
+		keyStoreType, err := cmd.Flags().GetString("key-store-type")
 		if err != nil {
-			lmt.Logger(ctx).Error("Error reading migrations command line argument", zap.Error(err))
+			lmt.Logger(ctx).Error("Error reading key-store-type command line argument", zap.Error(err))
 			return
 		}
-		fmt.Println("miiiiigrations:")
 
-		dbConn, err := connect.ConnectAndMigrate(ctx, sqliteDBPath, migrationsPath)
+		keyStore, err := keys.GetKeyStore(keyStoreType, keys.GetKeyStoreOpts{KeyFilePath: keysPath})
 		if err != nil {
-			lmt.Logger(ctx).Fatal("Unable to connect to db", zap.Error(err))
-		}
-		defer dbConn.Close()
-		queries := db.New(dbConn)
-		fmt.Println("created db:")
-
-		skipgoClient, err := skipgo.NewSkipGoClient("https://api.skip.build")
-		if err != nil {
-			lmt.Logger(ctx).Fatal("Failed to create skip go client", zap.Error(err))
+			lmt.Logger(ctx).Error("Unable to load keystore", zap.Error(err))
+			return
 		}
 
-		evmClientManager := evmrpc.NewEVMRPCClientManager()
+		cosmosTxExecutor := cosmos.DefaultSerializedCosmosTxExecutor()
+		cctpClientManager := clientmanager.NewClientManager(keyStore, cosmosTxExecutor)
 
-		fmt.Println("client manager created:")
-
-		inventory, err := getInventory(ctx, queries, skipgoClient, evmClientManager)
+		inventory, err := getInventory(ctx, evmClientManager, cctpClientManager)
 		if err != nil {
-			fmt.Println("ERROR")
-			fmt.Println(err)
 			lmt.Logger(ctx).Fatal("Failed to get inventory", zap.Error(err))
+		}
+
+		totalBalance := new(big.Int)
+		totalPendingSettlements := new(big.Int)
+		totalGrossProfit := new(big.Int)
+		totalPosition := new(big.Int)
+
+		for _, inv := range inventory {
+			totalBalance.Add(totalBalance, inv.CurrentBalance)
+			totalPendingSettlements.Add(totalPendingSettlements, inv.PendingSettlements)
+			totalGrossProfit.Add(totalGrossProfit, inv.GrossProfit)
+			totalPosition.Add(totalPosition, inv.TotalPosition)
 		}
 
 		fmt.Println("\nSolver Inventory Summary:")
@@ -81,42 +91,43 @@ var inventoryCmd = &cobra.Command{
 
 		for chainID, inv := range inventory {
 			fmt.Printf("\nChain: %s\n", chainID)
-			fmt.Printf("  Current Balance: %s USDC\n", inv.CurrentBalance)
-			fmt.Printf("  Pending Settlements: %s USDC\n", inv.PendingSettlements)
-			fmt.Printf("  Incoming Rebalances: %s USDC\n", inv.IncomingRebalances)
-			fmt.Printf("  Outgoing Rebalances: %s USDC\n", inv.OutgoingRebalances)
-			fmt.Printf("  Total Position: %s USDC\n", inv.TotalPosition)
+			fmt.Printf("  Current Balance: %s USDC\n", normalizeBalance(inv.CurrentBalance, 6))
+			fmt.Printf("  Pending Settlements: %s USDC\n", normalizeBalance(inv.PendingSettlements, 6))
+			fmt.Printf("  Gross Profit: %s USDC\n", normalizeBalance(inv.GrossProfit, 6))
+			fmt.Printf("  Total Position: %s USDC\n", normalizeBalance(inv.TotalPosition, 6))
 		}
+
+		fmt.Printf("\nTotals Across All Chains:")
+		fmt.Printf("\n------------------------\n")
+		fmt.Printf("  Total Balance: %s USDC\n", normalizeBalance(totalBalance, 6))
+		fmt.Printf("  Total Pending Settlements: %s USDC\n", normalizeBalance(totalPendingSettlements, 6))
+		fmt.Printf("  Total Gross Profit: %s USDC\n", normalizeBalance(totalGrossProfit, 6))
+		fmt.Printf("  Total Position: %s USDC\n", normalizeBalance(totalPosition, 6))
 	},
 }
 
 type ChainInventory struct {
 	CurrentBalance     *big.Int
 	PendingSettlements *big.Int
-	IncomingRebalances *big.Int
-	OutgoingRebalances *big.Int
+	GrossProfit        *big.Int
 	TotalPosition      *big.Int
 }
 
-func getInventory(ctx context.Context, queries *db.Queries, skipgoClient skipgo.SkipGoClient, evmClientManager evmrpc.EVMRPCClientManager) (map[string]ChainInventory, error) {
-	inventory := make(map[string]ChainInventory)
-
-	// Get all chain configs
+func getInventory(ctx context.Context, evmClientManager evmrpc.EVMRPCClientManager,
+	cctpClientManager *clientmanager.ClientManager) (map[string]*ChainInventory, error) {
+	inventory := make(map[string]*ChainInventory)
 	chains := config.GetConfigReader(ctx).Config().Chains
 
-	// Initialize inventory for each chain
 	for _, chain := range chains {
-		inventory[chain.ChainID] = ChainInventory{
-			CurrentBalance:     big.NewInt(0),
-			PendingSettlements: big.NewInt(0),
-			IncomingRebalances: big.NewInt(0),
-			OutgoingRebalances: big.NewInt(0),
-			TotalPosition:      big.NewInt(0),
+		inventory[chain.ChainID] = &ChainInventory{
+			CurrentBalance:     new(big.Int),
+			PendingSettlements: new(big.Int),
+			GrossProfit:        new(big.Int),
+			TotalPosition:      new(big.Int),
 		}
 	}
 
-	// Get current balances
-	for chainID, inv := range inventory {
+	for chainID := range inventory {
 		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
 		if err != nil {
 			return nil, fmt.Errorf("getting chain config for %s: %w", chainID, err)
@@ -133,67 +144,43 @@ func getInventory(ctx context.Context, queries *db.Queries, skipgoClient skipgo.
 			if err != nil {
 				return nil, fmt.Errorf("getting balance for %s: %w", chainID, err)
 			}
+			lmt.Logger(ctx).Info("Balance",
+				zap.String("chain_id", chainID),
+				zap.String("type", "EVM"),
+				zap.String("balance", balance.String()),
+				zap.String("address", chainConfig.SolverAddress),
+				zap.String("denom", chainConfig.USDCDenom))
 
 		case config.ChainType_COSMOS:
-			balanceStr, err := skipgoClient.Balance(ctx, chainID, chainConfig.SolverAddress, chainConfig.USDCDenom)
+			client, err := cctpClientManager.GetClient(ctx, chainID)
 			if err != nil {
 				return nil, fmt.Errorf("getting balance for %s: %w", chainID, err)
 			}
-			balance, _ = new(big.Int).SetString(balanceStr, 10)
+			balance, err = client.Balance(ctx, chainConfig.SolverAddress, chainConfig.USDCDenom)
+			if err != nil {
+				return nil, fmt.Errorf("getting balance for %s: %w", chainID, err)
+			}
+			lmt.Logger(ctx).Info("Balance", zap.String("chain_id", chainConfig.ChainID), zap.Any("balance", balance))
 		}
 
-		inv.CurrentBalance = balance
-		inventory[chainID] = inv
+		inventory[chainID].CurrentBalance = balance
 	}
 
-	// Get pending settlements
-	pendingSettlements, err := queries.GetAllOrderSettlementsWithSettlementStatus(ctx, "PENDING")
+	pendingSettlements, err := ordersettler.DetectPendingSettlements(ctx, cctpClientManager)
 	if err != nil {
-		return nil, fmt.Errorf("getting pending settlements: %w", err)
+		return nil, fmt.Errorf("detecting pending settlements: %w", err)
 	}
 
 	for _, settlement := range pendingSettlements {
-		amount, ok := new(big.Int).SetString(settlement.Amount, 10)
-		if !ok {
-			return nil, fmt.Errorf("invalid amount in settlement: %s", settlement.Amount)
-		}
-
 		inv := inventory[settlement.SourceChainID]
-		inv.PendingSettlements.Add(inv.PendingSettlements, amount)
-		inventory[settlement.SourceChainID] = inv
+		inv.PendingSettlements.Add(inv.PendingSettlements, settlement.Amount)
+		inv.GrossProfit.Add(inv.GrossProfit, settlement.Profit)
 	}
 
-	// Get pending rebalance transfers
-	pendingTransfers, err := queries.GetAllPendingRebalanceTransfers(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("getting pending rebalance transfers: %w", err)
-	}
-
-	for _, transfer := range pendingTransfers {
-		amount, ok := new(big.Int).SetString(transfer.Amount, 10)
-		if !ok {
-			return nil, fmt.Errorf("invalid amount in transfer: %s", transfer.Amount)
-		}
-
-		// Add to destination chain's incoming
-		destInv := inventory[transfer.DestinationChainID]
-		destInv.IncomingRebalances.Add(destInv.IncomingRebalances, amount)
-		inventory[transfer.DestinationChainID] = destInv
-
-		// Add to source chain's outgoing
-		sourceInv := inventory[transfer.SourceChainID]
-		sourceInv.OutgoingRebalances.Add(sourceInv.OutgoingRebalances, amount)
-		inventory[transfer.SourceChainID] = sourceInv
-	}
-
-	// Calculate total positions
-	for chainID, inv := range inventory {
+	for _, inv := range inventory {
 		total := new(big.Int).Set(inv.CurrentBalance)
-		total.Add(total, inv.IncomingRebalances)
-		total.Sub(total, inv.OutgoingRebalances)
 		total.Add(total, inv.PendingSettlements)
 		inv.TotalPosition = total
-		inventory[chainID] = inv
 	}
 
 	return inventory, nil
@@ -201,6 +188,30 @@ func getInventory(ctx context.Context, queries *db.Queries, skipgoClient skipgo.
 
 func init() {
 	rootCmd.AddCommand(inventoryCmd)
-	inventoryCmd.Flags().String("sqlite-db-path", "./solver.db", "path to sqlite db file")
-	inventoryCmd.Flags().String("migrations-path", "./db/migrations", "path to db migrations directory")
+}
+
+func normalizeBalance(balance *big.Int, decimals uint8) string {
+	if balance == nil {
+		return "0"
+	}
+
+	balanceInt := new(big.Int).SetBytes(balance.Bytes())
+	balanceFloat := new(big.Float)
+	balanceFloat.SetInt(balanceInt)
+
+	tokenPrecision := new(big.Int).SetInt64(10)
+	tokenPrecision.Exp(tokenPrecision, big.NewInt(int64(decimals)), nil)
+
+	tokenPrecisionFloat := new(big.Float).SetInt(tokenPrecision)
+
+	normalizedBalance := new(big.Float)
+	normalizedBalance = normalizedBalance.SetMode(big.ToNegativeInf).SetPrec(53) // float prec
+	normalizedBalance = normalizedBalance.Quo(balanceFloat, tokenPrecisionFloat)
+
+	str := fmt.Sprintf("%.18f", normalizedBalance)
+	if strings.Contains(str, ".") {
+		str = strings.TrimRight(strings.TrimRight(str, "0"), ".")
+	}
+
+	return str
 }
