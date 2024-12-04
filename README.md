@@ -128,13 +128,13 @@ inventory: show complete solver inventory including balances, settlements, and r
 rebalances: show pending rebalance transfers between chains
 
 ```shell
-./build/solvercli rebalances 
+./build/solvercli rebalances
 ```
 
 settlements: show pending order settlements waiting to be processed
 
 ```shell
-./build/solvercli settlements 
+./build/solvercli settlements
 ```
 
 ### Main Project Modules
