@@ -194,7 +194,29 @@ func TestFundRebalancer_RebalanceWithAbandonedTransfer(t *testing.T) {
 	err = fakeDatabase.UpdateTransferCreatedAt(ctx, oldTransferID, time.Now().Add(-2*transferTimeout))
 	assert.NoError(t, err)
 
-	mockSkipGo.EXPECT().Balance(ctx, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("0", nil)
+	mockSkipGo.EXPECT().Balance(ctx, &skipgo.BalancesRequest{
+		Chains: map[string]skipgo.ChainRequest{
+			osmosisChainID: {
+				Address: osmosisAddress,
+				Denoms:  []string{osmosisUSDCDenom},
+			},
+		},
+	}).Return(&skipgo.BalancesResponse{
+		Chains: map[string]skipgo.ChainResponse{
+			osmosisChainID: {
+				Address: osmosisAddress,
+				Denoms: map[string]skipgo.DenomDetail{
+					osmosisUSDCDenom: {
+						Amount:          "0",
+						Decimals:        6,
+						FormattedAmount: "0",
+						Price:           "1.0",
+						ValueUSD:        "0",
+					},
+				},
+			},
+		},
+	}, nil)
 
 	mockEVMClient.EXPECT().GetUSDCBalance(ctx, arbitrumUSDCDenom, arbitrumAddress).Return(big.NewInt(1000), nil)
 

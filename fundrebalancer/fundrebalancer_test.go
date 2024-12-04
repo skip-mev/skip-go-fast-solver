@@ -172,11 +172,11 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 					Address: osmosisAddress,
 					Denoms: map[string]skipgo.DenomDetail{
 						osmosisUSDCDenom: {
-							Amount:          "0",
+							Amount:          "1000",
 							Decimals:        6,
 							FormattedAmount: "0",
 							Price:           "1.0",
-							ValueUSD:        "0",
+							ValueUSD:        "1000",
 						},
 					},
 				},
