@@ -111,6 +111,32 @@ make build-cli # build cli tool
 --checkpoint-storage-location-override <hplStorageFileOverride> \
 ```
 
+balances: show current on-chain balances for USDC, gas token, and any custom assets requested
+
+```shell
+./build/solvercli balances \
+  --config ./config/local/config.yml \
+  --custom-assets '{"osmosis-1":["uosmo","uion"],"celestia-1":["utia"]}'
+```
+
+inventory: show complete solver inventory including balances, settlements, and rebalances
+
+```shell
+./build/solvercli inventory
+```
+
+rebalances: show pending rebalance transfers between chains
+
+```shell
+./build/solvercli rebalances 
+```
+
+settlements: show pending order settlements waiting to be processed
+
+```shell
+./build/solvercli settlements 
+```
+
 ### Main Project Modules
 
 - transfer monitor: monitors for user transfer intent events and creates pending order fills in the solver database

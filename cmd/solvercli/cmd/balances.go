@@ -63,6 +63,11 @@ type ChainGasBalance struct {
 var balancesCmd = &cobra.Command{
 	Use:   "balances",
 	Short: "Show current on-chain balances (USDC and gas tokens)",
+	Long: `Show current on-chain balances for USDC and gas tokens across all configured chains.
+    
+Example:
+    ./build/solvercli balances \
+    --custom-assets '{"osmosis-1":["uosmo","uion"],"celestia-1":["utia"]}'`,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := setupContext(cmd)
 		evmClientManager, cctpClientManager := setupClients(ctx, cmd)
