@@ -17,10 +17,8 @@ type TxHash string
 type SkipGoClient interface {
 	Balance(
 		ctx context.Context,
-		chainID string,
-		address string,
-		denom string,
-	) (string, error)
+		request *BalancesRequest,
+	) (*BalancesResponse, error)
 
 	Route(
 		ctx context.Context,
@@ -81,83 +79,68 @@ func NewSkipGoClient(baseURL string) (SkipGoClient, error) {
 	}, nil
 }
 
+type BalancesRequest struct {
+	Chains map[string]ChainRequest `json:"chains"`
+}
+
+type ChainRequest struct {
+	Address string   `json:"address"`
+	Denoms  []string `json:"denoms"`
+}
+
+type BalancesResponse struct {
+	Chains map[string]ChainResponse `json:"chains"`
+}
+
+type ChainResponse struct {
+	Address string                 `json:"address"`
+	Denoms  map[string]DenomDetail `json:"denoms"`
+}
+
+type DenomDetail struct {
+	Amount          string `json:"amount"`
+	Decimals        uint8  `json:"decimals"`
+	FormattedAmount string `json:"formatted_amount"`
+	Price           string `json:"price"`
+	ValueUSD        string `json:"value_usd"`
+}
+
 func (s *skipGoClient) Balance(
 	ctx context.Context,
-	chainID string,
-	address string,
-	denom string,
-) (string, error) {
+	request *BalancesRequest,
+) (*BalancesResponse, error) {
 	const endpoint = "/v2/info/balances"
 	u, err := url.JoinPath(s.baseURL.String(), endpoint)
 	if err != nil {
-		return "", fmt.Errorf("joining base url to endpoint %s: %w", endpoint, err)
+		return nil, fmt.Errorf("joining base url to endpoint %s: %w", endpoint, err)
 	}
 
-	type BalancesRequestEntry struct {
-		Address string   `json:"address"`
-		Denoms  []string `json:"denoms"`
-	}
-	type BalancesRequest struct {
-		Chains map[string]*BalancesRequestEntry `json:"chains"`
-	}
-
-	body := BalancesRequest{
-		Chains: map[string]*BalancesRequestEntry{
-			chainID: {
-				Address: address,
-				Denoms:  []string{denom},
-			},
-		},
-	}
-
-	bodyBytes, err := json.Marshal(body)
+	bodyBytes, err := json.Marshal(request)
 	if err != nil {
-		return "", fmt.Errorf("marshaling request body to bytes: %w", err)
+		return nil, fmt.Errorf("marshaling request body to bytes: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewBuffer(bodyBytes))
 	if err != nil {
-		return "", fmt.Errorf("creating http request: %w", err)
+		return nil, fmt.Errorf("creating http request: %w", err)
 	}
 
 	resp, err := s.http.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("making http request: %w", err)
+		return nil, fmt.Errorf("making http request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", handleError(resp.Body)
-	}
-
-	type BalancesResponseDenom struct {
-		Amount          string `json:"amount"`
-		Decimals        int    `json:"decimals"`
-		FormattedAmount string `json:"formatted_amount"`
-	}
-	type BalancesResponseDenoms struct {
-		Denoms map[string]BalancesResponseDenom `json:"denoms"`
-	}
-	type BalancesResponse struct {
-		Chains map[string]BalancesResponseDenoms `json:"chains"`
+		return nil, handleError(resp.Body)
 	}
 
 	var res BalancesResponse
 	if err = json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return "", fmt.Errorf("decoding response body: %w", err)
+		return nil, fmt.Errorf("decoding response body: %w", err)
 	}
 
-	chainBalalances, ok := res.Chains[chainID]
-	if !ok {
-		return "", fmt.Errorf("no balance found for chain %s", chainID)
-	}
-
-	denomBalance, ok := chainBalalances.Denoms[denom]
-	if !ok {
-		return "", fmt.Errorf("no balance found for denom %s on chain %s", denom, chainID)
-	}
-
-	return denomBalance.Amount, nil
+	return &res, nil
 }
 
 type RouteResponse struct {

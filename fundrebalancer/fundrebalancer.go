@@ -350,15 +350,34 @@ func (r *FundRebalancer) usdcBalance(ctx context.Context, chainID string) (*big.
 			return nil, fmt.Errorf("fetching balance for address %s on chain %s for denom %s: %w", chainConfig.SolverAddress, chainID, usdcDenom, err)
 		}
 	case config.ChainType_COSMOS:
-		balance, err := r.skipgo.Balance(ctx, chainID, chainConfig.SolverAddress, usdcDenom)
-		if err != nil {
-			return nil, fmt.Errorf("fetching balance for address %s on chain %s for denom %s: %w", chainConfig.SolverAddress, chainID, usdcDenom, err)
+		request := &skipgo.BalancesRequest{
+			Chains: map[string]skipgo.ChainRequest{
+				chainID: {
+					Address: chainConfig.SolverAddress,
+					Denoms:  []string{usdcDenom},
+				},
+			},
 		}
 
-		var ok bool
-		currentBalance, ok = new(big.Int).SetString(balance, 10)
+		resp, err := r.skipgo.Balance(ctx, request)
+		if err != nil {
+			return nil, fmt.Errorf("fetching balance for address %s on chain %s for denom %s: %w",
+				chainConfig.SolverAddress, chainID, usdcDenom, err)
+		}
+
+		chainResp, ok := resp.Chains[chainID]
 		if !ok {
-			return nil, fmt.Errorf("could not convert balance %s to *big.Int", balance)
+			return nil, fmt.Errorf("no balance found for chain %s", chainID)
+		}
+
+		denomDetail, ok := chainResp.Denoms[usdcDenom]
+		if !ok {
+			return nil, fmt.Errorf("no balance found for denom %s on chain %s", usdcDenom, chainID)
+		}
+
+		currentBalance, ok = new(big.Int).SetString(denomDetail.Amount, 10)
+		if !ok {
+			return nil, fmt.Errorf("could not convert balance %s to *big.Int", denomDetail.Amount)
 		}
 	}
 

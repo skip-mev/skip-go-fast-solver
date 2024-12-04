@@ -1,20 +1,10 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"math/big"
-	"os/signal"
-	"strings"
-	"syscall"
-
-	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
-	"github.com/skip-mev/go-fast-solver/shared/keys"
-	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
 
 	"github.com/skip-mev/go-fast-solver/ordersettler"
-	"github.com/skip-mev/go-fast-solver/shared/config"
-	"github.com/skip-mev/go-fast-solver/shared/evmrpc"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -22,81 +12,95 @@ import (
 
 var inventoryCmd = &cobra.Command{
 	Use:   "inventory",
-	Short: "Show current solver inventory across all chains (excluding pending fund rebalances)",
+	Short: "Show complete solver inventory including balances, settlements, and rebalances",
 	Run: func(cmd *cobra.Command, args []string) {
-		ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-		defer cancel()
+		ctx := setupContext(cmd)
 
-		lmt.ConfigureLogger()
-		ctx = lmt.LoggerContext(ctx)
-
-		configPath, err := cmd.Flags().GetString("config")
+		database, err := setupDatabase(ctx, cmd)
 		if err != nil {
-			lmt.Logger(ctx).Fatal("Failed to get config path", zap.Error(err))
+			lmt.Logger(ctx).Fatal("Failed to setup database", zap.Error(err))
 		}
 
-		cfg, err := config.LoadConfig(configPath)
+		evmClientManager, cctpClientManager := setupClients(ctx, cmd)
+
+		usdcBalances, gasBalances, err := getChainBalances(ctx, evmClientManager, cctpClientManager)
 		if err != nil {
-			lmt.Logger(ctx).Fatal("Failed to load config", zap.Error(err))
+			lmt.Logger(ctx).Fatal("Failed to get chain balances", zap.Error(err))
 		}
 
-		ctx = config.ConfigReaderContext(ctx, config.NewConfigReader(cfg))
-
-		evmClientManager := evmrpc.NewEVMRPCClientManager()
-
-		ctx = config.ConfigReaderContext(ctx, config.NewConfigReader(cfg))
-
-		keysPath, err := cmd.Flags().GetString("keys")
+		pendingSettlements, err := ordersettler.DetectPendingSettlements(ctx, cctpClientManager)
 		if err != nil {
-			lmt.Logger(ctx).Error("Error reading keys command line argument", zap.Error(err))
-			return
-		}
-		keyStoreType, err := cmd.Flags().GetString("key-store-type")
-		if err != nil {
-			lmt.Logger(ctx).Error("Error reading key-store-type command line argument", zap.Error(err))
-			return
+			lmt.Logger(ctx).Fatal("Failed to get pending settlements", zap.Error(err))
 		}
 
-		keyStore, err := keys.GetKeyStore(keyStoreType, keys.GetKeyStoreOpts{KeyFilePath: keysPath})
+		pendingRebalances, err := database.GetAllPendingRebalanceTransfers(ctx)
 		if err != nil {
-			lmt.Logger(ctx).Error("Unable to load keystore", zap.Error(err))
-			return
+			lmt.Logger(ctx).Fatal("Failed to get pending rebalances", zap.Error(err))
 		}
 
-		cosmosTxExecutor := cosmos.DefaultSerializedCosmosTxExecutor()
-		cctpClientManager := clientmanager.NewClientManager(keyStore, cosmosTxExecutor)
-
-		inventory, err := getInventory(ctx, evmClientManager, cctpClientManager)
+		customBalances, totalCustomUSDValue, err := getCustomAssetUSDTotalValue(ctx, cmd, evmClientManager, cctpClientManager)
 		if err != nil {
-			lmt.Logger(ctx).Fatal("Failed to get inventory", zap.Error(err))
+			lmt.Logger(ctx).Fatal("Failed to get custom asset balances", zap.Error(err))
 		}
 
-		totalBalance := new(big.Int)
+		totalAvailableBalance := new(big.Int)
 		totalPendingSettlements := new(big.Int)
+		totalPendingRebalances := new(big.Int)
 		totalPosition := new(big.Int)
 
-		for _, inv := range inventory {
-			totalBalance.Add(totalBalance, inv.CurrentBalance)
-			totalPendingSettlements.Add(totalPendingSettlements, inv.PendingSettlements)
-			totalPosition.Add(totalPosition, inv.TotalPosition)
-		}
+		fmt.Println("\nComplete Solver Inventory:")
+		fmt.Println("-------------------------")
 
-		fmt.Println("\nSolver Inventory Summary:")
-		fmt.Println("------------------------")
-
-		for chainID, inv := range inventory {
+		fmt.Println("\nOn-Chain Balances:")
+		fmt.Println("-----------------")
+		for chainID, usdc := range usdcBalances {
+			gas := gasBalances[chainID]
 			fmt.Printf("\nChain: %s\n", chainID)
-			fmt.Printf("  Available Inventory: %s USDC\n", normalizeBalance(inv.CurrentBalance, 6))
-			fmt.Printf("  Pending Settlements: %s USDC\n", normalizeBalance(inv.PendingSettlements, 6))
-			fmt.Printf("  Total Position: %s USDC\n", normalizeBalance(inv.TotalPosition, 6))
-			fmt.Printf("  Gas Balance: %s %s\n", normalizeBalance(inv.GasBalance, inv.GasDecimals), inv.GasSymbol)
+			fmt.Printf("  USDC Balance: %s USDC\n", normalizeBalance(usdc.Balance, CCTP_TOKEN_DECIMALS))
+			fmt.Printf("  Gas Balance: %s %s\n", normalizeBalance(gas.Balance, gas.Decimals), gas.Symbol)
+
+			if gas.Balance.Cmp(gas.CriticalThreshold) < 0 {
+				fmt.Printf("  ⚠️  Gas balance below critical threshold!\n")
+			} else if gas.Balance.Cmp(gas.WarningThreshold) < 0 {
+				fmt.Printf("  ⚠️  Gas balance below warning threshold\n")
+			}
+
+			totalAvailableBalance.Add(totalAvailableBalance, usdc.Balance)
 		}
+
+		fmt.Println("\nPending Settlements:")
+		fmt.Println("-------------------")
+		for _, settlement := range pendingSettlements {
+			fmt.Printf("\nFrom %s to %s:\n", settlement.SourceChainID, settlement.DestinationChainID)
+			fmt.Printf("  Amount: %s USDC\n", normalizeBalance(settlement.Amount, CCTP_TOKEN_DECIMALS))
+			totalPendingSettlements.Add(totalPendingSettlements, settlement.Amount)
+		}
+
+		fmt.Println("\nPending Rebalance Transfers:")
+		fmt.Println("--------------------------")
+		for _, transfer := range pendingRebalances {
+			amount, _ := new(big.Int).SetString(transfer.Amount, 10)
+			fmt.Printf("\nFrom %s to %s:\n", transfer.SourceChainID, transfer.DestinationChainID)
+			fmt.Printf("  Amount: %s USDC\n", normalizeBalance(amount, CCTP_TOKEN_DECIMALS))
+			fmt.Printf("  Tx Hash: %s\n", transfer.TxHash)
+			totalPendingRebalances.Add(totalPendingRebalances, amount)
+		}
+
+		totalPosition.Add(totalPosition, totalAvailableBalance)
+		totalPosition.Add(totalPosition, totalPendingSettlements)
+		totalPosition.Add(totalPosition, totalPendingRebalances)
 
 		fmt.Printf("\nTotals Across All Chains:")
 		fmt.Printf("\n------------------------\n")
-		fmt.Printf("  Available Inventory: %s USDC\n", normalizeBalance(totalBalance, 6))
-		fmt.Printf("  Total Pending Settlements: %s USDC\n", normalizeBalance(totalPendingSettlements, 6))
-		fmt.Printf("  Total Balance: %s USDC\n", normalizeBalance(totalPosition, 6))
+		fmt.Printf("  Available USDC Inventory: %s USDC\n", normalizeBalance(totalAvailableBalance, CCTP_TOKEN_DECIMALS))
+		fmt.Printf("  Pending Settlements: %s USDC\n", normalizeBalance(totalPendingSettlements, CCTP_TOKEN_DECIMALS))
+		fmt.Printf("  Pending Rebalances: %s USDC\n", normalizeBalance(totalPendingRebalances, CCTP_TOKEN_DECIMALS))
+		fmt.Printf("  Total USDC Position: %s USDC\n", normalizeBalance(totalPosition, CCTP_TOKEN_DECIMALS))
+
+		if len(customBalances) > 0 {
+			fmt.Printf("Total Custom Assets Value: %.2f USD\n", totalCustomUSDValue)
+		}
+
 	},
 }
 
@@ -109,112 +113,7 @@ type ChainInventory struct {
 	GasDecimals        uint8
 }
 
-func getInventory(ctx context.Context, evmClientManager evmrpc.EVMRPCClientManager,
-	cctpClientManager *clientmanager.ClientManager) (map[string]*ChainInventory, error) {
-	inventory := make(map[string]*ChainInventory)
-	chains := config.GetConfigReader(ctx).Config().Chains
-
-	for _, chain := range chains {
-		inventory[chain.ChainID] = &ChainInventory{
-			CurrentBalance:     new(big.Int),
-			PendingSettlements: new(big.Int),
-			TotalPosition:      new(big.Int),
-			GasBalance:         new(big.Int),
-			GasSymbol:          chain.GasTokenSymbol,
-			GasDecimals:        chain.GasTokenDecimals,
-		}
-	}
-
-	for chainID := range inventory {
-		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
-		if err != nil {
-			return nil, fmt.Errorf("getting chain config for %s: %w", chainID, err)
-		}
-
-		cctpClient, err := cctpClientManager.GetClient(ctx, chainID)
-		if err != nil {
-			return nil, fmt.Errorf("getting cctpCLient for %s: %w", chainID, err)
-		}
-
-		var balance *big.Int
-		var gasBalance *big.Int
-		switch chainConfig.Type {
-		case config.ChainType_EVM:
-			client, err := evmClientManager.GetClient(ctx, chainID)
-			if err != nil {
-				return nil, fmt.Errorf("getting evm client for chain %s: %w", chainID, err)
-			}
-			balance, err = client.GetUSDCBalance(ctx, chainConfig.USDCDenom, chainConfig.SolverAddress)
-			if err != nil {
-				return nil, fmt.Errorf("getting balance for %s: %w", chainID, err)
-			}
-
-			gasBalance, err = cctpClient.SignerGasTokenBalance(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("getting gas balance for %s: %w", chainID, err)
-			}
-
-		case config.ChainType_COSMOS:
-			balance, err = cctpClient.Balance(ctx, chainConfig.SolverAddress, chainConfig.USDCDenom)
-			if err != nil {
-				return nil, fmt.Errorf("getting balance for %s: %w", chainID, err)
-			}
-
-			gasBalance, err = cctpClient.SignerGasTokenBalance(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("getting gas balance for %s: %w", chainID, err)
-			}
-		}
-
-		inventory[chainID].CurrentBalance = balance
-		inventory[chainID].GasBalance = gasBalance
-	}
-
-	pendingSettlements, err := ordersettler.DetectPendingSettlements(ctx, cctpClientManager)
-	if err != nil {
-		return nil, fmt.Errorf("detecting pending settlements: %w", err)
-	}
-
-	for _, settlement := range pendingSettlements {
-		inv := inventory[settlement.SourceChainID]
-		inv.PendingSettlements.Add(inv.PendingSettlements, settlement.Amount)
-	}
-
-	for _, inv := range inventory {
-		total := new(big.Int).Set(inv.CurrentBalance)
-		total.Add(total, inv.PendingSettlements)
-		inv.TotalPosition = total
-	}
-
-	return inventory, nil
-}
-
 func init() {
 	rootCmd.AddCommand(inventoryCmd)
-}
-
-func normalizeBalance(balance *big.Int, decimals uint8) string {
-	if balance == nil {
-		return "0"
-	}
-
-	balanceInt := new(big.Int).SetBytes(balance.Bytes())
-	balanceFloat := new(big.Float)
-	balanceFloat.SetInt(balanceInt)
-
-	tokenPrecision := new(big.Int).SetInt64(10)
-	tokenPrecision.Exp(tokenPrecision, big.NewInt(int64(decimals)), nil)
-
-	tokenPrecisionFloat := new(big.Float).SetInt(tokenPrecision)
-
-	normalizedBalance := new(big.Float)
-	normalizedBalance = normalizedBalance.SetMode(big.ToNegativeInf).SetPrec(53) // float prec
-	normalizedBalance = normalizedBalance.Quo(balanceFloat, tokenPrecisionFloat)
-
-	str := fmt.Sprintf("%.18f", normalizedBalance)
-	if strings.Contains(str, ".") {
-		str = strings.TrimRight(strings.TrimRight(str, "0"), ".")
-	}
-
-	return str
+	inventoryCmd.Flags().String("custom-assets", "", "JSON map of chain IDs to denom arrays, e.g. '{\"osmosis\":[\"uosmo\",\"uion\"],\"celestia\":[\"utia\"]}'")
 }
