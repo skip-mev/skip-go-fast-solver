@@ -117,8 +117,6 @@ var balancesCmd = &cobra.Command{
 	},
 }
 
-var customAssetsFlag string
-
 func init() {
 	rootCmd.AddCommand(balancesCmd)
 	balancesCmd.Flags().String("custom-assets", "", "JSON map of chain IDs to denom arrays, e.g. '{\"osmosis\":[\"uosmo\",\"uion\"],\"celestia\":[\"utia\"]}'")
