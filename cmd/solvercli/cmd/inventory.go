@@ -29,7 +29,6 @@ var inventoryCmd = &cobra.Command{
 
 		lmt.ConfigureLogger()
 		ctx = lmt.LoggerContext(ctx)
-		lmt.Logger(ctx).Info("entered inventory function")
 
 		configPath, err := cmd.Flags().GetString("config")
 		if err != nil {
@@ -40,8 +39,6 @@ var inventoryCmd = &cobra.Command{
 		if err != nil {
 			lmt.Logger(ctx).Fatal("Failed to load config", zap.Error(err))
 		}
-
-		lmt.Logger(ctx).Info("loaded config")
 
 		ctx = config.ConfigReaderContext(ctx, config.NewConfigReader(cfg))
 
@@ -76,13 +73,11 @@ var inventoryCmd = &cobra.Command{
 
 		totalBalance := new(big.Int)
 		totalPendingSettlements := new(big.Int)
-		totalGrossProfit := new(big.Int)
 		totalPosition := new(big.Int)
 
 		for _, inv := range inventory {
 			totalBalance.Add(totalBalance, inv.CurrentBalance)
 			totalPendingSettlements.Add(totalPendingSettlements, inv.PendingSettlements)
-			totalGrossProfit.Add(totalGrossProfit, inv.GrossProfit)
 			totalPosition.Add(totalPosition, inv.TotalPosition)
 		}
 
@@ -91,26 +86,27 @@ var inventoryCmd = &cobra.Command{
 
 		for chainID, inv := range inventory {
 			fmt.Printf("\nChain: %s\n", chainID)
-			fmt.Printf("  Current Balance: %s USDC\n", normalizeBalance(inv.CurrentBalance, 6))
+			fmt.Printf("  Available Inventory: %s USDC\n", normalizeBalance(inv.CurrentBalance, 6))
 			fmt.Printf("  Pending Settlements: %s USDC\n", normalizeBalance(inv.PendingSettlements, 6))
-			fmt.Printf("  Gross Profit: %s USDC\n", normalizeBalance(inv.GrossProfit, 6))
 			fmt.Printf("  Total Position: %s USDC\n", normalizeBalance(inv.TotalPosition, 6))
+			fmt.Printf("  Gas Balance: %s %s\n", normalizeBalance(inv.GasBalance, inv.GasDecimals), inv.GasSymbol)
 		}
 
 		fmt.Printf("\nTotals Across All Chains:")
 		fmt.Printf("\n------------------------\n")
-		fmt.Printf("  Total Balance: %s USDC\n", normalizeBalance(totalBalance, 6))
+		fmt.Printf("  Available Inventory: %s USDC\n", normalizeBalance(totalBalance, 6))
 		fmt.Printf("  Total Pending Settlements: %s USDC\n", normalizeBalance(totalPendingSettlements, 6))
-		fmt.Printf("  Total Gross Profit: %s USDC\n", normalizeBalance(totalGrossProfit, 6))
-		fmt.Printf("  Total Position: %s USDC\n", normalizeBalance(totalPosition, 6))
+		fmt.Printf("  Total Balance: %s USDC\n", normalizeBalance(totalPosition, 6))
 	},
 }
 
 type ChainInventory struct {
 	CurrentBalance     *big.Int
 	PendingSettlements *big.Int
-	GrossProfit        *big.Int
 	TotalPosition      *big.Int
+	GasBalance         *big.Int
+	GasSymbol          string
+	GasDecimals        uint8
 }
 
 func getInventory(ctx context.Context, evmClientManager evmrpc.EVMRPCClientManager,
@@ -122,8 +118,10 @@ func getInventory(ctx context.Context, evmClientManager evmrpc.EVMRPCClientManag
 		inventory[chain.ChainID] = &ChainInventory{
 			CurrentBalance:     new(big.Int),
 			PendingSettlements: new(big.Int),
-			GrossProfit:        new(big.Int),
 			TotalPosition:      new(big.Int),
+			GasBalance:         new(big.Int),
+			GasSymbol:          chain.GasTokenSymbol,
+			GasDecimals:        chain.GasTokenDecimals,
 		}
 	}
 
@@ -133,7 +131,13 @@ func getInventory(ctx context.Context, evmClientManager evmrpc.EVMRPCClientManag
 			return nil, fmt.Errorf("getting chain config for %s: %w", chainID, err)
 		}
 
+		cctpClient, err := cctpClientManager.GetClient(ctx, chainID)
+		if err != nil {
+			return nil, fmt.Errorf("getting cctpCLient for %s: %w", chainID, err)
+		}
+
 		var balance *big.Int
+		var gasBalance *big.Int
 		switch chainConfig.Type {
 		case config.ChainType_EVM:
 			client, err := evmClientManager.GetClient(ctx, chainID)
@@ -144,26 +148,26 @@ func getInventory(ctx context.Context, evmClientManager evmrpc.EVMRPCClientManag
 			if err != nil {
 				return nil, fmt.Errorf("getting balance for %s: %w", chainID, err)
 			}
-			lmt.Logger(ctx).Info("Balance",
-				zap.String("chain_id", chainID),
-				zap.String("type", "EVM"),
-				zap.String("balance", balance.String()),
-				zap.String("address", chainConfig.SolverAddress),
-				zap.String("denom", chainConfig.USDCDenom))
+
+			gasBalance, err = cctpClient.SignerGasTokenBalance(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("getting gas balance for %s: %w", chainID, err)
+			}
 
 		case config.ChainType_COSMOS:
-			client, err := cctpClientManager.GetClient(ctx, chainID)
+			balance, err = cctpClient.Balance(ctx, chainConfig.SolverAddress, chainConfig.USDCDenom)
 			if err != nil {
 				return nil, fmt.Errorf("getting balance for %s: %w", chainID, err)
 			}
-			balance, err = client.Balance(ctx, chainConfig.SolverAddress, chainConfig.USDCDenom)
+
+			gasBalance, err = cctpClient.SignerGasTokenBalance(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("getting balance for %s: %w", chainID, err)
+				return nil, fmt.Errorf("getting gas balance for %s: %w", chainID, err)
 			}
-			lmt.Logger(ctx).Info("Balance", zap.String("chain_id", chainConfig.ChainID), zap.Any("balance", balance))
 		}
 
 		inventory[chainID].CurrentBalance = balance
+		inventory[chainID].GasBalance = gasBalance
 	}
 
 	pendingSettlements, err := ordersettler.DetectPendingSettlements(ctx, cctpClientManager)
@@ -174,7 +178,6 @@ func getInventory(ctx context.Context, evmClientManager evmrpc.EVMRPCClientManag
 	for _, settlement := range pendingSettlements {
 		inv := inventory[settlement.SourceChainID]
 		inv.PendingSettlements.Add(inv.PendingSettlements, settlement.Amount)
-		inv.GrossProfit.Add(inv.GrossProfit, settlement.Profit)
 	}
 
 	for _, inv := range inventory {
