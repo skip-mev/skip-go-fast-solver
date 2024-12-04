@@ -50,6 +50,7 @@ type Metrics interface {
 	SetGasBalance(chainID, chainName, gasTokenSymbol string, gasBalance, warningThreshold, criticalThreshold big.Int, gasTokenDecimals uint8)
 
 	IncExcessiveOrderFulfillmentLatency(sourceChainID, destinationChainID, orderStatus string)
+	IncExcessiveOrderSettlementLatency(sourceChainID, destinationChainID, settlementStatus string)
 	IncExcessiveHyperlaneRelayLatency(sourceChainID, destinationChainID string)
 }
 
@@ -79,6 +80,7 @@ type PromMetrics struct {
 
 	orderSettlementStatusChange      metrics.Counter
 	settlementLatency                metrics.Histogram
+	excessiveOrderSettlementLatency  metrics.Counter
 	excessiveOrderFulfillmentLatency metrics.Counter
 
 	fundRebalanceTransferStatusChange metrics.Counter
@@ -109,6 +111,11 @@ func NewPromMetrics() Metrics {
 			Name:      "excessive_order_fulfillment_latency_counter",
 			Help:      "number of observations of excessive order fulfillment latency, paginated by source and destination chain and status",
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, orderStatusLabel}),
+		excessiveOrderSettlementLatency: prom.NewCounterFrom(stdprom.CounterOpts{
+			Namespace: "solver",
+			Name:      "excessive_order_settlement_latency_counter",
+			Help:      "number of observations of excessive order settlement latency, paginated by source and destination chain and status",
+		}, []string{sourceChainIDLabel, destinationChainIDLabel, settlementStatusLabel}),
 		orderSettlementStatusChange: prom.NewCounterFrom(stdprom.CounterOpts{
 			Namespace: "solver",
 			Name:      "order_settlement_status_change_counter",
@@ -131,15 +138,15 @@ func NewPromMetrics() Metrics {
 		}, []string{successLabel, chainIDLabel}),
 		fillLatency: prom.NewHistogramFrom(stdprom.HistogramOpts{
 			Namespace: "solver",
-			Name:      "latency_per_fill_minutes",
-			Help:      "latency from source transaction to fill completion, paginated by source and destination chain id (in minutes)",
-			Buckets:   []float64{5, 15, 30, 60, 120, 180},
+			Name:      "latency_per_fill_seconds",
+			Help:      "latency from source transaction to fill completion, paginated by source and destination chain id (in seconds)",
+			Buckets:   []float64{1, 5, 10, 15, 20, 30, 40, 50, 60, 120, 300, 600},
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, orderStatusLabel}),
 		settlementLatency: prom.NewHistogramFrom(stdprom.HistogramOpts{
 			Namespace: "solver",
 			Name:      "latency_per_settlement_minutes",
 			Help:      "latency from source transaction to fill completion, paginated by source and destination chain id (in minutes)",
-			Buckets:   []float64{5, 15, 30, 60, 120, 180},
+			Buckets:   []float64{1, 5, 15, 30, 60, 120, 180, 240, 300},
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, settlementStatusLabel}),
 		hplMessageStatusChange: prom.NewCounterFrom(stdprom.CounterOpts{
 			Namespace: "solver",
@@ -156,7 +163,7 @@ func NewPromMetrics() Metrics {
 			Namespace: "solver",
 			Name:      "latency_per_hyperlane_message_seconds",
 			Help:      "latency for hyperlane message relaying, paginated by status, source and destination chain id (in seconds)",
-			Buckets:   []float64{30, 60, 300, 600, 900, 1200, 1500, 1800, 2400, 3000, 3600},
+			Buckets:   []float64{1, 5, 10, 15, 20, 30, 40, 50, 60, 120, 300, 600},
 		}, []string{sourceChainIDLabel, destinationChainIDLabel, transferStatusLabel}),
 		hplRelayTooExpensive: prom.NewCounterFrom(stdprom.CounterOpts{
 			Namespace: "solver",
@@ -224,7 +231,7 @@ func (m *PromMetrics) IncTransactionVerified(success bool, chainID string) {
 }
 
 func (m *PromMetrics) ObserveFillLatency(sourceChainID, destinationChainID, orderStatus string, latency time.Duration) {
-	m.fillLatency.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, orderStatusLabel, orderStatus).Observe(latency.Minutes())
+	m.fillLatency.With(sourceChainIDLabel, sourceChainID, destinationChainIDLabel, destinationChainID, orderStatusLabel, orderStatus).Observe(latency.Seconds())
 }
 
 func (m *PromMetrics) ObserveSettlementLatency(sourceChainID, destinationChainID, settlementStatus string, latency time.Duration) {
@@ -305,6 +312,14 @@ func (m *PromMetrics) IncExcessiveOrderFulfillmentLatency(sourceChainID, destina
 	).Add(1)
 }
 
+func (m *PromMetrics) IncExcessiveOrderSettlementLatency(sourceChainID, destinationChainID, settlementStatus string) {
+	m.excessiveOrderSettlementLatency.With(
+		sourceChainIDLabel, sourceChainID,
+		destinationChainIDLabel, destinationChainID,
+		settlementStatusLabel, settlementStatus,
+	).Add(1)
+}
+
 func (m *PromMetrics) IncExcessiveHyperlaneRelayLatency(sourceChainID, destinationChainID string) {
 	m.excessiveHyperlaneRelayLatency.With(
 		sourceChainIDLabel, sourceChainID,
@@ -315,6 +330,8 @@ func (m *PromMetrics) IncExcessiveHyperlaneRelayLatency(sourceChainID, destinati
 type NoOpMetrics struct{}
 
 func (n NoOpMetrics) IncExcessiveOrderFulfillmentLatency(sourceChainID, destinationChainID, orderStatus string) {
+}
+func (n NoOpMetrics) IncExcessiveOrderSettlementLatency(sourceChainID, destinationChainID, settlementStatus string) {
 }
 func (n NoOpMetrics) IncExcessiveHyperlaneRelayLatency(sourceChainID, destinationChainID string) {
 }

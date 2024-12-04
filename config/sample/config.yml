@@ -74,9 +74,9 @@ chains:
     chain_id: "1"
     type: "evm"
     environment: "mainnet"
-    gas_token_symbol: "ethereum"
+    gas_token_symbol: "ETH"
     gas_token_decimals: 18
-    gas_token_coingecko_id: "ETH"
+    gas_token_coingecko_id: "ethereum"
     hyperlane_domain: "1"
     fast_transfer_contract_address: 0xe7935104c9670015b21c6300e5b95d2f75474cda
     quick_start_num_blocks_back: 300000

@@ -4,9 +4,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
+
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
-	"math/big"
 
 	"strings"
 
@@ -253,6 +254,10 @@ func (r *relayer) checkpointAtIndex(
 	return multiSigCheckpoint, nil
 }
 
+var (
+	ErrCouldNotDetermineRelayFee = fmt.Errorf("could not determine relay fee")
+)
+
 // isRelayFeeLessThanMax simulates a relay of a message and checks that the fee
 // to relay the message is less than the users specified max relay fee in uusdc
 func (r *relayer) isRelayFeeLessThanMax(
@@ -264,6 +269,11 @@ func (r *relayer) isRelayFeeLessThanMax(
 ) (bool, error) {
 	txFeeUUSDC, err := r.hyperlane.QuoteProcessUUSDC(ctx, domain, message, metadata)
 	if err != nil {
+		if strings.Contains(err.Error(), "execution reverted") {
+			// if the quote process call has reverted, we return a sentinel
+			// error so that callers can specifically handle this case
+			return false, ErrCouldNotDetermineRelayFee
+		}
 		return false, fmt.Errorf("quoting process call in uusdc: %w", err)
 	}
 
