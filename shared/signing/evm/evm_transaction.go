@@ -3,8 +3,10 @@ package evm
 import (
 	"context"
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"math"
 	"math/big"
+
+	"github.com/skip-mev/go-fast-solver/shared/lmt"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -150,7 +152,7 @@ func WithEstimatedGasLimit(from, to, value string, data []byte) TxBuildOption {
 			return fmt.Errorf("estimating gas limit: %w", err)
 		}
 
-		tx.Gas = gasLimit
+		tx.Gas = uint64(math.Ceil(float64(gasLimit) * 1.2))
 		return nil
 	}
 }
