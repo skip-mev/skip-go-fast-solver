@@ -347,13 +347,25 @@ func (r *RelayerRunner) getRelayCostCap(ctx context.Context, destinationChainID 
 		// if there is a timeout specified, check if the relay is timed out
 		timeout := createdAt.Add(*destinationChainConfig.Relayer.ProfitableRelayTimeout)
 		if time.Now().After(timeout) {
+			// if the relay is timed out, use the relay cost cap only if it is
+			// higher than the old max tx fee
+			if maxTxFeeUUSDC.Cmp(relayCostCapUUSDC) > 0 {
+				lmt.Logger(ctx).Debug(
+					"relay has timed out and max tx fee derived from profit margin is larger than the relay cost cap. you should consider raising the relay cost cap. the max tx fee from profit margin will still be used.",
+					zap.String("originialMaxTxFeeUUSDC", maxTxFeeUUSDC.String()),
+					zap.String("relayCostCapUUSDC", relayCostCapUUSDC.String()),
+					zap.String("timedOutAt", timeout.UTC().Format(time.RFC3339)),
+				)
+				return maxTxFeeUUSDC, nil
+			}
+
 			lmt.Logger(ctx).Debug(
-				"relay has timed out, setting max tx fee for relay to the relay cost cap",
+				"relay has timed out setting max tx fee for relay to the relay cost cap",
 				zap.String("originialMaxTxFeeUUSDC", maxTxFeeUUSDC.String()),
 				zap.String("relayCostCapUUSDC", relayCostCapUUSDC.String()),
 				zap.String("timedOutAt", timeout.UTC().Format(time.RFC3339)),
 			)
-			// if the relay is timed out, always use the relay cost cap
+
 			return relayCostCapUUSDC, nil
 		}
 	}
