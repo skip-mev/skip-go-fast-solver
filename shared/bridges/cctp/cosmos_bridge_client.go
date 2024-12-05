@@ -188,6 +188,9 @@ func (c *CosmosBridgeClient) GetTxResult(ctx context.Context, txHash string) (*b
 	}
 
 	fee := feeTx.GetFee().AmountOf(c.gasDenom)
+	if fee == math.ZeroInt() {
+		return nil, nil, fmt.Errorf("zero fee amount found for denom %s in tx result auth info", c.gasDenom)
+	}
 
 	if result.TxResult.Code != 0 {
 		return fee.BigInt(), &TxFailure{fmt.Sprintf("tx failed with code: %d and log: %s", result.TxResult.Code, result.TxResult.Log)}, nil
