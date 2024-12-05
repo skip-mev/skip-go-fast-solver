@@ -370,18 +370,8 @@ func (r *RelayerRunner) getRelayCostCap(ctx context.Context, destinationChainID 
 		}
 	}
 
-	// if the relay is not timed out or no timeout specified, use the min of
-	// the configured relay cost cap and the max tx fee set by the caller
-	var maxRelayTxFeeUUSDC *big.Int
-	if maxTxFeeUUSDC.Cmp(relayCostCapUUSDC) <= 0 {
-		// use the caller provided max tx fee if it is less than the
-		// configured relay tx cost cap
-		maxRelayTxFeeUUSDC = maxTxFeeUUSDC
-	} else {
-		maxRelayTxFeeUUSDC = relayCostCapUUSDC
-	}
-
-	return maxRelayTxFeeUUSDC, nil
+	// if the relay is not timed out, use the max tx fee the user set
+	return maxTxFeeUUSDC, nil
 }
 
 func mostRecentTx(txs []db.SubmittedTx) db.SubmittedTx {
