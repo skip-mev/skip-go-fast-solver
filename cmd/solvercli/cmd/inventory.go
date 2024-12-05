@@ -21,12 +21,7 @@ var inventoryCmd = &cobra.Command{
 			lmt.Logger(ctx).Fatal("Failed to setup database", zap.Error(err))
 		}
 
-		evmClientManager, cctpClientManager := setupClients(ctx, cmd)
-
-		usdcBalances, gasBalances, err := getChainBalances(ctx, evmClientManager, cctpClientManager)
-		if err != nil {
-			lmt.Logger(ctx).Fatal("Failed to get chain balances", zap.Error(err))
-		}
+		_, cctpClientManager := setupClients(ctx, cmd)
 
 		pendingSettlements, err := ordersettler.DetectPendingSettlements(ctx, cctpClientManager, nil)
 		if err != nil {
@@ -38,15 +33,10 @@ var inventoryCmd = &cobra.Command{
 			lmt.Logger(ctx).Fatal("Failed to get pending rebalances", zap.Error(err))
 		}
 
-		customBalances, totalCustomUSDValue, err := getCustomAssetUSDTotalValue(ctx, cmd, evmClientManager, cctpClientManager)
-		if err != nil {
-			lmt.Logger(ctx).Fatal("Failed to get custom asset balances", zap.Error(err))
-		}
-
-		totalAvailableBalance := new(big.Int)
 		totalPendingSettlements := new(big.Int)
 		totalPendingRebalances := new(big.Int)
-		totalPosition := new(big.Int)
+		totalUSDCPosition := new(big.Int)
+		usdcBalances, gasBalances, customBalances, totalAvaialbleUSDCBalance, totalCustomAssetsUSDValue, err := getBalances(ctx, cmd)
 
 		fmt.Println("\nComplete Solver Inventory:")
 		fmt.Println("-------------------------")
@@ -64,8 +54,6 @@ var inventoryCmd = &cobra.Command{
 			} else if gas.Balance.Cmp(gas.WarningThreshold) < 0 {
 				fmt.Printf("  ⚠️  Gas balance below warning threshold\n")
 			}
-
-			totalAvailableBalance.Add(totalAvailableBalance, usdc.Balance)
 		}
 
 		fmt.Println("\nPending Settlements:")
@@ -86,19 +74,19 @@ var inventoryCmd = &cobra.Command{
 			totalPendingRebalances.Add(totalPendingRebalances, amount)
 		}
 
-		totalPosition.Add(totalPosition, totalAvailableBalance)
-		totalPosition.Add(totalPosition, totalPendingSettlements)
-		totalPosition.Add(totalPosition, totalPendingRebalances)
+		totalUSDCPosition.Add(totalUSDCPosition, totalAvaialbleUSDCBalance)
+		totalUSDCPosition.Add(totalUSDCPosition, totalPendingSettlements)
+		totalUSDCPosition.Add(totalUSDCPosition, totalPendingRebalances)
 
 		fmt.Printf("\nTotals Across All Chains:")
 		fmt.Printf("\n------------------------\n")
-		fmt.Printf("  Available USDC Inventory: %s USDC\n", normalizeBalance(totalAvailableBalance, CCTP_TOKEN_DECIMALS))
+		fmt.Printf("  Available USDC Inventory: %s USDC\n", normalizeBalance(totalAvaialbleUSDCBalance, CCTP_TOKEN_DECIMALS))
 		fmt.Printf("  Pending Settlements: %s USDC\n", normalizeBalance(totalPendingSettlements, CCTP_TOKEN_DECIMALS))
 		fmt.Printf("  Pending Rebalances: %s USDC\n", normalizeBalance(totalPendingRebalances, CCTP_TOKEN_DECIMALS))
-		fmt.Printf("  Total USDC Position: %s USDC\n", normalizeBalance(totalPosition, CCTP_TOKEN_DECIMALS))
+		fmt.Printf("  Total USDC Position: %s USDC\n", normalizeBalance(totalUSDCPosition, CCTP_TOKEN_DECIMALS))
 
 		if len(customBalances) > 0 {
-			fmt.Printf("Total Custom Assets Value: %.2f USD\n", totalCustomUSDValue)
+			fmt.Printf("Total Custom Assets Value: %.2f USD\n", totalCustomAssetsUSDValue)
 		}
 
 	},

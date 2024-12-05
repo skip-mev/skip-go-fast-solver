@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
 	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
 	"github.com/skip-mev/go-fast-solver/shared/config"
-	"github.com/skip-mev/go-fast-solver/shared/evmrpc"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -70,22 +68,14 @@ Example:
     --custom-assets '{"osmosis-1":["uosmo","uion"],"celestia-1":["utia"]}'`,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := setupContext(cmd)
-		evmClientManager, cctpClientManager := setupClients(ctx, cmd)
-
-		usdcBalances, gasBalances, err := getChainBalances(ctx, evmClientManager, cctpClientManager)
+		usdcBalances, gasBalances, customBalances, totalUSDCBalance, totalCustomAssetsUSDValue, err := getBalances(ctx, cmd)
 		if err != nil {
-			lmt.Logger(ctx).Fatal("Failed to get USDC balances", zap.Error(err))
-		}
-
-		customBalances, totalUSDValue, err := getCustomAssetUSDTotalValue(ctx, cmd, evmClientManager, cctpClientManager)
-		if err != nil {
-			lmt.Logger(ctx).Fatal("Failed to get custom asset balances", zap.Error(err))
+			lmt.Logger(ctx).Fatal("Failed to get balances", zap.Error(err))
 		}
 
 		fmt.Println("\nOn-Chain Balances:")
 		fmt.Println("------------------")
 
-		totalUSDCBalance := new(big.Int)
 		for chainID, usdc := range usdcBalances {
 			gas := gasBalances[chainID]
 			fmt.Printf("\nChain: %s\n", chainID)
@@ -106,18 +96,15 @@ Example:
 						normalizeBalance(asset.Balance, asset.Decimals),
 						asset.AssetDenom,
 						asset.ValueUSD)
-					totalUSDValue.Add(totalUSDValue, asset.ValueUSD)
 				}
 			}
-
-			totalUSDCBalance.Add(totalUSDCBalance, usdc.Balance)
 		}
 
 		fmt.Printf("\nTotals Across All Chains:")
 		fmt.Printf("\n------------------------\n")
 		fmt.Printf("Total USDC Balance: %s USDC\n", normalizeBalance(totalUSDCBalance, CCTP_TOKEN_DECIMALS))
-		if totalUSDValue.Cmp(big.NewFloat(0)) > 0 {
-			fmt.Printf("Total Custom Assets USD Value: %.2f USD\n", totalUSDValue)
+		if totalCustomAssetsUSDValue.Cmp(big.NewFloat(0)) > 0 {
+			fmt.Printf("Total Custom Assets USD Value: %.2f USD\n", totalCustomAssetsUSDValue)
 		}
 	},
 }
@@ -127,164 +114,132 @@ func init() {
 	balancesCmd.Flags().String("custom-assets", "", "JSON map of chain IDs to denom arrays, e.g. '{\"osmosis\":[\"uosmo\",\"uion\"],\"celestia\":[\"utia\"]}'")
 }
 
-// returns USDC and gas balances for all configured chains
-func getChainBalances(ctx context.Context, evmClientManager evmrpc.EVMRPCClientManager,
-	cctpClientManager *clientmanager.ClientManager) (map[string]*ChainBalance, map[string]*ChainGasBalance, error) {
-	balances := make(map[string]*ChainBalance)
+func getBalances(ctx context.Context, cmd *cobra.Command) (map[string]*ChainBalance, map[string]*ChainGasBalance, map[string][]*ChainBalance, *big.Int, *big.Float, error) {
+	usdcBalances := make(map[string]*ChainBalance)
 	gasBalances := make(map[string]*ChainGasBalance)
-	chains := config.GetConfigReader(ctx).Config().Chains
+	customBalances := make(map[string][]*ChainBalance)
+	totalUSDCBalance := new(big.Int)
+	totalCustomAssetsUSDValue := new(big.Float)
 
-	for _, chain := range chains {
-		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chain.ChainID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("getting chain config for %s: %w", chain.ChainID, err)
-		}
-
-		cctpClient, err := cctpClientManager.GetClient(ctx, chain.ChainID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("getting cctpClient for %s: %w", chain.ChainID, err)
-		}
-
-		var balance *big.Int
-		switch chainConfig.Type {
-		case config.ChainType_EVM:
-			client, err := evmClientManager.GetClient(ctx, chain.ChainID)
-			if err != nil {
-				return nil, nil, fmt.Errorf("getting evm client for chain %s: %w", chain.ChainID, err)
-			}
-			balance, err = client.GetUSDCBalance(ctx, chainConfig.USDCDenom, chainConfig.SolverAddress)
-			if err != nil {
-				return nil, nil, fmt.Errorf("getting balance for %s: %w", chain.ChainID, err)
-			}
-
-		case config.ChainType_COSMOS:
-			balance, err = cctpClient.Balance(ctx, chainConfig.SolverAddress, chainConfig.USDCDenom)
-			if err != nil {
-				return nil, nil, fmt.Errorf("getting balance for %s: %w", chain.ChainID, err)
-			}
-		}
-
-		gasBalance, err := cctpClient.SignerGasTokenBalance(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("getting gas balance for %s: %w", chain.ChainID, err)
-		}
-
-		warningThreshold, criticalThreshold, err := config.GetConfigReader(ctx).GetGasAlertThresholds(chain.ChainID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("getting gas alert thresholds for %s: %w", chain.ChainID, err)
-		}
-
-		gasBalances[chain.ChainID] = &ChainGasBalance{
-			ChainID:           chain.ChainID,
-			Balance:           gasBalance,
-			Symbol:            chainConfig.GasTokenSymbol,
-			Decimals:          chainConfig.GasTokenDecimals,
-			WarningThreshold:  warningThreshold,
-			CriticalThreshold: criticalThreshold,
-		}
-
-		balances[chain.ChainID] = &ChainBalance{
-			ChainID:    chain.ChainID,
-			AssetDenom: chainConfig.USDCDenom,
-			Balance:    balance,
-			Symbol:     "USDC",
-			Decimals:   CCTP_TOKEN_DECIMALS,
-		}
+	skipClient, err := skipgo.NewSkipGoClient("https://api.skip.build")
+	if err != nil {
+		return nil, nil, nil, nil, nil, fmt.Errorf("creating skip client: %w", err)
 	}
-
-	return balances, gasBalances, nil
-}
-
-func getCustomAssetsBalances(ctx context.Context,
-	evmClientManager evmrpc.EVMRPCClientManager,
-	cctpClientManager *clientmanager.ClientManager,
-	requestMap map[string][]string) (map[string][]*ChainBalance, error) {
 
 	request := &skipgo.BalancesRequest{
 		Chains: make(map[string]skipgo.ChainRequest),
 	}
 
-	for chainID, denoms := range requestMap {
-		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
+	customAssetsFlag := cmd.Flags().Lookup("custom-assets").Value.String()
+	customAssetMap := make(map[string][]string)
+	if customAssetsFlag != "" {
+		if err := json.Unmarshal([]byte(customAssetsFlag), &customAssetMap); err != nil {
+			return nil, nil, nil, nil, nil, fmt.Errorf("parsing custom-assets JSON: %w", err)
+		}
+	}
+
+	chains := config.GetConfigReader(ctx).Config().Chains
+	for _, chain := range chains {
+		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chain.ChainID)
 		if err != nil {
-			return nil, fmt.Errorf("getting chain config for %s: %w", chainID, err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("getting chain config for %s: %w", chain.ChainID, err)
 		}
 
-		request.Chains[chainID] = skipgo.ChainRequest{
+		denoms := []string{chainConfig.USDCDenom, chainConfig.GasTokenSymbol}
+		if customDenoms, ok := customAssetMap[chain.ChainID]; ok {
+			denoms = append(denoms, customDenoms...)
+		}
+
+		request.Chains[chain.ChainID] = skipgo.ChainRequest{
 			Address: chainConfig.SolverAddress,
 			Denoms:  denoms,
 		}
 	}
 
-	skipClient, err := skipgo.NewSkipGoClient("https://api.skip.build")
-	if err != nil {
-		return nil, fmt.Errorf("creating skip client: %w", err)
-	}
-
 	skipResp, err := skipClient.Balance(ctx, request)
 	if err != nil {
-		return nil, fmt.Errorf("getting balances from Skip API: %w", err)
+		return nil, nil, nil, nil, nil, fmt.Errorf("getting balances from Skip API: %w", err)
 	}
 
-	balances := make(map[string][]*ChainBalance)
 	for chainID, chainResp := range skipResp.Chains {
-		balances[chainID] = make([]*ChainBalance, 0)
-		for denom, detail := range chainResp.Denoms {
-			balance, ok := new(big.Int).SetString(detail.Amount, 10)
-			if !ok {
-				return nil, fmt.Errorf("invalid amount for chain %s denom %s", chainID, denom)
-			}
-
-			price, ok := new(big.Float).SetString(detail.Price)
-			if !ok {
-				return nil, fmt.Errorf("invalid price for chain %s denom %s", chainID, denom)
-			}
-
-			valueUSD, ok := new(big.Float).SetString(detail.ValueUSD)
-			if !ok {
-				return nil, fmt.Errorf("invalid USD value for chain %s denom %s", chainID, denom)
-			}
-
-			balances[chainID] = append(balances[chainID], &ChainBalance{
-				ChainID:    chainID,
-				AssetDenom: denom,
-				Balance:    balance,
-				Decimals:   detail.Decimals,
-				PriceUSD:   price,
-				ValueUSD:   valueUSD,
-			})
-		}
-	}
-
-	return balances, nil
-}
-
-func getCustomAssetUSDTotalValue(ctx context.Context, cmd *cobra.Command, evmClientManager evmrpc.EVMRPCClientManager, cctpClientManager *clientmanager.ClientManager) (map[string][]*ChainBalance, *big.Float, error) {
-	customAssetsFlag := cmd.Flags().Lookup("custom-assets").Value.String()
-	requestMap := make(map[string][]string)
-	if customAssetsFlag != "" {
-		if err := json.Unmarshal([]byte(customAssetsFlag), &requestMap); err != nil {
-			return nil, nil, fmt.Errorf("parsing custom-assets JSON: %w", err)
-		}
-	}
-
-	var customBalances map[string][]*ChainBalance
-	totalUSDValue := new(big.Float)
-
-	if len(requestMap) > 0 {
-		var err error
-		customBalances, err = getCustomAssetsBalances(ctx, evmClientManager, cctpClientManager, requestMap)
+		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
 		if err != nil {
-			return nil, nil, fmt.Errorf("getting custom asset balances: %w", err)
+			return nil, nil, nil, nil, nil, fmt.Errorf("getting chain config for %s: %w", chainID, err)
 		}
 
-		// Calculate total USD value
-		for _, assets := range customBalances {
-			for _, asset := range assets {
-				totalUSDValue.Add(totalUSDValue, asset.ValueUSD)
+		// Process USDC balance
+		if usdcDetail, ok := chainResp.Denoms[chainConfig.USDCDenom]; ok {
+			balance, ok := new(big.Int).SetString(usdcDetail.Amount, 10)
+			if !ok {
+				return nil, nil, nil, nil, nil, fmt.Errorf("invalid USDC amount for chain %s", chainID)
+			}
+
+			usdcBalances[chainID] = &ChainBalance{
+				ChainID:    chainID,
+				AssetDenom: chainConfig.USDCDenom,
+				Balance:    balance,
+				Symbol:     "USDC",
+				Decimals:   CCTP_TOKEN_DECIMALS,
+			}
+			totalUSDCBalance.Add(totalUSDCBalance, balance)
+		}
+
+		// Process gas token balance
+		if gasDetail, ok := chainResp.Denoms[chainConfig.GasTokenSymbol]; ok {
+			balance, ok := new(big.Int).SetString(gasDetail.Amount, 10)
+			if !ok {
+				return nil, nil, nil, nil, nil, fmt.Errorf("invalid gas token amount for chain %s", chainID)
+			}
+
+			warningThreshold, criticalThreshold, err := config.GetConfigReader(ctx).GetGasAlertThresholds(chainID)
+			if err != nil {
+				return nil, nil, nil, nil, nil, fmt.Errorf("getting gas alert thresholds for %s: %w", chainID, err)
+			}
+
+			gasBalances[chainID] = &ChainGasBalance{
+				ChainID:           chainID,
+				Balance:           balance,
+				Symbol:            chainConfig.GasTokenSymbol,
+				Decimals:          chainConfig.GasTokenDecimals,
+				WarningThreshold:  warningThreshold,
+				CriticalThreshold: criticalThreshold,
+			}
+		}
+
+		// Process custom assets
+		if customDenoms, ok := customAssetMap[chainID]; ok {
+			customBalances[chainID] = make([]*ChainBalance, 0)
+			for _, denom := range customDenoms {
+				if detail, ok := chainResp.Denoms[denom]; ok {
+					balance, ok := new(big.Int).SetString(detail.Amount, 10)
+					if !ok {
+						return nil, nil, nil, nil, nil, fmt.Errorf("invalid amount for chain %s denom %s", chainID, denom)
+					}
+
+					valueUSD, ok := new(big.Float).SetString(detail.ValueUSD)
+					if !ok {
+						return nil, nil, nil, nil, nil, fmt.Errorf("invalid USD value for chain %s denom %s", chainID, denom)
+					}
+
+					price, ok := new(big.Float).SetString(detail.Price)
+					if !ok {
+						return nil, nil, nil, nil, nil, fmt.Errorf("invalid price for chain %s denom %s", chainID, denom)
+					}
+
+					customBalances[chainID] = append(customBalances[chainID], &ChainBalance{
+						ChainID:    chainID,
+						AssetDenom: denom,
+						Balance:    balance,
+						Decimals:   detail.Decimals,
+						PriceUSD:   price,
+						ValueUSD:   valueUSD,
+					})
+
+					totalCustomAssetsUSDValue.Add(totalCustomAssetsUSDValue, valueUSD)
+				}
 			}
 		}
 	}
 
-	return customBalances, totalUSDValue, nil
+	return usdcBalances, gasBalances, customBalances, totalUSDCBalance, totalCustomAssetsUSDValue, nil
 }
