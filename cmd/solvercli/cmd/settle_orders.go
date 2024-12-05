@@ -143,11 +143,23 @@ func settleOrders(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	// Submit settlements for relay
 	for i, batch := range batches {
-		fmt.Printf("Settled batch %d:\n", i+1)
+		hash := hashes[i]
+		if err := settler.RelayBatch(ctx, hash, batch); err != nil {
+			lmt.Logger(ctx).Error("submitting settlement for relay",
+				zap.Error(err),
+				zap.String("txHash", hash),
+				zap.String("sourceChain", batch.SourceChainID()),
+				zap.String("destinationChain", batch.DestinationChainID()),
+			)
+			continue
+		}
+
+		fmt.Printf("Submitted settlement batch %d for relay:\n", i+1)
 		fmt.Printf("Source Chain: %s\n", batch.SourceChainID())
 		fmt.Printf("Destination Chain: %s\n", batch.DestinationChainID())
 		fmt.Printf("Number of Orders: %d\n", len(batch.OrderIDs()))
-		fmt.Printf("Transaction Hash: %s\n", hashes[i])
+		fmt.Printf("Transaction Hash: %s\n", hash)
 	}
 }
