@@ -5,13 +5,14 @@ import (
 	"time"
 
 	"fmt"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/evmrpc"
 	"github.com/skip-mev/go-fast-solver/shared/signing"
 	"github.com/skip-mev/go-fast-solver/shared/signing/evm"
 	"golang.org/x/net/context"
-	"math/big"
 )
 
 type EVMTxExecutor interface {
@@ -87,7 +88,7 @@ func (s *SerializedEVMTxExecutor) ExecuteTx(
 		evm.WithNonce(nonce),
 		evm.WithEstimatedGasLimit(signerAddress, to, value, data),
 		evm.WithEstimatedGasTipCap(minGasTipCap),
-		evm.WithEstimatedGasFeeCap(minGasTipCap),
+		evm.WithEstimatedGasFeeCap(minGasTipCap, big.NewFloat(2)),
 	)
 	signedTx, err := signer.Sign(ctx, chainID, tx)
 	if err != nil {

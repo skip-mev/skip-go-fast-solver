@@ -243,11 +243,10 @@ type RelayerConfig struct {
 	// profitability. This can be set to -1 for no timeout.
 	ProfitableRelayTimeout *time.Duration `yaml:"profitable_relay_timeout"`
 
-	// RelayCostCapUUSDC is the maximum amount of uusdc to pay to relay a tx,
-	// regardless of profitability checking, i.e. if the ProfitableRelayTimeout
-	// expires for a tx and it is going to be sent without ensuring it is
-	// profitable for the solver to do so, this is a final check to ensure that
-	// the tx is not relayed in an extremely expensive block.
+	// RelayCostCapUUSDC can be set in forcing relays through during times of
+	// high gas usage on chain. If a relay is past its profitable relay timeout
+	// window, the relay cost cap will be used as the max uusdc value to pay
+	// for a tx if that value is greater than the profitable max tx fee.
 	RelayCostCapUUSDC string `yaml:"relay_cost_cap_uusdc"`
 }
 
