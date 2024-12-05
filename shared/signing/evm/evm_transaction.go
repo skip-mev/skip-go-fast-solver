@@ -180,7 +180,7 @@ func WithEstimatedGasTipCap(minGasTipCap *big.Int) TxBuildOption {
 	}
 }
 
-func WithEstimatedGasFeeCap(minGasTipCap *big.Int) TxBuildOption {
+func WithEstimatedGasFeeCap(minGasTipCap *big.Int, jitter *big.Float) TxBuildOption {
 	return func(ctx context.Context, b TxBuilder, tx *types.DynamicFeeTx) error {
 		if tx.GasTipCap == nil {
 			if err := WithEstimatedGasTipCap(minGasTipCap)(ctx, b, tx); err != nil {
@@ -193,10 +193,11 @@ func WithEstimatedGasFeeCap(minGasTipCap *big.Int) TxBuildOption {
 			return fmt.Errorf("getting latest block header: %w", err)
 		}
 
-		tx.GasFeeCap = new(big.Int).Add(
-			tx.GasTipCap,
-			new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
-		)
+		baseFee := new(big.Float).SetInt(head.BaseFee)
+		baseFee.Mul(baseFee, jitter)
+		baseFeeInt, _ := baseFee.Int(nil)
+
+		tx.GasFeeCap = new(big.Int).Add(tx.GasTipCap, baseFeeInt)
 
 		return nil
 	}
