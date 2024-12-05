@@ -37,6 +37,9 @@ var inventoryCmd = &cobra.Command{
 		totalPendingRebalances := new(big.Int)
 		totalUSDCPosition := new(big.Int)
 		usdcBalances, gasBalances, customBalances, totalAvaialbleUSDCBalance, totalCustomAssetsUSDValue, err := getBalances(ctx, cmd)
+		if err != nil {
+			lmt.Logger(ctx).Fatal("Failed to get existing balances", zap.Error(err))
+		}
 
 		fmt.Println("\nComplete Solver Inventory:")
 		fmt.Println("-------------------------")
