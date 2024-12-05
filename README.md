@@ -147,6 +147,16 @@ solver rebalances
 solver settlements
 ```
 
+settle-orders: settle all pending order batches immediately without any threshold checks (ignoring configured BatchUUSDCSettleUpThreshold)
+
+```shell
+make build-cli
+./build/solvercli settle-orders \
+  --config <configFilePath> \ # e.g ./config/local/config.yml
+  --keys <keysFilePath> \ # e.g ./config/local/keys.json
+  --key-store-type <plaintext-file|encrypted-file|env>
+```
+
 ### Main Project Modules
 
 - transfer monitor: monitors for user transfer intent events and creates pending order fills in the solver database
