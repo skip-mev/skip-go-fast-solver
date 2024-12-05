@@ -61,62 +61,6 @@ func (q *Queries) GetAllPendingRebalanceTransfers(ctx context.Context) ([]GetAll
 	return items, nil
 }
 
-const getPendingRebalanceTransfersBetweenChains = `-- name: GetPendingRebalanceTransfersBetweenChains :many
-SELECT
-    id,
-    tx_hash,
-    source_chain_id,
-    destination_chain_id,
-    amount,
-    created_at
-FROM rebalance_transfers
-WHERE status = 'PENDING' AND source_chain_id = ? AND destination_chain_id = ?
-`
-
-type GetPendingRebalanceTransfersBetweenChainsParams struct {
-	SourceChainID      string
-	DestinationChainID string
-}
-
-type GetPendingRebalanceTransfersBetweenChainsRow struct {
-	ID                 int64
-	TxHash             string
-	SourceChainID      string
-	DestinationChainID string
-	Amount             string
-	CreatedAt          time.Time
-}
-
-func (q *Queries) GetPendingRebalanceTransfersBetweenChains(ctx context.Context, arg GetPendingRebalanceTransfersBetweenChainsParams) ([]GetPendingRebalanceTransfersBetweenChainsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getPendingRebalanceTransfersBetweenChains, arg.SourceChainID, arg.DestinationChainID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetPendingRebalanceTransfersBetweenChainsRow
-	for rows.Next() {
-		var i GetPendingRebalanceTransfersBetweenChainsRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.TxHash,
-			&i.SourceChainID,
-			&i.DestinationChainID,
-			&i.Amount,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getPendingRebalanceTransfersToChain = `-- name: GetPendingRebalanceTransfersToChain :many
 SELECT 
     id,
@@ -165,27 +109,6 @@ func (q *Queries) GetPendingRebalanceTransfersToChain(ctx context.Context, desti
 	return items, nil
 }
 
-const initializeRebalanceTransfer = `-- name: InitializeRebalanceTransfer :one
-INSERT INTO rebalance_transfers (
-    tx_hash,
-    source_chain_id,
-    destination_chain_id,
-    amount
-) VALUES ('', ?, ?, '0') RETURNING id
-`
-
-type InitializeRebalanceTransferParams struct {
-	SourceChainID      string
-	DestinationChainID string
-}
-
-func (q *Queries) InitializeRebalanceTransfer(ctx context.Context, arg InitializeRebalanceTransferParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, initializeRebalanceTransfer, arg.SourceChainID, arg.DestinationChainID)
-	var id int64
-	err := row.Scan(&id)
-	return id, err
-}
-
 const insertRebalanceTransfer = `-- name: InsertRebalanceTransfer :one
 INSERT INTO rebalance_transfers (
     tx_hash,
@@ -212,23 +135,6 @@ func (q *Queries) InsertRebalanceTransfer(ctx context.Context, arg InsertRebalan
 	var id int64
 	err := row.Scan(&id)
 	return id, err
-}
-
-const updateTransfer = `-- name: UpdateTransfer :exec
-UPDATE rebalance_transfers
-SET updated_at=CURRENT_TIMESTAMP, tx_hash = ?, amount = ?
-WHERE id = ?
-`
-
-type UpdateTransferParams struct {
-	TxHash string
-	Amount string
-	ID     int64
-}
-
-func (q *Queries) UpdateTransfer(ctx context.Context, arg UpdateTransferParams) error {
-	_, err := q.db.ExecContext(ctx, updateTransfer, arg.TxHash, arg.Amount, arg.ID)
-	return err
 }
 
 const updateTransferStatus = `-- name: UpdateTransferStatus :exec

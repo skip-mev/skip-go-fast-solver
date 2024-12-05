@@ -38,13 +38,10 @@ const (
 
 type Database interface {
 	GetPendingRebalanceTransfersToChain(ctx context.Context, destinationChainID string) ([]db.GetPendingRebalanceTransfersToChainRow, error)
-	GetPendingRebalanceTransfersBetweenChains(ctx context.Context, arg db.GetPendingRebalanceTransfersBetweenChainsParams) ([]db.GetPendingRebalanceTransfersBetweenChainsRow, error)
 	InsertRebalanceTransfer(ctx context.Context, arg db.InsertRebalanceTransferParams) (int64, error)
 	GetAllPendingRebalanceTransfers(ctx context.Context) ([]db.GetAllPendingRebalanceTransfersRow, error)
 	UpdateTransferStatus(ctx context.Context, arg db.UpdateTransferStatusParams) error
 	InsertSubmittedTx(ctx context.Context, arg db.InsertSubmittedTxParams) (db.SubmittedTx, error)
-	UpdateTransfer(ctx context.Context, arg db.UpdateTransferParams) error
-	InitializeRebalanceTransfer(ctx context.Context, arg db.InitializeRebalanceTransferParams) (int64, error)
 }
 
 type profitabilityFailure struct {
@@ -264,22 +261,18 @@ func (r *FundRebalancer) MoveFundsToChain(
 		}
 		txn := txns[0]
 
-		rebalanceID, err := r.rebalanceID(ctx, rebalanceFromChainID, rebalanceToChainID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("getting rebalance id between chains %s and %s: %w", rebalanceFromChainID, rebalanceToChainID, err)
-		}
-
 		approvalHash, err := r.ApproveTxn(ctx, rebalanceFromChainID, txn)
 		if err != nil {
 			return nil, nil, fmt.Errorf("approving rebalance txn from %s: %w", rebalanceFromChainID, err)
 		}
 		if approvalHash != "" {
+			// not we are not linking this submitted tx to the rebalance since the rebalance
+			// has not yet been created
 			approveTx := db.InsertSubmittedTxParams{
-				RebalanceTransferID: sql.NullInt64{Int64: rebalanceID, Valid: true},
-				ChainID:             rebalanceFromChainID,
-				TxHash:              approvalHash,
-				TxType:              dbtypes.TxTypeERC20Approval,
-				TxStatus:            dbtypes.TxStatusPending,
+				ChainID:  rebalanceFromChainID,
+				TxHash:   approvalHash,
+				TxType:   dbtypes.TxTypeERC20Approval,
+				TxStatus: dbtypes.TxStatusPending,
 			}
 			if _, err = r.database.InsertSubmittedTx(ctx, approveTx); err != nil {
 				return nil, nil, fmt.Errorf("inserting submitted tx for erc20 approval with hash %s on chain %s into db: %w", approvalHash, rebalanceFromChainID, err)
@@ -323,12 +316,14 @@ func (r *FundRebalancer) MoveFundsToChain(
 		metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(rebalanceFromChainID, rebalanceToChainID, dbtypes.RebalanceTransferStatusPending)
 
 		// add rebalance transfer to the db
-		rebalanceTransfer := db.UpdateTransferParams{
-			TxHash: string(rebalanceHash),
-			Amount: txnWithMetadata.amount.String(),
-			ID:     rebalanceID,
+		rebalanceTransfer := db.InsertRebalanceTransferParams{
+			TxHash:             string(rebalanceHash),
+			Amount:             txnWithMetadata.amount.String(),
+			SourceChainID:      rebalanceFromChainID,
+			DestinationChainID: rebalanceToChainID,
 		}
-		if err := r.database.UpdateTransfer(ctx, rebalanceTransfer); err != nil {
+		rebalanceID, err := r.database.InsertRebalanceTransfer(ctx, rebalanceTransfer)
+		if err != nil {
 			return nil, nil, fmt.Errorf("updating rebalance transfer with hash %s: %w", string(rebalanceHash), err)
 		}
 
@@ -356,33 +351,6 @@ func (r *FundRebalancer) MoveFundsToChain(
 
 	// we have moved all available funds from all available chains
 	return hashes, totalUSDCcMoved, nil
-}
-
-func (r *FundRebalancer) rebalanceID(
-	ctx context.Context,
-	rebalanceFromChainID string,
-	rebalanceToChainID string,
-) (int64, error) {
-	chains := db.GetPendingRebalanceTransfersBetweenChainsParams{SourceChainID: rebalanceFromChainID, DestinationChainID: rebalanceToChainID}
-	transfers, err := r.database.GetPendingRebalanceTransfersBetweenChains(ctx, chains)
-	if err != nil {
-		return 0, fmt.Errorf("getting pending rebalance transfers between chains source chain %s and destination chain %s: %w", rebalanceFromChainID, rebalanceToChainID, err)
-	}
-
-	switch len(transfers) {
-	case 0:
-		// this is the first time we are seeing this rebalance, initialize it in the db
-		rebalance := db.InitializeRebalanceTransferParams{SourceChainID: rebalanceFromChainID, DestinationChainID: rebalanceToChainID}
-		id, err := r.database.InitializeRebalanceTransfer(ctx, rebalance)
-		if err != nil {
-			return 0, fmt.Errorf("initializing rebalance transfer from %s to %s in db: %w", rebalanceFromChainID, rebalanceToChainID, err)
-		}
-		return id, nil
-	case 1:
-		return transfers[0].ID, nil
-	default:
-		return 0, fmt.Errorf("expected to find 0 or 1 rebalance transfers between chains but instead found %d", len(transfers))
-	}
 }
 
 func (r *FundRebalancer) ApproveTxn(

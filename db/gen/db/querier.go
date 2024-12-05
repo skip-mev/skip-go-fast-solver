@@ -17,14 +17,12 @@ type Querier interface {
 	GetHyperlaneTransferByMessageSentTx(ctx context.Context, arg GetHyperlaneTransferByMessageSentTxParams) (HyperlaneTransfer, error)
 	GetOrderByOrderID(ctx context.Context, orderID string) (Order, error)
 	GetOrderSettlement(ctx context.Context, arg GetOrderSettlementParams) (OrderSettlement, error)
-	GetPendingRebalanceTransfersBetweenChains(ctx context.Context, arg GetPendingRebalanceTransfersBetweenChainsParams) ([]GetPendingRebalanceTransfersBetweenChainsRow, error)
 	GetPendingRebalanceTransfersToChain(ctx context.Context, destinationChainID string) ([]GetPendingRebalanceTransfersToChainRow, error)
 	GetSubmittedTxsByHyperlaneTransferId(ctx context.Context, hyperlaneTransferID sql.NullInt64) ([]SubmittedTx, error)
 	GetSubmittedTxsByOrderIdAndType(ctx context.Context, arg GetSubmittedTxsByOrderIdAndTypeParams) ([]SubmittedTx, error)
 	GetSubmittedTxsByOrderStatusAndType(ctx context.Context, arg GetSubmittedTxsByOrderStatusAndTypeParams) ([]SubmittedTx, error)
 	GetSubmittedTxsWithStatus(ctx context.Context, txStatus string) ([]SubmittedTx, error)
 	GetTransferMonitorMetadata(ctx context.Context, chainID string) (TransferMonitorMetadatum, error)
-	InitializeRebalanceTransfer(ctx context.Context, arg InitializeRebalanceTransferParams) (int64, error)
 	InsertHyperlaneTransfer(ctx context.Context, arg InsertHyperlaneTransferParams) (HyperlaneTransfer, error)
 	InsertOrder(ctx context.Context, arg InsertOrderParams) (Order, error)
 	InsertOrderSettlement(ctx context.Context, arg InsertOrderSettlementParams) (OrderSettlement, error)
@@ -39,7 +37,6 @@ type Querier interface {
 	SetRefundTx(ctx context.Context, arg SetRefundTxParams) (Order, error)
 	SetSettlementStatus(ctx context.Context, arg SetSettlementStatusParams) (OrderSettlement, error)
 	SetSubmittedTxStatus(ctx context.Context, arg SetSubmittedTxStatusParams) (SubmittedTx, error)
-	UpdateTransfer(ctx context.Context, arg UpdateTransferParams) error
 	UpdateTransferStatus(ctx context.Context, arg UpdateTransferStatusParams) error
 }
 

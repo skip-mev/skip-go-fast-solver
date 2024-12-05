@@ -54,34 +54,6 @@ func (fdb *FakeDatabase) InsertSubmittedTx(ctx context.Context, arg db.InsertSub
 	return db.SubmittedTx{}, nil
 }
 
-func (fdb *FakeDatabase) InitializeRebalanceTransfer(ctx context.Context, arg db.InitializeRebalanceTransferParams) (int64, error) {
-	return fdb.InsertRebalanceTransfer(ctx, db.InsertRebalanceTransferParams{
-		TxHash:             "",
-		SourceChainID:      arg.SourceChainID,
-		DestinationChainID: arg.DestinationChainID,
-		Amount:             "0",
-	})
-}
-
-func (fdb *FakeDatabase) GetPendingRebalanceTransfersBetweenChains(ctx context.Context, arg db.GetPendingRebalanceTransfersBetweenChainsParams) ([]db.GetPendingRebalanceTransfersBetweenChainsRow, error) {
-	fdb.dbLock.RLock()
-	defer fdb.dbLock.RUnlock()
-
-	var pendingTransfers []db.GetPendingRebalanceTransfersBetweenChainsRow
-	for _, transfer := range fdb.db {
-		if transfer.Status == "PENDING" && transfer.DestinationChainID == arg.DestinationChainID && transfer.SourceChainID == arg.SourceChainID {
-			pendingTransfers = append(pendingTransfers, db.GetPendingRebalanceTransfersBetweenChainsRow{
-				ID:                 transfer.ID,
-				TxHash:             transfer.TxHash,
-				SourceChainID:      transfer.SourceChainID,
-				DestinationChainID: transfer.DestinationChainID,
-				Amount:             transfer.Amount,
-			})
-		}
-	}
-	return pendingTransfers, nil
-}
-
 func (fdb *FakeDatabase) InsertRebalanceTransfer(ctx context.Context, arg db.InsertRebalanceTransferParams) (int64, error) {
 	fdb.dbLock.Lock()
 	defer fdb.dbLock.Unlock()
@@ -122,20 +94,6 @@ func (fdb *FakeDatabase) GetAllPendingRebalanceTransfers(ctx context.Context) ([
 		}
 	}
 	return pendingTransfers, nil
-}
-
-func (fdb *FakeDatabase) UpdateTransfer(ctx context.Context, arg db.UpdateTransferParams) error {
-	fdb.dbLock.Lock()
-	defer fdb.dbLock.Unlock()
-
-	for _, transfer := range fdb.db {
-		if transfer.ID == arg.ID {
-			transfer.TxHash = arg.TxHash
-			transfer.Amount = arg.Amount
-		}
-	}
-
-	return nil
 }
 
 func (fdb *FakeDatabase) UpdateTransferStatus(ctx context.Context, arg db.UpdateTransferStatusParams) error {

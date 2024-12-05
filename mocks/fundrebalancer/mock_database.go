@@ -80,65 +80,6 @@ func (_c *MockDatabase_GetAllPendingRebalanceTransfers_Call) RunAndReturn(run fu
 	return _c
 }
 
-// GetPendingRebalanceTransfersBetweenChains provides a mock function with given fields: ctx, arg
-func (_m *MockDatabase) GetPendingRebalanceTransfersBetweenChains(ctx context.Context, arg db.GetPendingRebalanceTransfersBetweenChainsParams) ([]db.GetPendingRebalanceTransfersBetweenChainsRow, error) {
-	ret := _m.Called(ctx, arg)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetPendingRebalanceTransfersBetweenChains")
-	}
-
-	var r0 []db.GetPendingRebalanceTransfersBetweenChainsRow
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, db.GetPendingRebalanceTransfersBetweenChainsParams) ([]db.GetPendingRebalanceTransfersBetweenChainsRow, error)); ok {
-		return rf(ctx, arg)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, db.GetPendingRebalanceTransfersBetweenChainsParams) []db.GetPendingRebalanceTransfersBetweenChainsRow); ok {
-		r0 = rf(ctx, arg)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]db.GetPendingRebalanceTransfersBetweenChainsRow)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, db.GetPendingRebalanceTransfersBetweenChainsParams) error); ok {
-		r1 = rf(ctx, arg)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockDatabase_GetPendingRebalanceTransfersBetweenChains_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPendingRebalanceTransfersBetweenChains'
-type MockDatabase_GetPendingRebalanceTransfersBetweenChains_Call struct {
-	*mock.Call
-}
-
-// GetPendingRebalanceTransfersBetweenChains is a helper method to define mock.On call
-//   - ctx context.Context
-//   - arg db.GetPendingRebalanceTransfersBetweenChainsParams
-func (_e *MockDatabase_Expecter) GetPendingRebalanceTransfersBetweenChains(ctx interface{}, arg interface{}) *MockDatabase_GetPendingRebalanceTransfersBetweenChains_Call {
-	return &MockDatabase_GetPendingRebalanceTransfersBetweenChains_Call{Call: _e.mock.On("GetPendingRebalanceTransfersBetweenChains", ctx, arg)}
-}
-
-func (_c *MockDatabase_GetPendingRebalanceTransfersBetweenChains_Call) Run(run func(ctx context.Context, arg db.GetPendingRebalanceTransfersBetweenChainsParams)) *MockDatabase_GetPendingRebalanceTransfersBetweenChains_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(db.GetPendingRebalanceTransfersBetweenChainsParams))
-	})
-	return _c
-}
-
-func (_c *MockDatabase_GetPendingRebalanceTransfersBetweenChains_Call) Return(_a0 []db.GetPendingRebalanceTransfersBetweenChainsRow, _a1 error) *MockDatabase_GetPendingRebalanceTransfersBetweenChains_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockDatabase_GetPendingRebalanceTransfersBetweenChains_Call) RunAndReturn(run func(context.Context, db.GetPendingRebalanceTransfersBetweenChainsParams) ([]db.GetPendingRebalanceTransfersBetweenChainsRow, error)) *MockDatabase_GetPendingRebalanceTransfersBetweenChains_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetPendingRebalanceTransfersToChain provides a mock function with given fields: ctx, destinationChainID
 func (_m *MockDatabase) GetPendingRebalanceTransfersToChain(ctx context.Context, destinationChainID string) ([]db.GetPendingRebalanceTransfersToChainRow, error) {
 	ret := _m.Called(ctx, destinationChainID)
@@ -194,63 +135,6 @@ func (_c *MockDatabase_GetPendingRebalanceTransfersToChain_Call) Return(_a0 []db
 }
 
 func (_c *MockDatabase_GetPendingRebalanceTransfersToChain_Call) RunAndReturn(run func(context.Context, string) ([]db.GetPendingRebalanceTransfersToChainRow, error)) *MockDatabase_GetPendingRebalanceTransfersToChain_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// InitializeRebalanceTransfer provides a mock function with given fields: ctx, arg
-func (_m *MockDatabase) InitializeRebalanceTransfer(ctx context.Context, arg db.InitializeRebalanceTransferParams) (int64, error) {
-	ret := _m.Called(ctx, arg)
-
-	if len(ret) == 0 {
-		panic("no return value specified for InitializeRebalanceTransfer")
-	}
-
-	var r0 int64
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, db.InitializeRebalanceTransferParams) (int64, error)); ok {
-		return rf(ctx, arg)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, db.InitializeRebalanceTransferParams) int64); ok {
-		r0 = rf(ctx, arg)
-	} else {
-		r0 = ret.Get(0).(int64)
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, db.InitializeRebalanceTransferParams) error); ok {
-		r1 = rf(ctx, arg)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// MockDatabase_InitializeRebalanceTransfer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'InitializeRebalanceTransfer'
-type MockDatabase_InitializeRebalanceTransfer_Call struct {
-	*mock.Call
-}
-
-// InitializeRebalanceTransfer is a helper method to define mock.On call
-//   - ctx context.Context
-//   - arg db.InitializeRebalanceTransferParams
-func (_e *MockDatabase_Expecter) InitializeRebalanceTransfer(ctx interface{}, arg interface{}) *MockDatabase_InitializeRebalanceTransfer_Call {
-	return &MockDatabase_InitializeRebalanceTransfer_Call{Call: _e.mock.On("InitializeRebalanceTransfer", ctx, arg)}
-}
-
-func (_c *MockDatabase_InitializeRebalanceTransfer_Call) Run(run func(ctx context.Context, arg db.InitializeRebalanceTransferParams)) *MockDatabase_InitializeRebalanceTransfer_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(db.InitializeRebalanceTransferParams))
-	})
-	return _c
-}
-
-func (_c *MockDatabase_InitializeRebalanceTransfer_Call) Return(_a0 int64, _a1 error) *MockDatabase_InitializeRebalanceTransfer_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *MockDatabase_InitializeRebalanceTransfer_Call) RunAndReturn(run func(context.Context, db.InitializeRebalanceTransferParams) (int64, error)) *MockDatabase_InitializeRebalanceTransfer_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -365,53 +249,6 @@ func (_c *MockDatabase_InsertSubmittedTx_Call) Return(_a0 db.SubmittedTx, _a1 er
 }
 
 func (_c *MockDatabase_InsertSubmittedTx_Call) RunAndReturn(run func(context.Context, db.InsertSubmittedTxParams) (db.SubmittedTx, error)) *MockDatabase_InsertSubmittedTx_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// UpdateTransfer provides a mock function with given fields: ctx, arg
-func (_m *MockDatabase) UpdateTransfer(ctx context.Context, arg db.UpdateTransferParams) error {
-	ret := _m.Called(ctx, arg)
-
-	if len(ret) == 0 {
-		panic("no return value specified for UpdateTransfer")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, db.UpdateTransferParams) error); ok {
-		r0 = rf(ctx, arg)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// MockDatabase_UpdateTransfer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateTransfer'
-type MockDatabase_UpdateTransfer_Call struct {
-	*mock.Call
-}
-
-// UpdateTransfer is a helper method to define mock.On call
-//   - ctx context.Context
-//   - arg db.UpdateTransferParams
-func (_e *MockDatabase_Expecter) UpdateTransfer(ctx interface{}, arg interface{}) *MockDatabase_UpdateTransfer_Call {
-	return &MockDatabase_UpdateTransfer_Call{Call: _e.mock.On("UpdateTransfer", ctx, arg)}
-}
-
-func (_c *MockDatabase_UpdateTransfer_Call) Run(run func(ctx context.Context, arg db.UpdateTransferParams)) *MockDatabase_UpdateTransfer_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(db.UpdateTransferParams))
-	})
-	return _c
-}
-
-func (_c *MockDatabase_UpdateTransfer_Call) Return(_a0 error) *MockDatabase_UpdateTransfer_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *MockDatabase_UpdateTransfer_Call) RunAndReturn(run func(context.Context, db.UpdateTransferParams) error) *MockDatabase_UpdateTransfer_Call {
 	_c.Call.Return(run)
 	return _c
 }
