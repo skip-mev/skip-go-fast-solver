@@ -11,11 +11,10 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/signing/evm"
 	evmtxexecutor "github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	interchain_security_module "github.com/skip-mev/go-fast-solver/shared/contracts/hyperlane/InterchainSecurityModule"
 	mailbox "github.com/skip-mev/go-fast-solver/shared/contracts/hyperlane/Mailbox"
 	multisig_ism "github.com/skip-mev/go-fast-solver/shared/contracts/hyperlane/MultisigIsm"
-
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
