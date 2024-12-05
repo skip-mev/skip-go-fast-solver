@@ -23,6 +23,7 @@ type PendingSettlement struct {
 func DetectPendingSettlements(
 	ctx context.Context,
 	clientManager *clientmanager.ClientManager,
+	ordersSeen map[string]bool,
 ) ([]PendingSettlement, error) {
 	var pendingSettlements []PendingSettlement
 
@@ -50,6 +51,10 @@ func DetectPendingSettlements(
 		}
 
 		for _, fill := range fills {
+			if ordersSeen != nil && ordersSeen[fill.OrderID] {
+				continue
+			}
+
 			sourceChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(strconv.Itoa(int(fill.SourceDomain)))
 			if err != nil {
 				continue

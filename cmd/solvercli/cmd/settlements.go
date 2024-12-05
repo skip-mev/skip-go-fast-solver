@@ -46,7 +46,7 @@ var settlementsCmd = &cobra.Command{
 		cosmosTxExecutor := cosmos.DefaultSerializedCosmosTxExecutor()
 		cctpClientManager := clientmanager.NewClientManager(keyStore, cosmosTxExecutor)
 
-		pendingSettlements, err := ordersettler.DetectPendingSettlements(ctx, cctpClientManager)
+		pendingSettlements, err := ordersettler.DetectPendingSettlements(ctx, cctpClientManager, nil)
 		if err != nil {
 			lmt.Logger(ctx).Fatal("Failed to get pending settlements", zap.Error(err))
 		}

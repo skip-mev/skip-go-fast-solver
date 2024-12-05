@@ -28,7 +28,7 @@ var inventoryCmd = &cobra.Command{
 			lmt.Logger(ctx).Fatal("Failed to get chain balances", zap.Error(err))
 		}
 
-		pendingSettlements, err := ordersettler.DetectPendingSettlements(ctx, cctpClientManager)
+		pendingSettlements, err := ordersettler.DetectPendingSettlements(ctx, cctpClientManager, nil)
 		if err != nil {
 			lmt.Logger(ctx).Fatal("Failed to get pending settlements", zap.Error(err))
 		}
