@@ -3,12 +3,15 @@ package cmd
 import (
 	"fmt"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/skip-mev/go-fast-solver/hyperlane"
+	"github.com/skip-mev/go-fast-solver/ordersettler/types"
 	"github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
 	"github.com/skip-mev/go-fast-solver/shared/clients/utils"
+	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/evmrpc"
 	"github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
@@ -30,11 +33,7 @@ var settleCmd = &cobra.Command{
 	Short: "Settle pending order batches",
 	Long: `Settle all pending order batches immediately without any threshold checks (ignoring configured BatchUUSDCSettleUpThreshold).
 Example:
-  ./build/solvercli settle-orders --config ./config/local/config.yml \
-	  --key-store-type plaintext-file \
-	  --keys ./config/local/keys.json \
-	  --sqlite-db-path ./solver.db \
-	  --migrations-path ./db/migrations`,
+  ./build/solvercli settle-orders`,
 	Run: settleOrders,
 }
 
@@ -124,17 +123,87 @@ func settleOrders(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	batches, err := settler.PendingSettlementBatches(ctx)
+	chains, err := config.GetConfigReader(ctx).GetAllChainConfigsOfType(config.ChainType_COSMOS)
 	if err != nil {
-		lmt.Logger(ctx).Error("getting pending settlement batches", zap.Error(err))
+		lmt.Logger(ctx).Error("error getting Cosmos chains", zap.Error(err))
 		return
 	}
 
-	if len(batches) == 0 {
+	var pendingSettlements []db.OrderSettlement
+	for _, chain := range chains {
+		if chain.FastTransferContractAddress == "" {
+			continue
+		}
+
+		bridgeClient, err := clientManager.GetClient(ctx, chain.ChainID)
+		if err != nil {
+			lmt.Logger(ctx).Error("failed to get client",
+				zap.String("chainID", chain.ChainID),
+				zap.Error(err))
+			continue
+		}
+
+		fills, err := bridgeClient.OrderFillsByFiller(ctx, chain.FastTransferContractAddress, chain.SolverAddress)
+		if err != nil {
+			lmt.Logger(ctx).Error("getting order fills",
+				zap.String("chainID", chain.ChainID),
+				zap.Error(err))
+			continue
+		}
+
+		// For each fill, check if it needs settlement
+		for _, fill := range fills {
+			sourceChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(strconv.Itoa(int(fill.SourceDomain)))
+			if err != nil {
+				lmt.Logger(ctx).Error("failed to get source chain ID",
+					zap.Uint32("domain", fill.SourceDomain),
+					zap.Error(err))
+				continue
+			}
+
+			sourceGatewayAddress, err := config.GetConfigReader(ctx).GetGatewayContractAddress(sourceChainID)
+			if err != nil {
+				lmt.Logger(ctx).Error("getting source gateway address",
+					zap.String("chainID", sourceChainID),
+					zap.Error(err))
+				continue
+			}
+
+			sourceBridgeClient, err := clientManager.GetClient(ctx, sourceChainID)
+			if err != nil {
+				lmt.Logger(ctx).Error("getting source chain client",
+					zap.String("chainID", sourceChainID),
+					zap.Error(err))
+				continue
+			}
+
+			status, err := sourceBridgeClient.OrderStatus(ctx, sourceGatewayAddress, fill.OrderID)
+			if err != nil {
+				lmt.Logger(ctx).Error("getting order status",
+					zap.String("orderID", fill.OrderID),
+					zap.Error(err))
+				continue
+			}
+
+			if status != fast_transfer_gateway.OrderStatusUnfilled {
+				continue
+			}
+
+			pendingSettlements = append(pendingSettlements, db.OrderSettlement{
+				SourceChainID:                     sourceChainID,
+				DestinationChainID:                chain.ChainID,
+				SourceChainGatewayContractAddress: sourceGatewayAddress,
+				OrderID:                           fill.OrderID,
+			})
+		}
+	}
+
+	if len(pendingSettlements) == 0 {
 		fmt.Println("No pending settlement batches found")
 		return
 	}
 
+	batches := types.IntoSettlementBatchesByChains(pendingSettlements)
 	fmt.Printf("Found %d pending settlement batches\n", len(batches))
 
 	hashes, err := settler.SettleBatches(ctx, batches)
@@ -143,7 +212,6 @@ func settleOrders(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Submit settlements for relay
 	for i, batch := range batches {
 		hash := hashes[i]
 		if err := settler.RelayBatch(ctx, hash, batch); err != nil {
