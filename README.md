@@ -99,7 +99,7 @@ make build-cli
 relay: manually relay a hyperlane transaction
 
 ```shell
-make build-cli # build cli tool
+make build-cli
 # manually relay a transaction
 ./build/solvercli relay \
 --config <configFilePath> \ # e.g ./config/local/config.yml
@@ -107,8 +107,18 @@ make build-cli # build cli tool
 --key-store-type <plaintext-file|encrypted-file|env> \
 --aes-key-hex <hexEncodedAesKey> \
 --origin-chain-id <originChainId> \ # e.g. 42161
---originTxHash <tx hash to relay> \ # e.g. 0x8a345e4fb67309b230997ed222b35fd82ee31807fcd24f9ca80a4839119bb9ba
+--originTxHash <tx hash to relay> \ # e.g 0x8a345e4fb67309b230997ed222b35fd82ee31807fcd24f9ca80a4839119bb9ba
 --checkpoint-storage-location-override <hplStorageFileOverride> \
+```
+
+settle-orders: settle all pending order batches immediately without any threshold checks (ignoring configured BatchUUSDCSettleUpThreshold)
+
+```shell
+make build-cli
+./build/solvercli settle-orders \
+  --config <configFilePath> \ # e.g ./config/local/config.yml
+  --keys <keysFilePath> \ # e.g ./config/local/keys.json
+  --key-store-type <plaintext-file|encrypted-file|env>
 ```
 
 ### Main Project Modules
