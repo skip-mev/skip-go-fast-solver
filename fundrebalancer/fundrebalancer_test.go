@@ -231,7 +231,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockDatabse := mock_database.NewMockDatabase(t)
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
-		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", nil)
+		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", "", nil)
 		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
 		mockTxPriceOracle.On("TxFeeUUSDC", mockContext, mock.Anything, mock.Anything).Return(big.NewInt(75), nil)
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
@@ -349,8 +349,8 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMClientManager.EXPECT().GetClient(mockContext, arbitrumChainID).Return(mockEVMClient, nil)
 		mockEVMClientManager.EXPECT().GetClient(mockContext, ethChainID).Return(mockEVMClient, nil)
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
-		mockEVMTxExecutor.On("ExecuteTx", mockContext, "42161", arbitrumAddress, []byte{}, "0", osmosisAddress, mock.Anything).Return("arbhash", nil)
-		mockEVMTxExecutor.On("ExecuteTx", mockContext, "1", ethAddress, []byte{}, "0", osmosisAddress, mock.Anything).Return("ethhash", nil)
+		mockEVMTxExecutor.On("ExecuteTx", mockContext, "42161", arbitrumAddress, []byte{}, "0", osmosisAddress, mock.Anything).Return("arbhash", "", nil)
+		mockEVMTxExecutor.On("ExecuteTx", mockContext, "1", ethAddress, []byte{}, "0", osmosisAddress, mock.Anything).Return("ethhash", "", nil)
 		mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
 
 		// using an in memory database for this test
@@ -660,10 +660,10 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockDatabse := mock_database.NewMockDatabase(t)
 
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
-		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", nil)
+		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", "", nil)
 
 		// mock executing the approval tx
-		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, mock.Anything, "0", arbitrumUSDCDenom, mock.Anything).Return("arbitrum hash", nil)
+		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, mock.Anything, "0", arbitrumUSDCDenom, mock.Anything).Return("arbitrum hash", "", nil)
 
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)
@@ -785,7 +785,7 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockDatabse := mock_database.NewMockDatabase(t)
 
 		mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
-		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", nil)
+		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", "", nil)
 
 		keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 		assert.NoError(t, err)

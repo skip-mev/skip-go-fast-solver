@@ -24,7 +24,7 @@ func (_m *MockEVMTxExecutor) EXPECT() *MockEVMTxExecutor_Expecter {
 }
 
 // ExecuteTx provides a mock function with given fields: ctx, chainID, signerAddress, data, value, to, signer
-func (_m *MockEVMTxExecutor) ExecuteTx(ctx context.Context, chainID string, signerAddress string, data []byte, value string, to string, signer signing.Signer) (string, error) {
+func (_m *MockEVMTxExecutor) ExecuteTx(ctx context.Context, chainID string, signerAddress string, data []byte, value string, to string, signer signing.Signer) (string, string, error) {
 	ret := _m.Called(ctx, chainID, signerAddress, data, value, to, signer)
 
 	if len(ret) == 0 {
@@ -32,8 +32,9 @@ func (_m *MockEVMTxExecutor) ExecuteTx(ctx context.Context, chainID string, sign
 	}
 
 	var r0 string
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, []byte, string, string, signing.Signer) (string, error)); ok {
+	var r1 string
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []byte, string, string, signing.Signer) (string, string, error)); ok {
 		return rf(ctx, chainID, signerAddress, data, value, to, signer)
 	}
 	if rf, ok := ret.Get(0).(func(context.Context, string, string, []byte, string, string, signing.Signer) string); ok {
@@ -42,13 +43,19 @@ func (_m *MockEVMTxExecutor) ExecuteTx(ctx context.Context, chainID string, sign
 		r0 = ret.Get(0).(string)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, []byte, string, string, signing.Signer) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, []byte, string, string, signing.Signer) string); ok {
 		r1 = rf(ctx, chainID, signerAddress, data, value, to, signer)
 	} else {
-		r1 = ret.Error(1)
+		r1 = ret.Get(1).(string)
 	}
 
-	return r0, r1
+	if rf, ok := ret.Get(2).(func(context.Context, string, string, []byte, string, string, signing.Signer) error); ok {
+		r2 = rf(ctx, chainID, signerAddress, data, value, to, signer)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // MockEVMTxExecutor_ExecuteTx_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ExecuteTx'
@@ -75,12 +82,12 @@ func (_c *MockEVMTxExecutor_ExecuteTx_Call) Run(run func(ctx context.Context, ch
 	return _c
 }
 
-func (_c *MockEVMTxExecutor_ExecuteTx_Call) Return(txHash string, err error) *MockEVMTxExecutor_ExecuteTx_Call {
-	_c.Call.Return(txHash, err)
+func (_c *MockEVMTxExecutor_ExecuteTx_Call) Return(txHash string, rawTxB64 string, err error) *MockEVMTxExecutor_ExecuteTx_Call {
+	_c.Call.Return(txHash, rawTxB64, err)
 	return _c
 }
 
-func (_c *MockEVMTxExecutor_ExecuteTx_Call) RunAndReturn(run func(context.Context, string, string, []byte, string, string, signing.Signer) (string, error)) *MockEVMTxExecutor_ExecuteTx_Call {
+func (_c *MockEVMTxExecutor_ExecuteTx_Call) RunAndReturn(run func(context.Context, string, string, []byte, string, string, signing.Signer) (string, string, error)) *MockEVMTxExecutor_ExecuteTx_Call {
 	_c.Call.Return(run)
 	return _c
 }

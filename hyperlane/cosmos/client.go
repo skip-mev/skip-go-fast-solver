@@ -235,7 +235,7 @@ func (c *HyperlaneClient) MerkleTreeLeafCount(ctx context.Context, domain string
 	return NewMerkleTreeHookQuerier(c.merkleHookAddress, c.client).Count(ctx)
 }
 
-func (c *HyperlaneClient) Process(ctx context.Context, domain string, message []byte, metadata []byte) ([]byte, error) {
+func (c *HyperlaneClient) Process(ctx context.Context, domain string, message []byte, metadata []byte) ([]byte, string, error) {
 	panic("not implemented")
 }
 
