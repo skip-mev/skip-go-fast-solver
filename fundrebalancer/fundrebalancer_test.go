@@ -161,7 +161,29 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, osmosisChainID).Return(nil, nil)
 
 		// balances higher than min amount
-		mockSkipGo.EXPECT().Balance(mockContext, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("1000", nil)
+		mockSkipGo.EXPECT().Balance(mockContext, &skipgo.BalancesRequest{
+			Chains: map[string]skipgo.ChainRequest{
+				osmosisChainID: {
+					Address: osmosisAddress,
+					Denoms:  []string{osmosisUSDCDenom},
+				},
+			},
+		}).Return(&skipgo.BalancesResponse{
+			Chains: map[string]skipgo.ChainResponse{
+				osmosisChainID: {
+					Address: osmosisAddress,
+					Denoms: map[string]skipgo.DenomDetail{
+						osmosisUSDCDenom: {
+							Amount:          "1000",
+							Decimals:        6,
+							FormattedAmount: "0",
+							Price:           "1.0",
+							ValueUSD:        "1000",
+						},
+					},
+				},
+			},
+		}, nil)
 
 		rebalancer.Rebalance(ctx)
 
@@ -250,7 +272,29 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, osmosisChainID).Return(nil, nil)
 
 		// osmosis balance lower than min amount, arbitrum & eth balances higher than target
-		mockSkipGo.EXPECT().Balance(mockContext, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("0", nil)
+		mockSkipGo.EXPECT().Balance(mockContext, &skipgo.BalancesRequest{
+			Chains: map[string]skipgo.ChainRequest{
+				osmosisChainID: {
+					Address: osmosisAddress,
+					Denoms:  []string{osmosisUSDCDenom},
+				},
+			},
+		}).Return(&skipgo.BalancesResponse{
+			Chains: map[string]skipgo.ChainResponse{
+				osmosisChainID: {
+					Address: osmosisAddress,
+					Denoms: map[string]skipgo.DenomDetail{
+						osmosisUSDCDenom: {
+							Amount:          "0",
+							Decimals:        6,
+							FormattedAmount: "0",
+							Price:           "1.0",
+							ValueUSD:        "0",
+						},
+					},
+				},
+			},
+		}, nil)
 		mockEVMClient.EXPECT().GetUSDCBalance(mockContext, arbitrumUSDCDenom, arbitrumAddress).Return(big.NewInt(1000), nil)
 
 		route := &skipgo.RouteResponse{
@@ -374,7 +418,29 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		// setup initial state of mocks
 
 		// osmosis will need 100 to reach target
-		mockSkipGo.EXPECT().Balance(mockContext, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("0", nil)
+		mockSkipGo.EXPECT().Balance(mockContext, &skipgo.BalancesRequest{
+			Chains: map[string]skipgo.ChainRequest{
+				osmosisChainID: {
+					Address: osmosisAddress,
+					Denoms:  []string{osmosisUSDCDenom},
+				},
+			},
+		}).Return(&skipgo.BalancesResponse{
+			Chains: map[string]skipgo.ChainResponse{
+				osmosisChainID: {
+					Address: osmosisAddress,
+					Denoms: map[string]skipgo.DenomDetail{
+						osmosisUSDCDenom: {
+							Amount:          "0",
+							Decimals:        6,
+							FormattedAmount: "0",
+							Price:           "1.0",
+							ValueUSD:        "0",
+						},
+					},
+				},
+			},
+		}, nil)
 		// arbitrum has 75 usdc to spare
 		mockEVMClient.EXPECT().GetUSDCBalance(mockContext, arbitrumUSDCDenom, arbitrumAddress).Return(big.NewInt(125), nil)
 		// eth has 25 usdc to spare
@@ -489,7 +555,29 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		}, nil)
 
 		// osmosis balance lower than min amount, arbitrum & eth balances higher than target
-		mockSkipGo.EXPECT().Balance(mockContext, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("0", nil)
+		mockSkipGo.EXPECT().Balance(mockContext, &skipgo.BalancesRequest{
+			Chains: map[string]skipgo.ChainRequest{
+				osmosisChainID: {
+					Address: osmosisAddress,
+					Denoms:  []string{osmosisUSDCDenom},
+				},
+			},
+		}).Return(&skipgo.BalancesResponse{
+			Chains: map[string]skipgo.ChainResponse{
+				osmosisChainID: {
+					Address: osmosisAddress,
+					Denoms: map[string]skipgo.DenomDetail{
+						osmosisUSDCDenom: {
+							Amount:          "0",
+							Decimals:        6,
+							FormattedAmount: "0",
+							Price:           "1.0",
+							ValueUSD:        "0",
+						},
+					},
+				},
+			},
+		}, nil)
 
 		// not expecting any calls to create/submit any transactions because a
 		// rebaalnce is not necessary with the in flight txn to osmosis
@@ -571,7 +659,29 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		// No pending txns
 		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, osmosisChainID).Return(nil, nil)
 		// Osmosis needs funds, Arbitrum has excess
-		mockSkipGo.EXPECT().Balance(mockContext, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("0", nil)
+		mockSkipGo.EXPECT().Balance(mockContext, &skipgo.BalancesRequest{
+			Chains: map[string]skipgo.ChainRequest{
+				osmosisChainID: {
+					Address: osmosisAddress,
+					Denoms:  []string{osmosisUSDCDenom},
+				},
+			},
+		}).Return(&skipgo.BalancesResponse{
+			Chains: map[string]skipgo.ChainResponse{
+				osmosisChainID: {
+					Address: osmosisAddress,
+					Denoms: map[string]skipgo.DenomDetail{
+						osmosisUSDCDenom: {
+							Amount:          "0",
+							Decimals:        6,
+							FormattedAmount: "0",
+							Price:           "1.0",
+							ValueUSD:        "0",
+						},
+					},
+				},
+			},
+		}, nil)
 		mockEVMClient.EXPECT().GetUSDCBalance(mockContext, arbitrumUSDCDenom, arbitrumAddress).Return(big.NewInt(200), nil)
 		route := &skipgo.RouteResponse{
 			AmountOut:              "100",
@@ -695,7 +805,29 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, osmosisChainID).Return(nil, nil)
 
 		// osmosis balance lower than min amount, arbitrum & eth balances higher than target
-		mockSkipGo.EXPECT().Balance(mockContext, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("0", nil)
+		mockSkipGo.EXPECT().Balance(mockContext, &skipgo.BalancesRequest{
+			Chains: map[string]skipgo.ChainRequest{
+				osmosisChainID: {
+					Address: osmosisAddress,
+					Denoms:  []string{osmosisUSDCDenom},
+				},
+			},
+		}).Return(&skipgo.BalancesResponse{
+			Chains: map[string]skipgo.ChainResponse{
+				osmosisChainID: {
+					Address: osmosisAddress,
+					Denoms: map[string]skipgo.DenomDetail{
+						osmosisUSDCDenom: {
+							Amount:          "0",
+							Decimals:        6,
+							FormattedAmount: "0",
+							Price:           "1.0",
+							ValueUSD:        "0",
+						},
+					},
+				},
+			},
+		}, nil)
 		mockEVMClient.EXPECT().GetUSDCBalance(mockContext, arbitrumUSDCDenom, arbitrumAddress).Return(big.NewInt(1000), nil)
 
 		route := &skipgo.RouteResponse{
@@ -823,7 +955,29 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockDatabse.EXPECT().GetPendingRebalanceTransfersToChain(mockContext, osmosisChainID).Return(nil, nil)
 
 		// osmosis balance lower than min amount, arbitrum & eth balances higher than target
-		mockSkipGo.EXPECT().Balance(mockContext, osmosisChainID, osmosisAddress, osmosisUSDCDenom).Return("0", nil)
+		mockSkipGo.EXPECT().Balance(mockContext, &skipgo.BalancesRequest{
+			Chains: map[string]skipgo.ChainRequest{
+				osmosisChainID: {
+					Address: osmosisAddress,
+					Denoms:  []string{osmosisUSDCDenom},
+				},
+			},
+		}).Return(&skipgo.BalancesResponse{
+			Chains: map[string]skipgo.ChainResponse{
+				osmosisChainID: {
+					Address: osmosisAddress,
+					Denoms: map[string]skipgo.DenomDetail{
+						osmosisUSDCDenom: {
+							Amount:          "0",
+							Decimals:        6,
+							FormattedAmount: "0",
+							Price:           "1.0",
+							ValueUSD:        "0",
+						},
+					},
+				},
+			},
+		}, nil)
 		mockEVMClient.EXPECT().GetUSDCBalance(mockContext, arbitrumUSDCDenom, arbitrumAddress).Return(big.NewInt(1000), nil)
 
 		route := &skipgo.RouteResponse{
