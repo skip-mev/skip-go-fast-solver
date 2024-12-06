@@ -775,9 +775,15 @@ func (r *FundRebalancer) isGasAcceptable(ctx context.Context, txn SkipGoTxnWithM
 		return false, "", fmt.Errorf("getting chain fund rebalancing config: %w", err)
 	}
 
+	chainIDBigInt, ok := new(big.Int).SetString(chainID, 10)
+	if !ok {
+		return false, "", fmt.Errorf("could not convert chainID %s to *big.Int", chainID)
+	}
+
 	gasCostUUSDC, err := r.txPriceOracle.TxFeeUUSDC(ctx, types.NewTx(&types.DynamicFeeTx{
 		Gas:       txn.gasEstimate,
 		GasFeeCap: gasPrice,
+		ChainID:   chainIDBigInt,
 	}))
 	if err != nil {
 		return false, "", fmt.Errorf("calculating total fund rebalancing gas cost in UUSDC: %w", err)
