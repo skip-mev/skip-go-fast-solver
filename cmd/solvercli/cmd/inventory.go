@@ -11,8 +11,10 @@ import (
 )
 
 var inventoryCmd = &cobra.Command{
-	Use:   "inventory",
-	Short: "Show complete solver inventory including balances, settlements, and rebalances",
+	Use:     "inventory",
+	Short:   "Show complete solver inventory including balances, settlements, and rebalances",
+	Long:    "Show complete solver inventory including balances, settlements, and rebalances",
+	Example: `solver inventory --custom-assets '{"osmosis-1":["uosmo","uion"],"celestia-1":["utia"]}'`,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := setupContext(cmd)
 
@@ -33,13 +35,19 @@ var inventoryCmd = &cobra.Command{
 			lmt.Logger(ctx).Fatal("Failed to get pending rebalances", zap.Error(err))
 		}
 
-		totalPendingSettlements := new(big.Int)
-		totalPendingRebalances := new(big.Int)
-		totalUSDCPosition := new(big.Int)
-		usdcBalances, gasBalances, customBalances, totalAvaialbleUSDCBalance, totalCustomAssetsUSDValue, err := getBalances(ctx, cmd)
+		usdcBalances := make(map[string]*ChainBalance)
+		gasBalances := make(map[string]*ChainGasBalance)
+		customBalances := make(map[string][]*ChainBalance)
+		totalAvailableUSDCBalance := new(big.Int)
+		totalCustomAssetsUSDValue := new(big.Float)
+		err = getBalances(ctx, usdcBalances, gasBalances, customBalances, totalAvailableUSDCBalance, totalCustomAssetsUSDValue, cmd)
 		if err != nil {
 			lmt.Logger(ctx).Fatal("Failed to get existing balances", zap.Error(err))
 		}
+
+		totalPendingSettlements := new(big.Int)
+		totalPendingRebalances := new(big.Int)
+		totalUSDCPosition := new(big.Int)
 
 		fmt.Println("\nComplete Solver Inventory:")
 		fmt.Println("-------------------------")
@@ -77,13 +85,13 @@ var inventoryCmd = &cobra.Command{
 			totalPendingRebalances.Add(totalPendingRebalances, amount)
 		}
 
-		totalUSDCPosition.Add(totalUSDCPosition, totalAvaialbleUSDCBalance)
+		totalUSDCPosition.Add(totalUSDCPosition, totalAvailableUSDCBalance)
 		totalUSDCPosition.Add(totalUSDCPosition, totalPendingSettlements)
 		totalUSDCPosition.Add(totalUSDCPosition, totalPendingRebalances)
 
 		fmt.Printf("\nTotals Across All Chains:")
 		fmt.Printf("\n------------------------\n")
-		fmt.Printf("  Available USDC Inventory: %s USDC\n", normalizeBalance(totalAvaialbleUSDCBalance, CCTP_TOKEN_DECIMALS))
+		fmt.Printf("  Available USDC Inventory: %s USDC\n", normalizeBalance(totalAvailableUSDCBalance, CCTP_TOKEN_DECIMALS))
 		fmt.Printf("  Pending Settlements: %s USDC\n", normalizeBalance(totalPendingSettlements, CCTP_TOKEN_DECIMALS))
 		fmt.Printf("  Pending Rebalances: %s USDC\n", normalizeBalance(totalPendingRebalances, CCTP_TOKEN_DECIMALS))
 		fmt.Printf("  Total USDC Position: %s USDC\n", normalizeBalance(totalUSDCPosition, CCTP_TOKEN_DECIMALS))

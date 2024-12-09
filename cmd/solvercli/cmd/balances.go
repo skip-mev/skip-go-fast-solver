@@ -59,16 +59,19 @@ type ChainGasBalance struct {
 }
 
 var balancesCmd = &cobra.Command{
-	Use:   "balances",
-	Short: "Show current on-chain balances (USDC and gas tokens)",
-	Long: `Show current on-chain balances for USDC and gas tokens across all configured chains.
-    
-Example:
-    ./build/solvercli balances \
-    --custom-assets '{"osmosis-1":["uosmo","uion"],"celestia-1":["utia"]}'`,
+	Use:     "balances",
+	Short:   "Show current on-chain balances for USDC, gas tokens, and custom assets across all configured chains.",
+	Long:    `Show current on-chain balances for USDC, gas tokens, and custom assets across all configured chains.`,
+	Example: `solver balances --custom-assets '{"osmosis-1":["uosmo","uion"],"celestia-1":["utia"]}'`,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := setupContext(cmd)
-		usdcBalances, gasBalances, customBalances, totalUSDCBalance, totalCustomAssetsUSDValue, err := getBalances(ctx, cmd)
+
+		usdcBalances := make(map[string]*ChainBalance)
+		gasBalances := make(map[string]*ChainGasBalance)
+		customBalances := make(map[string][]*ChainBalance)
+		totalUSDCBalance := new(big.Int)
+		totalCustomAssetsUSDValue := new(big.Float)
+		err := getBalances(ctx, usdcBalances, gasBalances, customBalances, totalUSDCBalance, totalCustomAssetsUSDValue, cmd)
 		if err != nil {
 			lmt.Logger(ctx).Fatal("Failed to get balances", zap.Error(err))
 		}
@@ -112,134 +115,217 @@ Example:
 func init() {
 	rootCmd.AddCommand(balancesCmd)
 	balancesCmd.Flags().String("custom-assets", "", "JSON map of chain IDs to denom arrays, e.g. '{\"osmosis\":[\"uosmo\",\"uion\"],\"celestia\":[\"utia\"]}'")
+	balancesCmd.Flags().String("evm-address", "", "Optional EVM address to check balances for instead of config address")
+	balancesCmd.Flags().String("osmosis-address", "", "Optional Osmosis address to check balances for instead of config address")
 }
 
-func getBalances(ctx context.Context, cmd *cobra.Command) (map[string]*ChainBalance, map[string]*ChainGasBalance, map[string][]*ChainBalance, *big.Int, *big.Float, error) {
-	usdcBalances := make(map[string]*ChainBalance)
-	gasBalances := make(map[string]*ChainGasBalance)
-	customBalances := make(map[string][]*ChainBalance)
-	totalUSDCBalance := new(big.Int)
-	totalCustomAssetsUSDValue := new(big.Float)
-
-	skipClient, err := skipgo.NewSkipGoClient("https://api.skip.build")
+func getBalances(ctx context.Context,
+	usdcBalances map[string]*ChainBalance,
+	gasBalances map[string]*ChainGasBalance,
+	customBalances map[string][]*ChainBalance,
+	totalUSDCBalance *big.Int,
+	totalCustomAssetsUSDValue *big.Float,
+	cmd *cobra.Command) error {
+	request, err := buildBalancesRequest(ctx, cmd)
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("creating skip client: %w", err)
+		return fmt.Errorf("building balances request: %w", err)
 	}
 
+	skipResp, err := fetchBalances(ctx, request)
+	if err != nil {
+		return fmt.Errorf("fetching balances: %w", err)
+	}
+
+	lmt.Logger(ctx).Info("resp", zap.Any("", skipResp))
+	for chainID, chainResp := range skipResp.Chains {
+		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
+		if err != nil {
+			return fmt.Errorf("getting chain config for %s: %w", chainID, err)
+		}
+
+		if err := processUSDCBalance(chainID, chainConfig, chainResp, usdcBalances, totalUSDCBalance); err != nil {
+			return fmt.Errorf("processing USDC balance: %w", err)
+		}
+
+		if err := processGasBalance(ctx, chainID, chainConfig, chainResp, gasBalances); err != nil {
+			return fmt.Errorf("processing gas balance: %w", err)
+		}
+
+		if err := processCustomBalances(chainID, chainConfig, chainResp, customBalances, totalCustomAssetsUSDValue); err != nil {
+			return fmt.Errorf("processing custom balances: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func buildBalancesRequest(ctx context.Context, cmd *cobra.Command) (*skipgo.BalancesRequest, error) {
 	request := &skipgo.BalancesRequest{
 		Chains: make(map[string]skipgo.ChainRequest),
 	}
 
-	customAssetsFlag := cmd.Flags().Lookup("custom-assets").Value.String()
 	customAssetMap := make(map[string][]string)
-	if customAssetsFlag != "" {
+	if customAssetsFlag := cmd.Flags().Lookup("custom-assets").Value.String(); customAssetsFlag != "" {
 		if err := json.Unmarshal([]byte(customAssetsFlag), &customAssetMap); err != nil {
-			return nil, nil, nil, nil, nil, fmt.Errorf("parsing custom-assets JSON: %w", err)
+			return nil, fmt.Errorf("parsing custom-assets JSON: %w", err)
 		}
 	}
+
+	evmAddress := cmd.Flags().Lookup("evm-address").Value.String()
+	osmosisAddress := cmd.Flags().Lookup("osmosis-address").Value.String()
 
 	chains := config.GetConfigReader(ctx).Config().Chains
 	for _, chain := range chains {
 		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chain.ChainID)
 		if err != nil {
-			return nil, nil, nil, nil, nil, fmt.Errorf("getting chain config for %s: %w", chain.ChainID, err)
+			return nil, fmt.Errorf("getting chain config for %s: %w", chain.ChainID, err)
 		}
 
-		denoms := []string{chainConfig.USDCDenom, chainConfig.GasTokenSymbol}
+		address := chainConfig.SolverAddress
+		if chainConfig.Type == config.ChainType_EVM && evmAddress != "" {
+			address = evmAddress
+		} else if chainConfig.Type == config.ChainType_COSMOS && osmosisAddress != "" {
+			address = osmosisAddress
+		}
+
+		var gasTokenDenom string
+		if chainConfig.Type == config.ChainType_COSMOS {
+			gasTokenDenom = chainConfig.Cosmos.GasDenom
+		} else if chainConfig.Type == config.ChainType_EVM {
+			gasTokenDenom = chainConfig.ChainName + "-native"
+		}
+
+		denoms := []string{chainConfig.USDCDenom, gasTokenDenom}
 		if customDenoms, ok := customAssetMap[chain.ChainID]; ok {
 			denoms = append(denoms, customDenoms...)
 		}
 
 		request.Chains[chain.ChainID] = skipgo.ChainRequest{
-			Address: chainConfig.SolverAddress,
+			Address: address,
 			Denoms:  denoms,
 		}
 	}
 
-	skipResp, err := skipClient.Balance(ctx, request)
+	lmt.Logger(ctx).Info("", zap.Any("request", request))
+
+	return request, nil
+}
+
+func fetchBalances(ctx context.Context, request *skipgo.BalancesRequest) (*skipgo.BalancesResponse, error) {
+	skipClient, err := skipgo.NewSkipGoClient("https://api.skip.build")
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("getting balances from Skip API: %w", err)
+		return nil, fmt.Errorf("creating skip client: %w", err)
 	}
 
-	for chainID, chainResp := range skipResp.Chains {
-		chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
+	return skipClient.Balance(ctx, request)
+}
+
+func processUSDCBalance(
+	chainID string,
+	chainConfig config.ChainConfig,
+	chainResp skipgo.ChainResponse,
+	usdcBalances map[string]*ChainBalance,
+	totalUSDCBalance *big.Int,
+) error {
+	if usdcDetail, ok := chainResp.Denoms[chainConfig.USDCDenom]; ok {
+		balance, ok := new(big.Int).SetString(usdcDetail.Amount, 10)
+		if !ok {
+			return fmt.Errorf("invalid USDC amount for chain %s", chainID)
+		}
+
+		usdcBalances[chainID] = &ChainBalance{
+			ChainID:    chainID,
+			AssetDenom: chainConfig.USDCDenom,
+			Balance:    balance,
+			Symbol:     "USDC",
+			Decimals:   CCTP_TOKEN_DECIMALS,
+		}
+		totalUSDCBalance.Add(totalUSDCBalance, balance)
+	}
+	return nil
+}
+
+func processGasBalance(
+	ctx context.Context,
+	chainID string,
+	chainConfig config.ChainConfig,
+	chainResp skipgo.ChainResponse,
+	gasBalances map[string]*ChainGasBalance,
+) error {
+	lmt.Logger(ctx).Info("", zap.Any("", chainResp))
+
+	var gasTokenDenom string
+	if chainConfig.Type == config.ChainType_COSMOS {
+		gasTokenDenom = chainConfig.Cosmos.GasDenom
+	} else if chainConfig.Type == config.ChainType_EVM {
+		gasTokenDenom = chainConfig.ChainName + "-native"
+	}
+
+	if gasDetail, ok := chainResp.Denoms[gasTokenDenom]; ok {
+		balance, ok := new(big.Int).SetString(gasDetail.Amount, 10)
+		if !ok {
+			return fmt.Errorf("invalid gas token amount for chain %s", chainID)
+		}
+
+		warningThreshold, criticalThreshold, err := config.GetConfigReader(ctx).GetGasAlertThresholds(chainID)
 		if err != nil {
-			return nil, nil, nil, nil, nil, fmt.Errorf("getting chain config for %s: %w", chainID, err)
+			return fmt.Errorf("getting gas alert thresholds for %s: %w", chainID, err)
 		}
 
-		// Process USDC balance
-		if usdcDetail, ok := chainResp.Denoms[chainConfig.USDCDenom]; ok {
-			balance, ok := new(big.Int).SetString(usdcDetail.Amount, 10)
-			if !ok {
-				return nil, nil, nil, nil, nil, fmt.Errorf("invalid USDC amount for chain %s", chainID)
-			}
-
-			usdcBalances[chainID] = &ChainBalance{
-				ChainID:    chainID,
-				AssetDenom: chainConfig.USDCDenom,
-				Balance:    balance,
-				Symbol:     "USDC",
-				Decimals:   CCTP_TOKEN_DECIMALS,
-			}
-			totalUSDCBalance.Add(totalUSDCBalance, balance)
-		}
-
-		// Process gas token balance
-		if gasDetail, ok := chainResp.Denoms[chainConfig.GasTokenSymbol]; ok {
-			balance, ok := new(big.Int).SetString(gasDetail.Amount, 10)
-			if !ok {
-				return nil, nil, nil, nil, nil, fmt.Errorf("invalid gas token amount for chain %s", chainID)
-			}
-
-			warningThreshold, criticalThreshold, err := config.GetConfigReader(ctx).GetGasAlertThresholds(chainID)
-			if err != nil {
-				return nil, nil, nil, nil, nil, fmt.Errorf("getting gas alert thresholds for %s: %w", chainID, err)
-			}
-
-			gasBalances[chainID] = &ChainGasBalance{
-				ChainID:           chainID,
-				Balance:           balance,
-				Symbol:            chainConfig.GasTokenSymbol,
-				Decimals:          chainConfig.GasTokenDecimals,
-				WarningThreshold:  warningThreshold,
-				CriticalThreshold: criticalThreshold,
-			}
-		}
-
-		// Process custom assets
-		if customDenoms, ok := customAssetMap[chainID]; ok {
-			customBalances[chainID] = make([]*ChainBalance, 0)
-			for _, denom := range customDenoms {
-				if detail, ok := chainResp.Denoms[denom]; ok {
-					balance, ok := new(big.Int).SetString(detail.Amount, 10)
-					if !ok {
-						return nil, nil, nil, nil, nil, fmt.Errorf("invalid amount for chain %s denom %s", chainID, denom)
-					}
-
-					valueUSD, ok := new(big.Float).SetString(detail.ValueUSD)
-					if !ok {
-						return nil, nil, nil, nil, nil, fmt.Errorf("invalid USD value for chain %s denom %s", chainID, denom)
-					}
-
-					price, ok := new(big.Float).SetString(detail.Price)
-					if !ok {
-						return nil, nil, nil, nil, nil, fmt.Errorf("invalid price for chain %s denom %s", chainID, denom)
-					}
-
-					customBalances[chainID] = append(customBalances[chainID], &ChainBalance{
-						ChainID:    chainID,
-						AssetDenom: denom,
-						Balance:    balance,
-						Decimals:   detail.Decimals,
-						PriceUSD:   price,
-						ValueUSD:   valueUSD,
-					})
-
-					totalCustomAssetsUSDValue.Add(totalCustomAssetsUSDValue, valueUSD)
-				}
-			}
+		gasBalances[chainID] = &ChainGasBalance{
+			ChainID:           chainID,
+			Balance:           balance,
+			Symbol:            chainConfig.GasTokenSymbol,
+			Decimals:          chainConfig.GasTokenDecimals,
+			WarningThreshold:  warningThreshold,
+			CriticalThreshold: criticalThreshold,
 		}
 	}
+	return nil
+}
 
-	return usdcBalances, gasBalances, customBalances, totalUSDCBalance, totalCustomAssetsUSDValue, nil
+func processCustomBalances(
+	chainID string,
+	chainConfig config.ChainConfig,
+	chainResp skipgo.ChainResponse,
+	customBalances map[string][]*ChainBalance,
+	totalCustomAssetsUSDValue *big.Float,
+) error {
+	for denom, detail := range chainResp.Denoms {
+		// Skip USDC and gas token
+		if denom == chainConfig.USDCDenom || denom == chainConfig.GasTokenSymbol {
+			continue
+		}
+
+		balance, ok := new(big.Int).SetString(detail.Amount, 10)
+		if !ok {
+			return fmt.Errorf("invalid amount for chain %s denom %s", chainID, denom)
+		}
+
+		valueUSD, ok := new(big.Float).SetString(detail.ValueUSD)
+		if !ok {
+			return fmt.Errorf("invalid USD value for chain %s denom %s", chainID, denom)
+		}
+
+		price, ok := new(big.Float).SetString(detail.Price)
+		if !ok {
+			return fmt.Errorf("invalid price for chain %s denom %s", chainID, denom)
+		}
+
+		if _, exists := customBalances[chainID]; !exists {
+			customBalances[chainID] = make([]*ChainBalance, 0)
+		}
+
+		customBalances[chainID] = append(customBalances[chainID], &ChainBalance{
+			ChainID:    chainID,
+			AssetDenom: denom,
+			Balance:    balance,
+			Decimals:   detail.Decimals,
+			PriceUSD:   price,
+			ValueUSD:   valueUSD,
+		})
+
+		totalCustomAssetsUSDValue.Add(totalCustomAssetsUSDValue, valueUSD)
+	}
+	return nil
 }

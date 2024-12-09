@@ -10,8 +10,10 @@ import (
 )
 
 var rebalancesCmd = &cobra.Command{
-	Use:   "rebalances",
-	Short: "Show pending rebalance transfers across chains",
+	Use:     "rebalances",
+	Short:   "Show pending rebalance transfers across chains",
+	Long:    "Show pending rebalance transfers across chains",
+	Example: `solver rebalances`,
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := setupContext(cmd)
 

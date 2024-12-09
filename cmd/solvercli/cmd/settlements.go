@@ -24,8 +24,10 @@ type groupedSettlement struct {
 }
 
 var settlementsCmd = &cobra.Command{
-	Use:   "settlements",
-	Short: "Show pending settlement amounts across chains",
+	Use:     "settlements",
+	Short:   "Show pending settlement amounts across chains",
+	Long:    "Show pending settlement amounts across chains",
+	Example: "solver settlements",
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := setupContext(cmd)
 		keysPath, err := cmd.Flags().GetString("keys")
@@ -87,4 +89,6 @@ var settlementsCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(settlementsCmd)
+	settlementsCmd.Flags().String("evm-address", "", "Optional EVM address to check settlements for instead of config address")
+	settlementsCmd.Flags().String("osmosis-address", "", "Optional Osmosis address to check settlements for instead of config address")
 }

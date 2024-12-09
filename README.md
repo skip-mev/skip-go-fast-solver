@@ -79,62 +79,58 @@ make db-clean # clean all existing db entries
 
 ### CLI Tool
 
-submit-order: submit a fast transfer order to the deployed gateway contract specifying an amount in USDC and a recipient.
-This only supports transferring USDC from EVM -> Osmosis, as any pre/post transfer swaps are typically handled by the [Skip Go](https://docs.skip.build/go/general/getting-started) API.
+First, build and install the CLI from the project root directory:
 
 ```shell
 make build-cli
-./build/solvercli submit-transfer \
-  --config <configFilePath> \ # e.g ./config/local/config.yml
-  --token  <usdc address for source chain> \ # e.g. 0xaf88d065e77c8cC2239327C5EDb3A432268e5831
-  --recipient <recipient address on destination chain>  \ # e.g. osmo13c9seh3vgvtfvdufz4eh2zhp0cepq4wj0egc02
-  --amount <usdc amount in token decimals> \ # e.g. 1000000
-  --source-chain-id <source chain id>  \ # e.g. 42161
-  --destination-chain-id <destination chain id>  \ # e.g. osmosis-1
-  --gateway <source chain fast transfer contract gateway> \ # e.g. 0x23cb6147e5600c23d1fb5543916d3d5457c9b54c
-  --private-key <source wallet EVM private key string> \ # e.g. 0xf6079d30f832f998c86e5841385a4be06b6ca2b0875b90dcab8e167eba4dcab1 (this is not stored anywhere, and is used to sign the transfer transactions)
-  --deadline-hours <transfer timeout in hours> # e.g. 24
 ```
 
-relay: manually relay a hyperlane transaction
+Now you can run the solver commands from anywhere. Available commands:
 
+**submit-transfer**: Submit a fast transfer order to transfer USDC from EVM -> Osmosis
 ```shell
-make build-cli # build cli tool
-# manually relay a transaction
-./build/solvercli relay \
---config <configFilePath> \ # e.g ./config/local/config.yml
---keys <keysFilePath> \ # e.g ./config/local/keys.json
---key-store-type <plaintext-file|encrypted-file|env> \
---aes-key-hex <hexEncodedAesKey> \
---origin-chain-id <originChainId> \ # e.g. 42161
---originTxHash <tx hash to relay> \ # e.g. 0x8a345e4fb67309b230997ed222b35fd82ee31807fcd24f9ca80a4839119bb9ba
---checkpoint-storage-location-override <hplStorageFileOverride> \
+solver submit-transfer \
+  --config <configFilePath> \
+  --token <usdc address> \
+  --recipient <destination address> \
+  --amount <usdc amount> \
+  --source-chain-id <source chain id> \
+  --destination-chain-id <destination chain id> \
+  --gateway <gateway contract> \
+  --private-key <private key> \
+  --deadline-hours <timeout in hours>
 ```
 
-balances: show current on-chain balances for USDC, gas token, and any custom assets requested
-
+**relay**: Manually relay a hyperlane transaction
 ```shell
-./build/solvercli balances \
-  --config ./config/local/config.yml \
-  --custom-assets '{"osmosis-1":["uosmo","uion"],"celestia-1":["utia"]}'
+solver relay \
+  --config <configFilePath> \
+  --keys <keysFilePath> \
+  --key-store-type <store type> \
+  --aes-key-hex <hex key> \
+  --origin-chain-id <chain id> \
+  --originTxHash <tx hash> \
+  --checkpoint-storage-location-override <storage path>
 ```
 
-inventory: show complete solver inventory including balances, settlements, and rebalances
-
+**balances**: Show current on-chain balances (USDC, gas token, and custom assets requested)
 ```shell
-./build/solvercli inventory
+solver balances --custom-assets '{"osmosis-1":["uosmo","uion"],"celestia-1":["utia"]}'
 ```
 
-rebalances: show pending rebalance transfers between chains
-
+**inventory**: Show complete solver inventory including balances, pending settlements, and pending rebalance transfers
 ```shell
-./build/solvercli rebalances
+solver inventory --custom-assets '{"osmosis-1":["uosmo","uion"],"celestia-1":["utia"]}'
 ```
 
-settlements: show pending order settlements waiting to be processed
-
+**rebalances**: Show pending rebalance transfers
 ```shell
-./build/solvercli settlements
+solver rebalances
+```
+
+**settlements**: Show pending order settlements
+```shell
+solver settlements
 ```
 
 ### Main Project Modules
