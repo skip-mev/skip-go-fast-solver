@@ -88,6 +88,7 @@ make build-cli
 Now you can run the solver commands from anywhere. Available commands:
 
 **submit-transfer**: Submit a fast transfer order to transfer USDC from EVM -> Osmosis
+
 ```shell
 solver submit-transfer \
   --config <configFilePath> \
@@ -102,6 +103,7 @@ solver submit-transfer \
 ```
 
 **relay**: Manually relay a hyperlane transaction
+
 ```shell
 solver relay \
   --config <configFilePath> \
@@ -114,21 +116,25 @@ solver relay \
 ```
 
 **balances**: Show current on-chain balances (USDC, gas token, and custom assets requested)
+
 ```shell
 solver balances --custom-assets '{"osmosis-1":["uosmo","uion"],"celestia-1":["utia"]}'
 ```
 
 **inventory**: Show complete solver inventory including balances, pending settlements, and pending rebalance transfers
+
 ```shell
 solver inventory --custom-assets '{"osmosis-1":["uosmo","uion"],"celestia-1":["utia"]}'
 ```
 
 **rebalances**: Show pending rebalance transfers
+
 ```shell
 solver rebalances
 ```
 
 **settlements**: Show pending order settlements
+
 ```shell
 solver settlements
 ```
