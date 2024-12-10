@@ -118,7 +118,7 @@ make build-cli # build cli tool
 - order settler: monitors for completed order fills and initiates process to settle solver funds
 - tx verifier: verifies the status of any pending transactions related to user transfers on chain and updates the solver database
   with their latest status
-- fund rebalancer: constantly checks if any configured chains are below a specified funds threshold, ands tops up funds if needed
+- fund rebalancer: constantly checks if any configured chains are below a specified funds threshold, and tops up funds if needed
   from other chains that have spare funds
 - hyperlane: used for cross chain communication during funds settlement to validate that the user transfer has been successfully fulfilled
 
