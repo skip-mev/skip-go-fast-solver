@@ -6,4 +6,6 @@ solver.db
 vendor
 .idea
 lib
+out
+cache
 broadcast

@@ -19,7 +19,9 @@
   remappings = [
       '@openzeppelin/=lib/openzeppelin-contracts/',
       '@openzeppelin-contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/',
+      '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/',
       'forge-std/=lib/forge-std/src/',
+      '@hyperlane-xyz/=lib/hyperlane-monorepo/solidity/contracts/',
   ]
   
 [fmt]

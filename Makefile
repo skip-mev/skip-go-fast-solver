@@ -34,8 +34,13 @@ unit-test:
 
 .PHONY: setup-foundry
 setup-foundry:
-	cd tests/e2e && forge install foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts OpenZeppelin/openzeppelin-contracts-upgradeable --no-commit
-	
+	cd tests/e2e && forge install \
+		foundry-rs/forge-std \
+		OpenZeppelin/openzeppelin-contracts@v4.8.3 \
+		OpenZeppelin/openzeppelin-contracts-upgradeable@v4.8.3 \
+		hyperlane-xyz/hyperlane-monorepo \
+		--no-commit
+
 .PHONY: e2e-test
 e2e-test: setup-foundry
 	cd tests/e2e && go test -v ./

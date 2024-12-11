@@ -1,12 +1,11 @@
 pragma solidity ^0.8.13;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {OwnableUpgradeable} from "@openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {Initializable} from "@openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuardUpgradeable.sol";
 
 import {TypeCasts} from "./libraries/TypeCasts.sol";
 import {OrderEncoder} from "./libraries/OrderEncoder.sol";
@@ -96,7 +95,8 @@ contract FastTransferGateway is Initializable, UUPSUpgradeable, OwnableUpgradeab
         external
         initializer
     {
-        __Ownable_init(_owner);
+        __Ownable_init();
+        _transferOwnership(_owner);
 
         token = _token;
         mailbox = _mailbox;

@@ -42,8 +42,46 @@ type ForgeDeployOutput struct {
 }
 
 type DeployedContracts struct {
-	Erc20               string `json:"erc20"`
-	FastTransferGateway string `json:"fast_transfer_gateway"`
+	Erc20               string
+	FastTransferGateway string
+	Mailbox             string
+	Ism                 string
+	MerkleHook          string
+	ValidatorAnnounce   string
+}
+
+type HyperlaneAddresses struct {
+	mailbox           ethcommon.Address
+	ism               ethcommon.Address
+	merkleHook        ethcommon.Address
+	validatorAnnounce ethcommon.Address
+}
+
+func parseHyperlaneAddresses(output string) HyperlaneAddresses {
+	// The output format is: "mailbox:0x...,ism:0x...,merkleHook:0x...,validatorAnnounce:0x..."
+	parts := strings.Split(output, ",")
+	addresses := HyperlaneAddresses{}
+
+	for _, part := range parts {
+		keyValue := strings.Split(part, ":")
+		if len(keyValue) != 2 {
+			continue
+		}
+
+		address := ethcommon.HexToAddress(keyValue[1])
+		switch keyValue[0] {
+		case "mailbox":
+			addresses.mailbox = address
+		case "ism":
+			addresses.ism = address
+		case "merkleHook":
+			addresses.merkleHook = address
+		case "validatorAnnounce":
+			addresses.validatorAnnounce = address
+		}
+	}
+
+	return addresses
 }
 
 // FundAddressChainB sends funds to the given address on Chain B.
@@ -100,32 +138,30 @@ func (s *TestSuite) fundAddress(ctx context.Context, chain *cosmos.CosmosChain, 
 }
 
 func (s *TestSuite) GetEthContractsFromDeployOutput(stdout string) DeployedContracts {
-	// Extract the JSON part using regex
-	re := regexp.MustCompile(`\{.*\}`)
-	jsonPart := re.FindString(stdout)
+	// Extract the JSON part using regex that matches forge's JSON output format
+	re := regexp.MustCompile(`"value":"({.*?})"`)
+	matches := re.FindStringSubmatch(stdout)
+	if len(matches) != 2 {
+		s.T().Fatalf("Failed to find JSON in forge output")
+	}
 
-	var returns ForgeDeployOutput
-	err := json.Unmarshal([]byte(jsonPart), &returns)
+	jsonStr := matches[1]
+	// Unescape the JSON string
+	jsonStr = strings.ReplaceAll(jsonStr, `\`, ``)
+
+	var contracts DeployedContracts
+	err := json.Unmarshal([]byte(jsonStr), &contracts)
 	s.Require().NoError(err)
 
-	// Extract the embedded JSON string
-	s.Require().Len(returns.Returns, 1)
-	embeddedJsonStr := returns.Returns["0"].Value
+	// Verify all required fields are present
+	s.Require().NotEmpty(contracts.Erc20)
+	s.Require().NotEmpty(contracts.FastTransferGateway)
+	s.Require().NotEmpty(contracts.Mailbox)
+	s.Require().NotEmpty(contracts.Ism)
+	s.Require().NotEmpty(contracts.MerkleHook)
+	s.Require().NotEmpty(contracts.ValidatorAnnounce)
 
-	// Unescape and remove surrounding quotes
-	embeddedJsonStr = strings.ReplaceAll(embeddedJsonStr, `\"`, `"`)
-	embeddedJsonStr = strings.Trim(embeddedJsonStr, `"`)
-
-	var embeddedContracts DeployedContracts
-	err = json.Unmarshal([]byte(embeddedJsonStr), &embeddedContracts)
-	s.Require().NoError(err)
-
-	s.Require().NotEmpty(embeddedContracts.Erc20)
-	s.Require().True(IsLowercase(embeddedContracts.Erc20))
-	s.Require().NotEmpty(embeddedContracts.FastTransferGateway)
-	s.Require().True(IsLowercase(embeddedContracts.FastTransferGateway))
-
-	return embeddedContracts
+	return contracts
 }
 
 // GetRelayerUsers returns two ibc.Wallet instances which can be used for the relayer users

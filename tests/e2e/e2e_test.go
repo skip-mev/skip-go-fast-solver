@@ -4,17 +4,20 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
-	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/skip-mev/fast-transfer-solver/shared/contracts/fast_transfer_gateway"
-	"github.com/strangelove-ventures/interchaintest/v8/chain/ethereum"
 	"math/big"
 	"os"
 	"testing"
+
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/skip-mev/fast-transfer-solver/shared/config"
+	"github.com/skip-mev/fast-transfer-solver/shared/contracts/fast_transfer_gateway"
+	"github.com/strangelove-ventures/interchaintest/v8/chain/ethereum"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/skip-mev/fast-transfer-solver/e2e/testvalues"
 	"github.com/skip-mev/fast-transfer-solver/e2e/types/erc20"
+	"github.com/skip-mev/fast-transfer-solver/e2e/types/hyperlane"
 	"github.com/strangelove-ventures/interchaintest/v8/ibc"
 	"github.com/stretchr/testify/suite"
 )
@@ -44,6 +47,13 @@ type SolverTestSuite struct {
 	fastTransferGatewayAddr ethcommon.Address
 
 	cleanup func()
+
+	mockMailbox           *hyperlane.TestMailbox
+	mockIsm               *hyperlane.TestIsm
+	mockMerkleHook        *hyperlane.MerkleTreeHook
+	mockValidatorAnnounce *hyperlane.ValidatorAnnounce
+
+	config *config.Config
 }
 
 func (s *SolverTestSuite) SetupSuite(ctx context.Context) {
@@ -107,22 +117,24 @@ func (s *SolverTestSuite) SetupSuite(ctx context.Context) {
 
 		s.Require().NoError(err, fmt.Sprintf("error deploying contracts: \nstderr: %s\nstdout: %s\nerr: %s", stderr, stdout, err))
 
+		s.contractAddresses = s.GetEthContractsFromDeployOutput(string(stdout))
 		ethClient, err := ethclient.Dial(eth.GetHostRPCAddress())
 		s.Require().NoError(err)
 		s.Require().NotNil(ethClient)
 
-		s.contractAddresses = s.GetEthContractsFromDeployOutput(string(stdout))
 		s.erc20Contract, err = erc20.NewContract(ethcommon.HexToAddress(s.contractAddresses.Erc20), ethClient)
 		s.Require().NoError(err)
 
-		balance, err := ethClient.BalanceAt(ctx, ethcommon.HexToAddress(s.deployer.FormattedAddress()), nil)
-		if err != nil {
-			s.T().Logf("Failed to get balance: %v", err)
-			return
-		}
-		s.T().Logf("Deployer balance: %s", balance.String())
-
 		s.ftgContract, err = fast_transfer_gateway.NewFastTransferGateway(ethcommon.HexToAddress(s.contractAddresses.FastTransferGateway), ethClient)
+		s.Require().NoError(err)
+
+		s.mockMailbox, err = hyperlane.NewTestMailbox(ethcommon.HexToAddress(s.contractAddresses.Mailbox), ethClient)
+		s.Require().NoError(err)
+		s.mockIsm, err = hyperlane.NewTestIsm(ethcommon.HexToAddress(s.contractAddresses.Ism), ethClient)
+		s.Require().NoError(err)
+		s.mockMerkleHook, err = hyperlane.NewMerkleTreeHook(ethcommon.HexToAddress(s.contractAddresses.MerkleHook), ethClient)
+		s.Require().NoError(err)
+		s.mockValidatorAnnounce, err = hyperlane.NewValidatorAnnounce(ethcommon.HexToAddress(s.contractAddresses.ValidatorAnnounce), ethClient)
 		s.Require().NoError(err)
 	}))
 
