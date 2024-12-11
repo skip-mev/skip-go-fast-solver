@@ -67,7 +67,8 @@ docker run skip-go-fast-solver
 ### How to run tests
 
 ```shell
-make test # run all tests
+make unit-test
+make e2e-test
 ```
 
 ### Database access

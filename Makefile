@@ -36,10 +36,22 @@ run-solver:
 ###############################################################################
 ###                                 Testing                                 ###
 ###############################################################################
-test:
-	go clean -testcache
-	go test --tags=test -v -race $(shell go list ./... | grep -v /scripts/)
+.PHONY: unit-test
+unit-test:
+	go test --tags=test -v -race $(shell go list ./... | grep -v /tests)
 
+.PHONY: setup-foundry
+setup-foundry:
+	cd tests/e2e && forge install \
+		foundry-rs/forge-std \
+		OpenZeppelin/openzeppelin-contracts@v4.8.3 \
+		OpenZeppelin/openzeppelin-contracts-upgradeable@v4.8.3 \
+		hyperlane-xyz/hyperlane-monorepo \
+		--no-commit
+
+.PHONY: e2e-test
+e2e-test: setup-foundry
+	cd tests/e2e && go test -v ./
 
 ###############################################################################
 ###                                 Developer Tools                         ###
