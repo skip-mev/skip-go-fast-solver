@@ -9,3 +9,5 @@ lib
 out
 cache
 broadcast
+config/local/config.yml
+config/local/keys.json

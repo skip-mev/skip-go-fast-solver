@@ -31,19 +31,37 @@ risk/reward profile and if they have the required resources on the destination c
    address on the source chain.
 4. **Completion**: The solver has now received the assets they fronted for the user, along with the service fee they earned, completing the settlement process.
 
+### Latest Fast Transfer contract addresses
+
+Use these addresses in the solver config and when using the CLI tool to submit transfers
+
+- Arbitrum: https://arbiscan.io/address/0x23cb6147e5600c23d1fb5543916d3d5457c9b54c
+- Optimism: https://optimistic.etherscan.io/address/0x0f479de4fd3144642f1af88e3797b1821724f703
+- Polygon: https://polygonscan.com/address/0x3ffaf8d0d33226302e3a0ae48367cf1dd2023b1f
+- Base: https://basescan.org/address/0x43d090025aaa6c8693b71952b910ac55ccb56bbb
+- Avalanche: https://snowtrace.io/address/0xD415B02A7E91dBAf92EAa4721F9289CFB7f4E1cF
+- Ethereum: https://etherscan.io/address/0xe7935104c9670015b21c6300e5b95d2f75474cda
+- Osmosis: https://celatone.osmosis.zone/osmosis-1/contracts/osmo1vy34lpt5zlj797w7zqdta3qfq834kapx88qtgudy7jgljztj567s73ny82
+
 ### How to start server
 
-1. Update config/local/keys.json with the appropriate solver private keys and addresses
-2. Update config/local/config.yml with the appropriate config needed for each chain (all values needed to be set are placed between <> brackets)
-   a. set the SERVER_PASSWORD environment variable to the RPC servers basic auth secret
-   b. ensure the rpc_basic_auth_var field in config.yml references this environment variable
-   c. update the coingecko.api_key config field with a valid coingecko api key
+1. Update [config/local/keys.json](config/local/keys.json) with the corresponding solver private keys and addresses.
+2. Update [config/local/config.yml](config/local/config.yml) with the needed config values (solver addresses, chain rpc links, etc.). Values that need to be set are in `<>` brackets. Reference the [shared/config/config.go](shared/config/config.go) file for more info about the config fields.
+   - The [config/local/config.yml](config/local/config.yml) config file is pre-filled with recommended values. To customize your solver deployment, reference [config/sample/config.yml](config/sample/config.yml) to see which config values can be modified.
 
 ```shell
 make build # build solver server binary
 # quickstart mode determines whether solver starts monitoring for user intent events from latest chain block height,
-# or from the last block the solver has previously processed
-make run-solver --config <configFilePath> --keys <keysFilePath> --key-store-type <plaintext-file|encrypted-file|env> --aes-key-hex <hexEncodedAesKey> --sqlite-db-path <sqliteDbFilePath> --migrations-path <dbMigrationsDir> --quickstart <true|false>
+# or from the last block the solver has previously processed (set to true by default)
+make run-solver
+```
+
+### How to run Solver docker image
+
+```shell
+# Choose right platform to build Docker image
+docker build --platform <linux/amd64|linux/arm64> -t skip-go-fast-solver .
+docker run skip-go-fast-solver
 ```
 
 ### How to run tests
@@ -62,10 +80,36 @@ make db-clean # clean all existing db entries
 
 ### CLI Tool
 
+submit-order: submit a fast transfer order to the deployed gateway contract specifying an amount in USDC and a recipient.
+This only supports transferring USDC from EVM -> Osmosis, as any pre/post transfer swaps are typically handled by the [Skip Go](https://docs.skip.build/go/general/getting-started) API.
+
+```shell
+make build-cli
+./build/solvercli submit-transfer \
+  --config <configFilePath> \ # e.g ./config/local/config.yml
+  --token  <usdc address for source chain> \ # e.g. 0xaf88d065e77c8cC2239327C5EDb3A432268e5831
+  --recipient <recipient address on destination chain>  \ # e.g. osmo13c9seh3vgvtfvdufz4eh2zhp0cepq4wj0egc02
+  --amount <usdc amount in token decimals> \ # e.g. 1000000
+  --source-chain-id <source chain id>  \ # e.g. 42161
+  --destination-chain-id <destination chain id>  \ # e.g. osmosis-1
+  --gateway <source chain fast transfer contract gateway> \ # e.g. 0x23cb6147e5600c23d1fb5543916d3d5457c9b54c
+  --private-key <source wallet EVM private key string> \ # e.g. 0xf6079d30f832f998c86e5841385a4be06b6ca2b0875b90dcab8e167eba4dcab1 (this is not stored anywhere, and is used to sign the transfer transactions)
+  --deadline-hours <transfer timeout in hours> # e.g. 24
+```
+
+relay: manually relay a hyperlane transaction
+
 ```shell
 make build-cli # build cli tool
 # manually relay a transaction
-./solvercli relay --config <configFilePath> --keys <keysFilePath> --keys <keysFilePath> --key-store-type <plaintext-file|encrypted-file|env> --aes-key-hex <hexEncodedAesKey> --origin-chain-id <originChainId> --originTxHash <originTxHash> --checkpoint-storage-location-override <hplStorageFileOverride>
+./build/solvercli relay \
+--config <configFilePath> \ # e.g ./config/local/config.yml
+--keys <keysFilePath> \ # e.g ./config/local/keys.json
+--key-store-type <plaintext-file|encrypted-file|env> \
+--aes-key-hex <hexEncodedAesKey> \
+--origin-chain-id <originChainId> \ # e.g. 42161
+--originTxHash <tx hash to relay> \ # e.g. 0x8a345e4fb67309b230997ed222b35fd82ee31807fcd24f9ca80a4839119bb9ba
+--checkpoint-storage-location-override <hplStorageFileOverride> \
 ```
 
 ### Main Project Modules
@@ -82,3 +126,13 @@ make build-cli # build cli tool
 ### Hyperlane Docs
 
 - [Hyperlane Docs Link](https://docs.hyperlane.xyz/)
+
+### Key Management
+
+Besides storing keys in a plaintext config file, users can also:
+
+- Run the solver with the flag `--key-store-type env` and store a json string of the keys map in the environment variable `SOLVER_KEYS`.
+  The keys map json string should be formed like [this](config/local/keys.json).
+- Store keys in an encrypted file and run the solver with the flags `--key-store-type encrypted-file --keys <path to encrypted keys file>`.
+  Must set the hex encoded aes encryption key in the environment variable `AES_KEY_HEX`.
+  An example of how the encrypted file should be formed can be found [here](examples/encrypted_key_store/main.go).

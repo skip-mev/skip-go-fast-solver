@@ -36,3 +36,6 @@ UPDATE orders
 SET updated_at=CURRENT_TIMESTAMP, refund_tx = ?, order_status = ?
 WHERE source_chain_id = ? AND order_id = ? AND source_chain_gateway_contract_address = ?
     RETURNING *;
+
+-- name: GetOrderByOrderID :one
+SELECT * FROM orders WHERE order_id = ?;

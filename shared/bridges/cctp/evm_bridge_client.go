@@ -8,15 +8,15 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/skip-mev/go-fast-solver/db/gen/db"
-	settlement "github.com/skip-mev/go-fast-solver/ordersettler/types"
-
 	"github.com/avast/retry-go/v4"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/skip-mev/go-fast-solver/db/gen/db"
+	settlement "github.com/skip-mev/go-fast-solver/ordersettler/types"
 	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/contracts/usdc"
 	"github.com/skip-mev/go-fast-solver/shared/signing"
@@ -40,8 +40,6 @@ type EVMBridgeClient struct {
 
 	fromAddress common.Address
 	signer      bind.SignerFn
-
-	minGasTipCap *big.Int
 }
 
 var _ BridgeClient = (*EVMBridgeClient)(nil)
@@ -50,18 +48,16 @@ func NewEVMBridgeClient(
 	client EVMClient,
 	chainID string,
 	signer signing.Signer,
-	minGasTipCap *big.Int,
 ) (*EVMBridgeClient, error) {
 	if signer == nil {
 		signer = signing.NewNopSigner()
 	}
 
 	return &EVMBridgeClient{
-		client:       client,
-		chainID:      chainID,
-		fromAddress:  common.BytesToAddress(signer.Address()),
-		signer:       signingevm.EthereumSignerToBindSignerFn(signer, chainID),
-		minGasTipCap: minGasTipCap,
+		client:      client,
+		chainID:     chainID,
+		fromAddress: common.BytesToAddress(signer.Address()),
+		signer:      signingevm.EthereumSignerToBindSignerFn(signer, chainID),
 	}, nil
 }
 
@@ -96,6 +92,10 @@ func (c *EVMBridgeClient) InitiateTimeout(ctx context.Context, order db.Order, g
 func (c *EVMBridgeClient) GetTxResult(ctx context.Context, txHash string) (*big.Int, *TxFailure, error) {
 	receipt, err := c.client.TransactionReceipt(ctx, common.HexToHash(txHash))
 	if err != nil {
+		if errors.Is(err, ethereum.NotFound) {
+			return nil, nil, ErrTxResultNotFound{TxHash: txHash}
+		}
+
 		return nil, nil, err
 	}
 	if receipt == nil {
@@ -131,7 +131,7 @@ func (c *EVMBridgeClient) IsSettlementComplete(ctx context.Context, gatewayContr
 	if err != nil {
 		return false, err
 	}
-	return orderStatus == 1, nil // TODO: is this right?
+	return orderStatus == 1, nil
 }
 
 type SettlementDetails struct {
@@ -141,24 +141,24 @@ type SettlementDetails struct {
 	Amount            *big.Int
 }
 
-func (c *EVMBridgeClient) OrderExists(ctx context.Context, gatewayContractAddress, orderID string, blockNumber *big.Int) (bool, error) {
+func (c *EVMBridgeClient) OrderExists(ctx context.Context, gatewayContractAddress, orderID string, blockNumber *big.Int) (bool, *big.Int, error) {
 	fastTransferGateway, err := fast_transfer_gateway.NewFastTransferGateway(
 		common.HexToAddress(gatewayContractAddress),
 		c.client,
 	)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	orderIDBytes, err := hex.DecodeString(orderID)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	settlementDetails, err := fastTransferGateway.SettlementDetails(&bind.CallOpts{Context: ctx, BlockNumber: blockNumber}, [32]byte(orderIDBytes))
 	if err != nil {
-		return false, fmt.Errorf("querying fast transfer gateway for orders settlement details: %w", err)
+		return false, nil, fmt.Errorf("querying fast transfer gateway for orders settlement details: %w", err)
 	}
 
-	return settlementDetails.Nonce != nil && settlementDetails.DestinationDomain != 0 && settlementDetails.Amount != nil, nil
+	return settlementDetails.Nonce != nil && settlementDetails.DestinationDomain != 0 && settlementDetails.Amount != nil, settlementDetails.Amount, nil
 }
 
 func (c *EVMBridgeClient) IsOrderRefunded(ctx context.Context, gatewayContractAddress, orderID string) (bool, string, error) {
@@ -210,8 +210,8 @@ func (c *EVMBridgeClient) IsOrderRefunded(ctx context.Context, gatewayContractAd
 	return false, "", nil
 }
 
-func (c *EVMBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayContractAddress, orderID string) (*string, *string, time.Time, error) {
-	return nil, nil, time.Time{}, errors.New("not implemented")
+func (c *EVMBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayContractAddress, orderID string) (*OrderFillEvent, time.Time, error) {
+	return nil, time.Time{}, errors.New("not implemented")
 }
 
 func (c *EVMBridgeClient) ShouldRetryTx(ctx context.Context, txHash string, submitTime pgtype.Timestamp, txExpirationHeight *uint64) (bool, error) {
@@ -243,4 +243,63 @@ func (c *EVMBridgeClient) OrderFillsByFiller(ctx context.Context, gatewayContrac
 
 func (c *EVMBridgeClient) Balance(ctx context.Context, address, denom string) (*big.Int, error) {
 	return nil, errors.New("not implemented")
+}
+
+func (c *EVMBridgeClient) OrderStatus(ctx context.Context, gatewayContractAddress string, orderID string) (uint8, error) {
+	fastTransferGateway, err := fast_transfer_gateway.NewFastTransferGateway(
+		common.HexToAddress(gatewayContractAddress),
+		c.client,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	orderIDBytes, err := hex.DecodeString(orderID)
+	if err != nil {
+		return 0, err
+	}
+
+	status, err := fastTransferGateway.OrderStatuses(&bind.CallOpts{Context: ctx}, [32]byte(orderIDBytes))
+	if err != nil {
+		return 0, fmt.Errorf("querying orderID %s status: %w", orderID, err)
+	}
+
+	return status, nil
+}
+
+func (c *EVMBridgeClient) QueryOrderSubmittedEvent(ctx context.Context, gatewayContractAddress, orderID string) (*fast_transfer_gateway.FastTransferOrder, error) {
+	fastTransferGateway, err := fast_transfer_gateway.NewFastTransferGateway(
+		common.HexToAddress(gatewayContractAddress),
+		c.client,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	orderIDBytes, err := hex.DecodeString(orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create topic for OrderRefunded event to filter logs for OrderRefunded events with this orderID
+	orderSubmittedTopic := [][32]byte{[32]byte(orderIDBytes)}
+	filterOpts := &bind.FilterOpts{
+		Context: ctx,
+	}
+
+	iterator, err := fastTransferGateway.FilterOrderSubmitted(filterOpts, orderSubmittedTopic)
+	if err != nil {
+		return nil, fmt.Errorf("filtering OrderSubmitted events: %w", err)
+	}
+
+	// Find the most recent OrderRefunded event for this orderID
+	var order *fast_transfer_gateway.FastTransferOrder
+	for iterator.Next() {
+		if iterator.Event != nil {
+			decodedOrder := fast_transfer_gateway.DecodeOrder(iterator.Event.Order)
+			order = &decodedOrder
+		}
+	}
+
+	return order, nil
 }

@@ -35,6 +35,11 @@
     "name": "fillOrder",
     "inputs": [
       {
+        "name": "filler",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "order",
         "type": "tuple",
         "internalType": "struct FastTransferOrder",
@@ -61,8 +66,8 @@
           },
           {
             "name": "nonce",
-            "type": "uint256",
-            "internalType": "uint256"
+            "type": "uint32",
+            "internalType": "uint32"
           },
           {
             "name": "sourceDomain",
@@ -76,8 +81,8 @@
           },
           {
             "name": "timeoutTimestamp",
-            "type": "uint256",
-            "internalType": "uint256"
+            "type": "uint64",
+            "internalType": "uint64"
           },
           {
             "name": "data",
@@ -89,6 +94,19 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "goFastCaller",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract GoFastCaller"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -138,7 +156,17 @@
         "internalType": "address"
       },
       {
+        "name": "_interchainSecurityModule",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "_permit2",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_goFastCaller",
         "type": "address",
         "internalType": "address"
       }
@@ -195,8 +223,8 @@
           },
           {
             "name": "nonce",
-            "type": "uint256",
-            "internalType": "uint256"
+            "type": "uint32",
+            "internalType": "uint32"
           },
           {
             "name": "sourceDomain",
@@ -210,8 +238,8 @@
           },
           {
             "name": "timeoutTimestamp",
-            "type": "uint256",
-            "internalType": "uint256"
+            "type": "uint64",
+            "internalType": "uint64"
           },
           {
             "name": "data",
@@ -223,6 +251,19 @@
     ],
     "outputs": [],
     "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "interchainSecurityModule",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -402,8 +443,8 @@
           },
           {
             "name": "nonce",
-            "type": "uint256",
-            "internalType": "uint256"
+            "type": "uint32",
+            "internalType": "uint32"
           },
           {
             "name": "sourceDomain",
@@ -417,8 +458,8 @@
           },
           {
             "name": "timeoutTimestamp",
-            "type": "uint256",
-            "internalType": "uint256"
+            "type": "uint64",
+            "internalType": "uint64"
           },
           {
             "name": "data",
@@ -460,6 +501,32 @@
     "type": "function",
     "name": "renounceOwnership",
     "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setInterchainSecurityModule",
+    "inputs": [
+      {
+        "name": "_interchainSecurityModule",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setMailbox",
+    "inputs": [
+      {
+        "name": "_mailbox",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -546,8 +613,8 @@
       },
       {
         "name": "timeoutTimestamp",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "uint64",
+        "internalType": "uint64"
       },
       {
         "name": "data",
@@ -595,8 +662,8 @@
       },
       {
         "name": "timeoutTimestamp",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "uint64",
+        "internalType": "uint64"
       },
       {
         "name": "permitDeadline",

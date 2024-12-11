@@ -3,10 +3,8 @@ package transfermonitor
 import (
 	"context"
 	"database/sql"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"math/big"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +19,7 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/metrics"
 	"github.com/skip-mev/go-fast-solver/shared/tmrpc"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -38,18 +37,25 @@ type MonitorDBQueries interface {
 }
 
 type TransferMonitor struct {
-	db           MonitorDBQueries
-	clients      map[string]*ethclient.Client
-	tmRPCManager tmrpc.TendermintRPCClientManager
-	quickStart   bool
+	db            MonitorDBQueries
+	clients       map[string]*ethclient.Client
+	tmRPCManager  tmrpc.TendermintRPCClientManager
+	quickStart    bool
+	didQuickStart map[string]bool // Track which chains have been quick-started
+	ticker        *time.Ticker
 }
 
-func NewTransferMonitor(db MonitorDBQueries, quickStart bool) *TransferMonitor {
+func NewTransferMonitor(db MonitorDBQueries, quickStart bool, pollInterval *time.Duration) *TransferMonitor {
+	if pollInterval == nil {
+		pollInterval = &[]time.Duration{5 * time.Second}[0]
+	}
 	return &TransferMonitor{
-		db:           db,
-		clients:      make(map[string]*ethclient.Client),
-		tmRPCManager: tmrpc.NewTendermintRPCClientManager(),
-		quickStart:   quickStart,
+		db:            db,
+		clients:       make(map[string]*ethclient.Client),
+		tmRPCManager:  tmrpc.NewTendermintRPCClientManager(),
+		quickStart:    quickStart,
+		didQuickStart: make(map[string]bool),
+		ticker:        time.NewTicker(*pollInterval),
 	}
 }
 
@@ -70,7 +76,7 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		default:
+		case <-t.ticker.C:
 			for _, chain := range chains {
 				chainID, err := getChainID(chain)
 				if err != nil {
@@ -80,12 +86,14 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 				var startBlockHeight uint64
 				transferMonitorMetadata, err := t.db.GetTransferMonitorMetadata(ctx, chainID)
 				if err != nil && !strings.Contains(err.Error(), "no rows in result set") {
+
 					lmt.Logger(ctx).Error("Error getting transfer monitor metadata", zap.Error(err))
 					continue
 				} else if err == nil {
 					startBlockHeight = uint64(transferMonitorMetadata.HeightLastSeen)
 				}
-				if t.quickStart {
+
+				if t.quickStart && !t.didQuickStart[chainID] {
 					latestBlock, err := t.getLatestBlockHeight(ctx, chain)
 					if err != nil {
 						lmt.Logger(ctx).Error("Error getting latest block height", zap.Error(err))
@@ -95,7 +103,11 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 					if quickStartBlockHeight > startBlockHeight {
 						startBlockHeight = quickStartBlockHeight
 					}
+
+					// Mark this chain as having been quickstarted
+					t.didQuickStart[chainID] = true
 				}
+
 				lmt.Logger(ctx).Debug("Processing new blocks", zap.String("chain_id", chainID), zap.Uint64("height", startBlockHeight))
 				var orders []Order
 				var endBlockHeight uint64
@@ -125,7 +137,7 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 							Recipient:                         order.OrderEvent.Recipient[:],
 							AmountIn:                          order.OrderEvent.AmountIn.String(),
 							AmountOut:                         order.OrderEvent.AmountOut.String(),
-							Nonce:                             order.OrderEvent.Nonce.Int64(),
+							Nonce:                             int64(order.OrderEvent.Nonce),
 							OrderCreationTx:                   order.TxHash,
 							OrderCreationTxBlockHeight:        int64(order.TxBlockHeight),
 							OrderID:                           order.OrderID,
@@ -138,10 +150,12 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 
 						_, err := t.db.InsertOrder(ctx, toInsert)
 						if err != nil && !strings.Contains(err.Error(), "sql: no rows in result set") {
+
 							lmt.Logger(ctx).Error("Error inserting order", zap.Error(err))
 							errorInsertingOrder = true
 							break
 						}
+						metrics.FromContext(ctx).IncFillOrderStatusChange(order.ChainID, order.DestinationChainID, dbtypes.OrderStatusPending)
 					}
 				}
 				lmt.Logger(ctx).Debug("num orders found while processing blocks", zap.Int("numOrders", len(orders)))
@@ -154,11 +168,11 @@ func (t *TransferMonitor) Start(ctx context.Context) error {
 					HeightLastSeen: int64(endBlockHeight),
 				})
 				if err != nil {
+
 					lmt.Logger(ctx).Error("Error inserting transfer monitor metadata", zap.Error(err))
 					continue
 				}
 			}
-			time.Sleep(15 * time.Second)
 		}
 	}
 }
@@ -192,6 +206,20 @@ func (t *TransferMonitor) findNewTransferIntentsOnEVMChain(ctx context.Context, 
 	if err != nil {
 		lmt.Logger(ctx).Error("Error finding burn transactions", zap.Error(err))
 		return nil, 0, err
+	}
+
+	if orders != nil {
+		orderCounts := make(map[string]int)
+		for _, order := range orders {
+			key := fmt.Sprintf("%s->%s", order.ChainID, order.DestinationChainID)
+			orderCounts[key]++
+		}
+
+		for chainPair, numOfOrders := range orderCounts {
+			lmt.Logger(ctx).Info("Fast transfer orders found",
+				zap.String("source->destination", chainPair),
+				zap.Int("numOfOrders", numOfOrders))
+		}
 	}
 	return orders, endBlockHeight, nil
 }
@@ -284,7 +312,7 @@ OuterLoop:
 
 				for iter.Next() {
 					m.Lock()
-					orderData := decodeOrder(iter.Event.Order)
+					orderData := fast_transfer_gateway.DecodeOrder(iter.Event.Order)
 					orders = append(orders, Order{
 						TxHash:             iter.Event.Raw.TxHash.Hex(),
 						TxBlockHeight:      iter.Event.Raw.BlockNumber,
@@ -293,7 +321,7 @@ OuterLoop:
 						OrderEvent:         orderData,
 						ChainEnvironment:   chainEnvironment,
 						OrderID:            hex.EncodeToString(iter.Event.OrderID[:]),
-						TimeoutTimestamp:   orderData.TimeoutTimestamp.Int64(),
+						TimeoutTimestamp:   int64(orderData.TimeoutTimestamp),
 					})
 					m.Unlock()
 				}
@@ -315,27 +343,11 @@ OuterLoop:
 	return orders, nil
 }
 
-func decodeOrder(bytes []byte) fast_transfer_gateway.FastTransferOrder {
-	var order fast_transfer_gateway.FastTransferOrder
-	order.Sender = [32]byte(bytes[0:32])
-	order.Recipient = [32]byte(bytes[32:64])
-	order.AmountIn = new(big.Int).SetBytes(bytes[64:96])
-	order.AmountOut = new(big.Int).SetBytes(bytes[96:128])
-	order.Nonce = new(big.Int).SetBytes(bytes[128:160])
-	order.SourceDomain = binary.LittleEndian.Uint32(bytes[160:164])
-	order.DestinationDomain = binary.LittleEndian.Uint32(bytes[164:168])
-	order.TimeoutTimestamp = new(big.Int).SetBytes(bytes[168:200])
-	order.Data = bytes[200:]
-	return order
-}
-
 func getChainID(chain config.ChainConfig) (string, error) {
 	switch chain.Type {
 	case config.ChainType_COSMOS:
 		return chain.ChainID, nil
 	case config.ChainType_EVM:
-		return chain.ChainID, nil
-	case config.ChainType_SVM:
 		return chain.ChainID, nil
 	default:
 		return "", fmt.Errorf("unknown chain type")

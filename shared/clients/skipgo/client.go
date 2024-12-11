@@ -51,6 +51,12 @@ type SkipGoClient interface {
 		chainID string,
 	) (TxHash, error)
 
+	TrackTx(
+		ctx context.Context,
+		txHash string,
+		chainID string,
+	) (TxHash, error)
+
 	Status(
 		ctx context.Context,
 		tx TxHash,
@@ -81,7 +87,7 @@ func (s *skipGoClient) Balance(
 	address string,
 	denom string,
 ) (string, error) {
-	const endpoint = "/v2/info/balance"
+	const endpoint = "/v2/info/balances"
 	u, err := url.JoinPath(s.baseURL.String(), endpoint)
 	if err != nil {
 		return "", fmt.Errorf("joining base url to endpoint %s: %w", endpoint, err)
@@ -244,11 +250,18 @@ func (s *skipGoClient) Route(
 }
 
 type EVMTx struct {
-	ChainID       string `json:"chain_id"`
-	To            string `json:"to"`
-	Value         string `json:"value"`
-	Data          string `json:"data"`
-	SignerAddress string `json:"signer_address"`
+	ChainID                string          `json:"chain_id"`
+	To                     string          `json:"to"`
+	Value                  string          `json:"value"`
+	Data                   string          `json:"data"`
+	SignerAddress          string          `json:"signer_address"`
+	RequiredERC20Approvals []ERC20Approval `json:"required_erc20_approvals"`
+}
+
+type ERC20Approval struct {
+	TokenContract string `json:"token_contract"`
+	Spender       string `json:"spender"`
+	Amount        string `json:"amount"`
 }
 
 type CosmosMessage struct {
@@ -263,15 +276,9 @@ type CosmosTx struct {
 	Msgs          []CosmosMessage `json:"msgs"`
 }
 
-type SVMTx struct {
-	ChainID       string `json:"chain_id"`
-	SignerAddress string `json:"signer_address"`
-	Tx            string `json:"tx"`
-}
 type Tx struct {
 	EVMTx             *EVMTx    `json:"evm_tx"`
 	CosmosTx          *CosmosTx `json:"cosmos_tx"`
-	SVMTx             *SVMTx    `json:"svm_tx"`
 	OperationsIndices []int     `json:"operations_indices"`
 }
 
@@ -364,8 +371,9 @@ func (s *skipGoClient) SubmitTx(
 		ChainID string `json:"chain_id"`
 	}
 
+	encodedTx := base64.StdEncoding.EncodeToString(tx)
 	body := SubmitRequest{
-		Tx:      base64.StdEncoding.EncodeToString(tx),
+		Tx:      encodedTx,
 		ChainID: chainID,
 	}
 	bodyBytes, err := json.Marshal(body)
@@ -385,13 +393,64 @@ func (s *skipGoClient) SubmitTx(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("status code %d returned from Skip Go when submitting transaction %s: %w", resp.StatusCode, string(tx), handleError(resp.Body))
+		return "", fmt.Errorf("status code %d returned from Skip Go when submitting transaction %s: %w", resp.StatusCode, encodedTx, handleError(resp.Body))
 	}
 
 	type SubmitResponse struct {
 		TxHash string `json:"tx_hash"`
 	}
 	var res SubmitResponse
+	if err = json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return "", fmt.Errorf("decoding response body: %w", err)
+	}
+
+	return TxHash(res.TxHash), nil
+}
+
+func (s *skipGoClient) TrackTx(
+	ctx context.Context,
+	txHash string,
+	chainID string,
+) (TxHash, error) {
+	const endpoint = "/v2/tx/track"
+	u, err := url.JoinPath(s.baseURL.String(), endpoint)
+	if err != nil {
+		return "", fmt.Errorf("joining base url to endpoint %s: %w", endpoint, err)
+	}
+
+	type TrackRequest struct {
+		TxHash  string `json:"tx_hash"`
+		ChainID string `json:"chain_id"`
+	}
+
+	body := TrackRequest{
+		TxHash:  txHash,
+		ChainID: chainID,
+	}
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return "", fmt.Errorf("marshaling request body to bytes: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return "", fmt.Errorf("creating http request: %w", err)
+	}
+
+	resp, err := s.http.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("making http request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("status code %d returned from Skip Go when submitting transaction to /track %s: %w", resp.StatusCode, txHash, handleError(resp.Body))
+	}
+
+	type TrackResponse struct {
+		TxHash string `json:"tx_hash"`
+	}
+	var res TrackResponse
 	if err = json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return "", fmt.Errorf("decoding response body: %w", err)
 	}

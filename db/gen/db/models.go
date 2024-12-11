@@ -19,6 +19,7 @@ type HyperlaneTransfer struct {
 	MessageSentTx         string
 	TransferStatus        string
 	TransferStatusMessage sql.NullString
+	MaxTxFeeUusdc         sql.NullString
 }
 
 type Order struct {
@@ -53,6 +54,7 @@ type OrderSettlement struct {
 	DestinationChainID                string
 	SourceChainGatewayContractAddress string
 	Amount                            string
+	Profit                            string
 	OrderID                           string
 	InitiateSettlementTx              sql.NullString
 	CompleteSettlementTx              sql.NullString
@@ -84,6 +86,8 @@ type SubmittedTx struct {
 	TxType              string
 	TxStatus            string
 	TxStatusMessage     sql.NullString
+	TxCostUusdc         sql.NullString
+	RebalanceTransferID sql.NullInt64
 }
 
 type TransferMonitorMetadatum struct {

@@ -2,7 +2,12 @@ package cosmos
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/hex"
 	"fmt"
+	"math/big"
+
+	"google.golang.org/grpc/credentials"
 
 	"strconv"
 
@@ -27,7 +32,7 @@ type HyperlaneClient struct {
 func NewHyperlaneClient(ctx context.Context, hyperlaneDomain string) (*HyperlaneClient, error) {
 	chainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(hyperlaneDomain)
 	if err != nil {
-		return nil, fmt.Errorf("gettting chainID from hyperlane domain %s: %w", hyperlaneDomain, err)
+		return nil, fmt.Errorf("getting chainID from hyperlane domain %s: %w", hyperlaneDomain, err)
 	}
 
 	chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
@@ -35,7 +40,14 @@ func NewHyperlaneClient(ctx context.Context, hyperlaneDomain string) (*Hyperlane
 		return nil, fmt.Errorf("getting config for chain %s: %w", chainID, err)
 	}
 
-	conn, err := grpc.DialContext(ctx, chainConfig.Cosmos.GRPC, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	creds := insecure.NewCredentials()
+	if chainConfig.Cosmos.GRPCTLSEnabled {
+		creds = credentials.NewTLS(&tls.Config{
+			InsecureSkipVerify: true,
+		})
+	}
+
+	conn, err := grpc.DialContext(ctx, chainConfig.Cosmos.GRPC, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, fmt.Errorf("dialing grpc address %s: %w", chainConfig.Cosmos.GRPC, err)
 	}
@@ -153,7 +165,11 @@ func (c *HyperlaneClient) GetHyperlaneDispatch(ctx context.Context, domain, orig
 	if err != nil {
 		return nil, nil, fmt.Errorf("getting tendermint rpc client for chain %s: %w", originChainID, err)
 	}
-	tx, err := tmRpcClient.GetTx(ctx, initiateTxHash)
+	txHashBytes, err := hex.DecodeString(initiateTxHash)
+	if err != nil {
+		return nil, nil, fmt.Errorf("decoding tx hash %s: %w", initiateTxHash, err)
+	}
+	tx, err := tmRpcClient.Tx(ctx, txHashBytes, false)
 	if err != nil {
 		return nil, nil, fmt.Errorf("fetching tx results, hash: %s: %w", initiateTxHash, err)
 	}
@@ -193,7 +209,7 @@ func (c *HyperlaneClient) ValidatorStorageLocations(
 	ctx context.Context,
 	domain string,
 	validators []common.Address,
-) (*types.ValidatorStorageLocations, error) {
+) ([]*types.ValidatorStorageLocation, error) {
 	if domain != c.hyperlaneDomain {
 		return nil, fmt.Errorf("expected domain %s but got %s", c.hyperlaneDomain, domain)
 	}
@@ -220,6 +236,10 @@ func (c *HyperlaneClient) MerkleTreeLeafCount(ctx context.Context, domain string
 }
 
 func (c *HyperlaneClient) Process(ctx context.Context, domain string, message []byte, metadata []byte) ([]byte, error) {
+	panic("not implemented")
+}
+
+func (c *HyperlaneClient) QuoteProcessUUSDC(ctx context.Context, domain string, message []byte, metadata []byte) (*big.Int, error) {
 	panic("not implemented")
 }
 

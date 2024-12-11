@@ -11,7 +11,7 @@ import (
 )
 
 const getAllHyperlaneTransfersWithTransferStatus = `-- name: GetAllHyperlaneTransfersWithTransferStatus :many
-SELECT id, created_at, updated_at, source_chain_id, destination_chain_id, message_id, message_sent_tx, transfer_status, transfer_status_message FROM hyperlane_transfers WHERE transfer_status = ?
+SELECT id, created_at, updated_at, source_chain_id, destination_chain_id, message_id, message_sent_tx, transfer_status, transfer_status_message, max_tx_fee_uusdc FROM hyperlane_transfers WHERE transfer_status = ?
 `
 
 func (q *Queries) GetAllHyperlaneTransfersWithTransferStatus(ctx context.Context, transferStatus string) ([]HyperlaneTransfer, error) {
@@ -33,6 +33,7 @@ func (q *Queries) GetAllHyperlaneTransfersWithTransferStatus(ctx context.Context
 			&i.MessageSentTx,
 			&i.TransferStatus,
 			&i.TransferStatusMessage,
+			&i.MaxTxFeeUusdc,
 		); err != nil {
 			return nil, err
 		}
@@ -47,14 +48,42 @@ func (q *Queries) GetAllHyperlaneTransfersWithTransferStatus(ctx context.Context
 	return items, nil
 }
 
+const getHyperlaneTransferByMessageSentTx = `-- name: GetHyperlaneTransferByMessageSentTx :one
+SELECT id, created_at, updated_at, source_chain_id, destination_chain_id, message_id, message_sent_tx, transfer_status, transfer_status_message, max_tx_fee_uusdc FROM hyperlane_transfers WHERE message_sent_tx = ? AND source_chain_id = ?
+`
+
+type GetHyperlaneTransferByMessageSentTxParams struct {
+	MessageSentTx string
+	SourceChainID string
+}
+
+func (q *Queries) GetHyperlaneTransferByMessageSentTx(ctx context.Context, arg GetHyperlaneTransferByMessageSentTxParams) (HyperlaneTransfer, error) {
+	row := q.db.QueryRowContext(ctx, getHyperlaneTransferByMessageSentTx, arg.MessageSentTx, arg.SourceChainID)
+	var i HyperlaneTransfer
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SourceChainID,
+		&i.DestinationChainID,
+		&i.MessageID,
+		&i.MessageSentTx,
+		&i.TransferStatus,
+		&i.TransferStatusMessage,
+		&i.MaxTxFeeUusdc,
+	)
+	return i, err
+}
+
 const insertHyperlaneTransfer = `-- name: InsertHyperlaneTransfer :one
 INSERT INTO hyperlane_transfers (
     source_chain_id,
     destination_chain_id,
     message_id,
     message_sent_tx,
-    transfer_status
-) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING id, created_at, updated_at, source_chain_id, destination_chain_id, message_id, message_sent_tx, transfer_status, transfer_status_message
+    transfer_status,
+    max_tx_fee_uusdc
+) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING id, created_at, updated_at, source_chain_id, destination_chain_id, message_id, message_sent_tx, transfer_status, transfer_status_message, max_tx_fee_uusdc
 `
 
 type InsertHyperlaneTransferParams struct {
@@ -63,6 +92,7 @@ type InsertHyperlaneTransferParams struct {
 	MessageID          string
 	MessageSentTx      string
 	TransferStatus     string
+	MaxTxFeeUusdc      sql.NullString
 }
 
 func (q *Queries) InsertHyperlaneTransfer(ctx context.Context, arg InsertHyperlaneTransferParams) (HyperlaneTransfer, error) {
@@ -72,6 +102,7 @@ func (q *Queries) InsertHyperlaneTransfer(ctx context.Context, arg InsertHyperla
 		arg.MessageID,
 		arg.MessageSentTx,
 		arg.TransferStatus,
+		arg.MaxTxFeeUusdc,
 	)
 	var i HyperlaneTransfer
 	err := row.Scan(
@@ -84,6 +115,7 @@ func (q *Queries) InsertHyperlaneTransfer(ctx context.Context, arg InsertHyperla
 		&i.MessageSentTx,
 		&i.TransferStatus,
 		&i.TransferStatusMessage,
+		&i.MaxTxFeeUusdc,
 	)
 	return i, err
 }
@@ -92,7 +124,7 @@ const setMessageStatus = `-- name: SetMessageStatus :one
 UPDATE hyperlane_transfers
 SET updated_at=CURRENT_TIMESTAMP, transfer_status = ?, transfer_status_message = ?
 WHERE source_chain_id = ? AND destination_chain_id = ? AND message_id = ?
-    RETURNING id, created_at, updated_at, source_chain_id, destination_chain_id, message_id, message_sent_tx, transfer_status, transfer_status_message
+    RETURNING id, created_at, updated_at, source_chain_id, destination_chain_id, message_id, message_sent_tx, transfer_status, transfer_status_message, max_tx_fee_uusdc
 `
 
 type SetMessageStatusParams struct {
@@ -122,6 +154,7 @@ func (q *Queries) SetMessageStatus(ctx context.Context, arg SetMessageStatusPara
 		&i.MessageSentTx,
 		&i.TransferStatus,
 		&i.TransferStatusMessage,
+		&i.MaxTxFeeUusdc,
 	)
 	return i, err
 }

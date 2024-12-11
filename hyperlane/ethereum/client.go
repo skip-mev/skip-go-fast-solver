@@ -4,8 +4,14 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math/big"
+	"strings"
 	"sync"
 
+	"github.com/skip-mev/go-fast-solver/shared/signing/evm"
+	evmtxexecutor "github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
+
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	interchain_security_module "github.com/skip-mev/go-fast-solver/shared/contracts/hyperlane/InterchainSecurityModule"
 	mailbox "github.com/skip-mev/go-fast-solver/shared/contracts/hyperlane/Mailbox"
 	multisig_ism "github.com/skip-mev/go-fast-solver/shared/contracts/hyperlane/MultisigIsm"
@@ -18,8 +24,11 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/evmrpc"
 	"github.com/skip-mev/go-fast-solver/shared/keys"
 	"github.com/skip-mev/go-fast-solver/shared/signing"
-	"github.com/skip-mev/go-fast-solver/shared/signing/evm"
 )
+
+type TxPriceOracle interface {
+	TxFeeUUSDC(ctx context.Context, tx *ethtypes.Transaction) (*big.Int, error)
+}
 
 type HyperlaneClient struct {
 	client          evmrpc.EVMChainRPC
@@ -30,12 +39,22 @@ type HyperlaneClient struct {
 
 	ismAddress     *common.Address
 	ismAddressLock sync.RWMutex
+
+	txPriceOracle TxPriceOracle
+	txExecutor    evmtxexecutor.EVMTxExecutor
 }
 
-func NewHyperlaneClient(ctx context.Context, hyperlaneDomain string, manager evmrpc.EVMRPCClientManager, keystore keys.KeyStore) (*HyperlaneClient, error) {
+func NewHyperlaneClient(
+	ctx context.Context,
+	hyperlaneDomain string,
+	manager evmrpc.EVMRPCClientManager,
+	keystore keys.KeyStore,
+	priceOracle TxPriceOracle,
+	txSubmitter evmtxexecutor.EVMTxExecutor,
+) (*HyperlaneClient, error) {
 	chainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(hyperlaneDomain)
 	if err != nil {
-		return nil, fmt.Errorf("gettting chainID from hyperlane domain %s: %w", hyperlaneDomain, err)
+		return nil, fmt.Errorf("getting chainID from hyperlane domain %s: %w", hyperlaneDomain, err)
 	}
 
 	chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
@@ -54,6 +73,8 @@ func NewHyperlaneClient(ctx context.Context, hyperlaneDomain string, manager evm
 		hyperlaneDomain: hyperlaneDomain,
 		mailboxAddress:  common.HexToAddress(chainConfig.Relayer.MailboxAddress),
 		keystore:        keystore,
+		txPriceOracle:   priceOracle,
+		txExecutor:      txSubmitter,
 	}, nil
 }
 
@@ -190,16 +211,151 @@ func (c *HyperlaneClient) getISMAddress(ctx context.Context, recipient string) (
 }
 
 func (c *HyperlaneClient) Process(ctx context.Context, domain string, message []byte, metadata []byte) ([]byte, error) {
+	destinationMailbox, err := mailbox.NewMailbox(c.mailboxAddress, c.client.Client())
+	if err != nil {
+		return nil, fmt.Errorf("creating mailbox contract caller for address %s: %w", c.mailboxAddress.String(), err)
+	}
+
+	destinationChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(domain)
+	if err != nil {
+		return nil, fmt.Errorf("getting chainID for hyperlane domain %s: %w", domain, err)
+	}
+	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(destinationChainID)
+	if err != nil {
+		return nil, fmt.Errorf("getting destination chain %s config: %w", destinationChainID, err)
+	}
+
+	signer, err := c.signer(ctx, domain)
+	if err != nil {
+		return nil, fmt.Errorf("getting signer: %w", err)
+	}
+
+	addr, err := c.address(ctx, domain)
+	if err != nil {
+		return nil, fmt.Errorf("getting address: %w", err)
+	}
+
+	tx, err := destinationMailbox.Process(&bind.TransactOpts{
+		From:    addr,
+		Context: ctx,
+		Signer: evm.EthereumSignerToBindSignerFn(
+			signer,
+			destinationChainID,
+		),
+		NoSend: true, // generate the transaction without sending
+	}, metadata, message)
+	if err != nil {
+		return nil, fmt.Errorf("creating process transaction: %w", err)
+	}
+
+	txHash, err := c.txExecutor.ExecuteTx(
+		ctx,
+		destinationChainID,
+		destinationChainConfig.SolverAddress,
+		tx.Data(),
+		tx.Value().String(),
+		tx.To().String(),
+		signer,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("processing message on destination mailbox: %w", err)
+	}
+
+	txHashBytes, err := hex.DecodeString(strings.TrimPrefix(txHash, "0x"))
+	if err != nil {
+		return nil, fmt.Errorf("decoding process tx hash %s: %w", txHash, err)
+	}
+
+	return txHashBytes, nil
+}
+
+func (c *HyperlaneClient) QuoteProcessUUSDC(ctx context.Context, domain string, message []byte, metadata []byte) (*big.Int, error) {
+	abi, err := mailbox.MailboxMetaData.GetAbi()
+	if err != nil {
+		return nil, fmt.Errorf("getting mailbox abi: %w", err)
+	}
+
+	chainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(domain)
+	if err != nil {
+		return nil, fmt.Errorf("getting chainID for hyperlane domain %s: %w", domain, err)
+	}
+
+	addr, err := c.address(ctx, domain)
+	if err != nil {
+		return nil, fmt.Errorf("getting address: %w", err)
+	}
+
+	data, err := abi.Pack("process", metadata, message)
+	if err != nil {
+		return nil, fmt.Errorf("packing mailbox process call: %w", err)
+	}
+	to := c.mailboxAddress.String()
+	value := "0"
+
+	tx, err := evm.NewTxBuilder(c.client).Build(
+		ctx,
+		evm.WithData(data),
+		evm.WithValue(value),
+		evm.WithTo(to),
+		evm.WithChainID(chainID),
+		evm.WithNonceOfSigner(addr.String()),
+		evm.WithEstimatedGasLimit(addr.String(), to, value, data),
+		evm.WithEstimatedGasTipCap(nil),
+		evm.WithEstimatedGasFeeCap(nil, big.NewFloat(1.5)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("building process tx to simulate: %w", err)
+	}
+
+	txFeeUUSDC, err := c.txPriceOracle.TxFeeUUSDC(ctx, tx)
+	if err != nil {
+		return nil, fmt.Errorf("getting tx fee in uusdc from gas oracle: %w", err)
+	}
+
+	return txFeeUUSDC, nil
+}
+
+func (c *HyperlaneClient) MerkleTreeLeafCount(ctx context.Context, domain string) (uint64, error) {
+	panic("not implemented")
+}
+
+func (c *HyperlaneClient) ValidatorStorageLocations(
+	ctx context.Context,
+	domain string,
+	validators []common.Address,
+) ([]*types.ValidatorStorageLocation, error) {
+	panic("not implemented")
+}
+
+func (c *HyperlaneClient) IsContract(ctx context.Context, domain, address string) (bool, error) {
+	contractCode, err := c.client.CodeAt(ctx, common.HexToAddress(address), nil)
+	if err != nil {
+		return false, err
+	}
+
+	return len(contractCode) > 0, nil
+}
+
+func (c *HyperlaneClient) address(ctx context.Context, domain string) (common.Address, error) {
+	destinationChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(domain)
+	if err != nil {
+		return common.Address{}, fmt.Errorf("getting chainID for hyperlane domain %s: %w", domain, err)
+	}
+
+	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(destinationChainID)
+	if err != nil {
+		return common.Address{}, fmt.Errorf("getting chain config for chainID %s: %w", destinationChainID, err)
+	}
+
+	return common.HexToAddress(destinationChainConfig.SolverAddress), nil
+}
+
+func (c *HyperlaneClient) signer(ctx context.Context, domain string) (signing.Signer, error) {
 	destinationChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(domain)
 	if err != nil {
 		return nil, fmt.Errorf("getting chainID for hyperlane domain %s: %w", domain, err)
 	}
 
-	// TODO: move to client struct
-	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(destinationChainID)
-	if err != nil {
-		return nil, fmt.Errorf("getting config for chain %s: %w", destinationChainID, err)
-	}
 	privateKeyStr, ok := c.keystore.GetPrivateKey(destinationChainID)
 	if !ok {
 		return nil, fmt.Errorf("relayer private key not found for chainID %s", destinationChainID)
@@ -213,43 +369,5 @@ func (c *HyperlaneClient) Process(ctx context.Context, domain string, message []
 		return nil, fmt.Errorf("creating private key from string: %w", err)
 	}
 
-	destinationMailbox, err := mailbox.NewMailbox(c.mailboxAddress, c.client.Client())
-	if err != nil {
-		return nil, fmt.Errorf("creating mailbox contract caller for address %s: %w", c.mailboxAddress.String(), err)
-	}
-
-	processTx, err := destinationMailbox.Process(&bind.TransactOpts{
-		From:    common.HexToAddress(destinationChainConfig.SolverAddress),
-		Context: ctx,
-		Signer: evm.EthereumSignerToBindSignerFn(
-			signing.NewLocalEthereumSigner(privateKey),
-			destinationChainID,
-		),
-	}, metadata, message)
-	if err != nil {
-		return nil, fmt.Errorf("processing message on destination mailbox: %w", err)
-	}
-
-	return processTx.Hash().Bytes(), nil
-}
-
-func (c *HyperlaneClient) MerkleTreeLeafCount(ctx context.Context, domain string) (uint64, error) {
-	panic("not implemented")
-}
-
-func (c *HyperlaneClient) ValidatorStorageLocations(
-	ctx context.Context,
-	domain string,
-	validators []common.Address,
-) (*types.ValidatorStorageLocations, error) {
-	panic("not implemented")
-}
-
-func (c *HyperlaneClient) IsContract(ctx context.Context, domain, address string) (bool, error) {
-	contractCode, err := c.client.CodeAt(ctx, address, nil)
-	if err != nil {
-		return false, err
-	}
-
-	return len(contractCode) > 0, nil
+	return signing.NewLocalEthereumSigner(privateKey), nil
 }

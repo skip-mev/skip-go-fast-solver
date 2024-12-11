@@ -6,17 +6,18 @@ packages:
     interfaces:
       EVMRPCClientManager:
       EVMChainRPC:
-  github.com/skip-mev/go-fast-solver/shared/svmrpc:
+  github.com/skip-mev/go-fast-solver/shared/oracle:
     interfaces:
-      SVMRPCClientManager:
-      SolanaRPCClient:
+      TxPriceOracle:
   github.com/skip-mev/go-fast-solver/shared/http:
     interfaces:
       Client:
   github.com/skip-mev/go-fast-solver/shared/tmrpc:
     interfaces:
       TendermintRPCClientManager:
-      TendermintRPCQuerier:
+  github.com/skip-mev/go-fast-solver/shared/cosmosgrpc:
+    interfaces:
+      CosmosGRPCClientConnManager:
   github.com/skip-mev/go-fast-solver/shared/signing:
     interfaces:
       Signer:
@@ -39,8 +40,27 @@ packages:
   github.com/skip-mev/go-fast-solver/fundrebalancer:
     interfaces:
       Database:
+  github.com/skip-mev/go-fast-solver/shared/txexecutor/evm:
+    interfaces:
+      EVMTxExecutor:
 
   # External Packages
   github.com/ethereum/go-ethereum/accounts/abi/bind:
     interfaces:
       ContractBackend:
+  github.com/cosmos/gogoproto/grpc:
+    interfaces:
+      ClientConn:
+  github.com/cometbft/cometbft/rpc/client:
+    interfaces:
+      Client:
+  github.com/cosmos/cosmos-sdk/client:
+    interfaces:
+      TxConfig:
+      TxBuilder:
+  github.com/cosmos/cosmos-sdk/x/auth/signing:
+    interfaces:
+      Tx:
+  github.com/cosmos/cosmos-sdk/types:
+    interfaces:
+      Tx:

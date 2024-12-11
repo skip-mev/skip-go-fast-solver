@@ -91,6 +91,66 @@ func (_c *MockEVMChainRPC_BlockByHash_Call) RunAndReturn(run func(context.Contex
 	return _c
 }
 
+// CallContract provides a mock function with given fields: ctx, call, blockNumber
+func (_m *MockEVMChainRPC) CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
+	ret := _m.Called(ctx, call, blockNumber)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CallContract")
+	}
+
+	var r0 []byte
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, ethereum.CallMsg, *big.Int) ([]byte, error)); ok {
+		return rf(ctx, call, blockNumber)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, ethereum.CallMsg, *big.Int) []byte); ok {
+		r0 = rf(ctx, call, blockNumber)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]byte)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, ethereum.CallMsg, *big.Int) error); ok {
+		r1 = rf(ctx, call, blockNumber)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockEVMChainRPC_CallContract_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CallContract'
+type MockEVMChainRPC_CallContract_Call struct {
+	*mock.Call
+}
+
+// CallContract is a helper method to define mock.On call
+//   - ctx context.Context
+//   - call ethereum.CallMsg
+//   - blockNumber *big.Int
+func (_e *MockEVMChainRPC_Expecter) CallContract(ctx interface{}, call interface{}, blockNumber interface{}) *MockEVMChainRPC_CallContract_Call {
+	return &MockEVMChainRPC_CallContract_Call{Call: _e.mock.On("CallContract", ctx, call, blockNumber)}
+}
+
+func (_c *MockEVMChainRPC_CallContract_Call) Run(run func(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int)) *MockEVMChainRPC_CallContract_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(ethereum.CallMsg), args[2].(*big.Int))
+	})
+	return _c
+}
+
+func (_c *MockEVMChainRPC_CallContract_Call) Return(_a0 []byte, _a1 error) *MockEVMChainRPC_CallContract_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockEVMChainRPC_CallContract_Call) RunAndReturn(run func(context.Context, ethereum.CallMsg, *big.Int) ([]byte, error)) *MockEVMChainRPC_CallContract_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Client provides a mock function with given fields:
 func (_m *MockEVMChainRPC) Client() *ethclient.Client {
 	ret := _m.Called()
@@ -139,7 +199,7 @@ func (_c *MockEVMChainRPC_Client_Call) RunAndReturn(run func() *ethclient.Client
 }
 
 // CodeAt provides a mock function with given fields: ctx, address, blockHeight
-func (_m *MockEVMChainRPC) CodeAt(ctx context.Context, address string, blockHeight *big.Int) ([]byte, error) {
+func (_m *MockEVMChainRPC) CodeAt(ctx context.Context, address common.Address, blockHeight *big.Int) ([]byte, error) {
 	ret := _m.Called(ctx, address, blockHeight)
 
 	if len(ret) == 0 {
@@ -148,10 +208,10 @@ func (_m *MockEVMChainRPC) CodeAt(ctx context.Context, address string, blockHeig
 
 	var r0 []byte
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, *big.Int) ([]byte, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, common.Address, *big.Int) ([]byte, error)); ok {
 		return rf(ctx, address, blockHeight)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, *big.Int) []byte); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, common.Address, *big.Int) []byte); ok {
 		r0 = rf(ctx, address, blockHeight)
 	} else {
 		if ret.Get(0) != nil {
@@ -159,7 +219,7 @@ func (_m *MockEVMChainRPC) CodeAt(ctx context.Context, address string, blockHeig
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, *big.Int) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, common.Address, *big.Int) error); ok {
 		r1 = rf(ctx, address, blockHeight)
 	} else {
 		r1 = ret.Error(1)
@@ -175,15 +235,15 @@ type MockEVMChainRPC_CodeAt_Call struct {
 
 // CodeAt is a helper method to define mock.On call
 //   - ctx context.Context
-//   - address string
+//   - address common.Address
 //   - blockHeight *big.Int
 func (_e *MockEVMChainRPC_Expecter) CodeAt(ctx interface{}, address interface{}, blockHeight interface{}) *MockEVMChainRPC_CodeAt_Call {
 	return &MockEVMChainRPC_CodeAt_Call{Call: _e.mock.On("CodeAt", ctx, address, blockHeight)}
 }
 
-func (_c *MockEVMChainRPC_CodeAt_Call) Run(run func(ctx context.Context, address string, blockHeight *big.Int)) *MockEVMChainRPC_CodeAt_Call {
+func (_c *MockEVMChainRPC_CodeAt_Call) Run(run func(ctx context.Context, address common.Address, blockHeight *big.Int)) *MockEVMChainRPC_CodeAt_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(*big.Int))
+		run(args[0].(context.Context), args[1].(common.Address), args[2].(*big.Int))
 	})
 	return _c
 }
@@ -193,7 +253,7 @@ func (_c *MockEVMChainRPC_CodeAt_Call) Return(_a0 []byte, _a1 error) *MockEVMCha
 	return _c
 }
 
-func (_c *MockEVMChainRPC_CodeAt_Call) RunAndReturn(run func(context.Context, string, *big.Int) ([]byte, error)) *MockEVMChainRPC_CodeAt_Call {
+func (_c *MockEVMChainRPC_CodeAt_Call) RunAndReturn(run func(context.Context, common.Address, *big.Int) ([]byte, error)) *MockEVMChainRPC_CodeAt_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -614,6 +674,65 @@ func (_c *MockEVMChainRPC_HeaderByHash_Call) Return(_a0 *types.Header, _a1 error
 }
 
 func (_c *MockEVMChainRPC_HeaderByHash_Call) RunAndReturn(run func(context.Context, common.Hash) (*types.Header, error)) *MockEVMChainRPC_HeaderByHash_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// HeaderByNumber provides a mock function with given fields: ctx, number
+func (_m *MockEVMChainRPC) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+	ret := _m.Called(ctx, number)
+
+	if len(ret) == 0 {
+		panic("no return value specified for HeaderByNumber")
+	}
+
+	var r0 *types.Header
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *big.Int) (*types.Header, error)); ok {
+		return rf(ctx, number)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *big.Int) *types.Header); ok {
+		r0 = rf(ctx, number)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*types.Header)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *big.Int) error); ok {
+		r1 = rf(ctx, number)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockEVMChainRPC_HeaderByNumber_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'HeaderByNumber'
+type MockEVMChainRPC_HeaderByNumber_Call struct {
+	*mock.Call
+}
+
+// HeaderByNumber is a helper method to define mock.On call
+//   - ctx context.Context
+//   - number *big.Int
+func (_e *MockEVMChainRPC_Expecter) HeaderByNumber(ctx interface{}, number interface{}) *MockEVMChainRPC_HeaderByNumber_Call {
+	return &MockEVMChainRPC_HeaderByNumber_Call{Call: _e.mock.On("HeaderByNumber", ctx, number)}
+}
+
+func (_c *MockEVMChainRPC_HeaderByNumber_Call) Run(run func(ctx context.Context, number *big.Int)) *MockEVMChainRPC_HeaderByNumber_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(*big.Int))
+	})
+	return _c
+}
+
+func (_c *MockEVMChainRPC_HeaderByNumber_Call) Return(_a0 *types.Header, _a1 error) *MockEVMChainRPC_HeaderByNumber_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockEVMChainRPC_HeaderByNumber_Call) RunAndReturn(run func(context.Context, *big.Int) (*types.Header, error)) *MockEVMChainRPC_HeaderByNumber_Call {
 	_c.Call.Return(run)
 	return _c
 }

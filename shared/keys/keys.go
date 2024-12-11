@@ -10,7 +10,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	"github.com/cosmos/cosmos-sdk/types/bech32"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/gagliardetto/solana-go"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
 	"go.uber.org/zap"
@@ -37,10 +36,13 @@ func GetKeyStore(keyStoreType string, opts GetKeyStoreOpts) (map[string]string, 
 		}
 		return LoadKeyStoreFromPlaintextFile(opts.KeyFilePath)
 	case KeyStoreTypeEncryptedFile:
-		if opts.KeyFilePath == "" || opts.AESKeyHex == "" {
-			return nil, errors.New("key file path and aes key are required")
+		if opts.KeyFilePath == "" {
+			return nil, errors.New("key file path is required")
 		}
-		return LoadKeyStoreFromEncryptedFile(opts.KeyFilePath, opts.AESKeyHex)
+		if os.Getenv("AES_KEY_HEX") == "" {
+			return nil, errors.New("must set AES_KEY_HEX environment variable")
+		}
+		return LoadKeyStoreFromEncryptedFile(opts.KeyFilePath)
 	case KeyStoreTypeEnv:
 		return LoadKeyStoreFromEnv()
 	default:
@@ -90,7 +92,11 @@ func LoadKeyStoreFromEnv() (map[string]string, error) {
 	return keysMap, nil
 }
 
-func LoadKeyStoreFromEncryptedFile(keysPath, aesKeyHex string) (map[string]string, error) {
+func LoadKeyStoreFromEncryptedFile(keysPath string) (map[string]string, error) {
+	aesKeyHex := os.Getenv("AES_KEY_HEX")
+	if aesKeyHex == "" {
+		return nil, nil
+	}
 	passphrase, err := hex.DecodeString(aesKeyHex)
 	if err != nil {
 		return nil, err
@@ -186,15 +192,6 @@ func LogSolverAddresses(ctx context.Context, chainIDToPrivateKey KeyStore) {
 			}
 
 			address := crypto.PubkeyToAddress(privateKey.PublicKey).Hex()
-			lmt.Logger(ctx).Info("solver address", zap.String("chainID", chainID), zap.String("address", address))
-		} else if chainCfg.Type == config.ChainType_SVM {
-			privateKey, err := solana.PrivateKeyFromBase58(privateKeyHex)
-			if err != nil {
-				lmt.Logger(ctx).Error("error decoding private key into solana private key", zap.String("chainID", chainID), zap.Error(err))
-				continue
-			}
-
-			address := privateKey.PublicKey().String()
 			lmt.Logger(ctx).Info("solver address", zap.String("chainID", chainID), zap.String("address", address))
 		} else {
 			lmt.Logger(ctx).Error("unknown chain type", zap.String("chainID", chainID), zap.String("chainType", string(chainCfg.Type)))

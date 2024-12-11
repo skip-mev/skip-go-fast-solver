@@ -11,7 +11,7 @@ import (
 )
 
 const getAllOrderSettlementsWithSettlementStatus = `-- name: GetAllOrderSettlementsWithSettlementStatus :many
-SELECT id, created_at, updated_at, source_chain_id, destination_chain_id, source_chain_gateway_contract_address, amount, order_id, initiate_settlement_tx, complete_settlement_tx, settlement_status, settlement_status_message FROM order_settlements WHERE settlement_status = ?
+SELECT id, created_at, updated_at, source_chain_id, destination_chain_id, source_chain_gateway_contract_address, amount, profit, order_id, initiate_settlement_tx, complete_settlement_tx, settlement_status, settlement_status_message FROM order_settlements WHERE settlement_status = ?
 `
 
 func (q *Queries) GetAllOrderSettlementsWithSettlementStatus(ctx context.Context, settlementStatus string) ([]OrderSettlement, error) {
@@ -31,6 +31,7 @@ func (q *Queries) GetAllOrderSettlementsWithSettlementStatus(ctx context.Context
 			&i.DestinationChainID,
 			&i.SourceChainGatewayContractAddress,
 			&i.Amount,
+			&i.Profit,
 			&i.OrderID,
 			&i.InitiateSettlementTx,
 			&i.CompleteSettlementTx,
@@ -50,15 +51,47 @@ func (q *Queries) GetAllOrderSettlementsWithSettlementStatus(ctx context.Context
 	return items, nil
 }
 
+const getOrderSettlement = `-- name: GetOrderSettlement :one
+SELECT id, created_at, updated_at, source_chain_id, destination_chain_id, source_chain_gateway_contract_address, amount, profit, order_id, initiate_settlement_tx, complete_settlement_tx, settlement_status, settlement_status_message FROM order_settlements WHERE source_chain_id = ? AND source_chain_gateway_contract_address = ? AND order_id = ?
+`
+
+type GetOrderSettlementParams struct {
+	SourceChainID                     string
+	SourceChainGatewayContractAddress string
+	OrderID                           string
+}
+
+func (q *Queries) GetOrderSettlement(ctx context.Context, arg GetOrderSettlementParams) (OrderSettlement, error) {
+	row := q.db.QueryRowContext(ctx, getOrderSettlement, arg.SourceChainID, arg.SourceChainGatewayContractAddress, arg.OrderID)
+	var i OrderSettlement
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SourceChainID,
+		&i.DestinationChainID,
+		&i.SourceChainGatewayContractAddress,
+		&i.Amount,
+		&i.Profit,
+		&i.OrderID,
+		&i.InitiateSettlementTx,
+		&i.CompleteSettlementTx,
+		&i.SettlementStatus,
+		&i.SettlementStatusMessage,
+	)
+	return i, err
+}
+
 const insertOrderSettlement = `-- name: InsertOrderSettlement :one
 INSERT INTO order_settlements (
     source_chain_id,
     destination_chain_id,
     source_chain_gateway_contract_address,
     amount,
+    profit,
     order_id,
     settlement_status
-) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING id, created_at, updated_at, source_chain_id, destination_chain_id, source_chain_gateway_contract_address, amount, order_id, initiate_settlement_tx, complete_settlement_tx, settlement_status, settlement_status_message
+) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING id, created_at, updated_at, source_chain_id, destination_chain_id, source_chain_gateway_contract_address, amount, profit, order_id, initiate_settlement_tx, complete_settlement_tx, settlement_status, settlement_status_message
 `
 
 type InsertOrderSettlementParams struct {
@@ -66,6 +99,7 @@ type InsertOrderSettlementParams struct {
 	DestinationChainID                string
 	SourceChainGatewayContractAddress string
 	Amount                            string
+	Profit                            string
 	OrderID                           string
 	SettlementStatus                  string
 }
@@ -76,6 +110,7 @@ func (q *Queries) InsertOrderSettlement(ctx context.Context, arg InsertOrderSett
 		arg.DestinationChainID,
 		arg.SourceChainGatewayContractAddress,
 		arg.Amount,
+		arg.Profit,
 		arg.OrderID,
 		arg.SettlementStatus,
 	)
@@ -88,6 +123,7 @@ func (q *Queries) InsertOrderSettlement(ctx context.Context, arg InsertOrderSett
 		&i.DestinationChainID,
 		&i.SourceChainGatewayContractAddress,
 		&i.Amount,
+		&i.Profit,
 		&i.OrderID,
 		&i.InitiateSettlementTx,
 		&i.CompleteSettlementTx,
@@ -101,7 +137,7 @@ const setCompleteSettlementTx = `-- name: SetCompleteSettlementTx :one
 UPDATE order_settlements
 SET updated_at=CURRENT_TIMESTAMP, complete_settlement_tx = ?
 WHERE source_chain_id = ? AND order_id = ? AND source_chain_gateway_contract_address = ?
-    RETURNING id, created_at, updated_at, source_chain_id, destination_chain_id, source_chain_gateway_contract_address, amount, order_id, initiate_settlement_tx, complete_settlement_tx, settlement_status, settlement_status_message
+    RETURNING id, created_at, updated_at, source_chain_id, destination_chain_id, source_chain_gateway_contract_address, amount, profit, order_id, initiate_settlement_tx, complete_settlement_tx, settlement_status, settlement_status_message
 `
 
 type SetCompleteSettlementTxParams struct {
@@ -127,6 +163,7 @@ func (q *Queries) SetCompleteSettlementTx(ctx context.Context, arg SetCompleteSe
 		&i.DestinationChainID,
 		&i.SourceChainGatewayContractAddress,
 		&i.Amount,
+		&i.Profit,
 		&i.OrderID,
 		&i.InitiateSettlementTx,
 		&i.CompleteSettlementTx,
@@ -140,7 +177,7 @@ const setInitiateSettlementTx = `-- name: SetInitiateSettlementTx :one
 UPDATE order_settlements
 SET updated_at=CURRENT_TIMESTAMP, initiate_settlement_tx = ?
 WHERE source_chain_id = ? AND order_id = ? AND source_chain_gateway_contract_address = ?
-    RETURNING id, created_at, updated_at, source_chain_id, destination_chain_id, source_chain_gateway_contract_address, amount, order_id, initiate_settlement_tx, complete_settlement_tx, settlement_status, settlement_status_message
+    RETURNING id, created_at, updated_at, source_chain_id, destination_chain_id, source_chain_gateway_contract_address, amount, profit, order_id, initiate_settlement_tx, complete_settlement_tx, settlement_status, settlement_status_message
 `
 
 type SetInitiateSettlementTxParams struct {
@@ -166,6 +203,7 @@ func (q *Queries) SetInitiateSettlementTx(ctx context.Context, arg SetInitiateSe
 		&i.DestinationChainID,
 		&i.SourceChainGatewayContractAddress,
 		&i.Amount,
+		&i.Profit,
 		&i.OrderID,
 		&i.InitiateSettlementTx,
 		&i.CompleteSettlementTx,
@@ -179,7 +217,7 @@ const setSettlementStatus = `-- name: SetSettlementStatus :one
 UPDATE order_settlements
 SET updated_at=CURRENT_TIMESTAMP, settlement_status = ?, settlement_status_message = ?
 WHERE source_chain_id = ? AND order_id = ? AND source_chain_gateway_contract_address = ?
-    RETURNING id, created_at, updated_at, source_chain_id, destination_chain_id, source_chain_gateway_contract_address, amount, order_id, initiate_settlement_tx, complete_settlement_tx, settlement_status, settlement_status_message
+    RETURNING id, created_at, updated_at, source_chain_id, destination_chain_id, source_chain_gateway_contract_address, amount, profit, order_id, initiate_settlement_tx, complete_settlement_tx, settlement_status, settlement_status_message
 `
 
 type SetSettlementStatusParams struct {
@@ -207,6 +245,7 @@ func (q *Queries) SetSettlementStatus(ctx context.Context, arg SetSettlementStat
 		&i.DestinationChainID,
 		&i.SourceChainGatewayContractAddress,
 		&i.Amount,
+		&i.Profit,
 		&i.OrderID,
 		&i.InitiateSettlementTx,
 		&i.CompleteSettlementTx,

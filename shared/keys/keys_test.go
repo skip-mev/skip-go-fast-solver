@@ -70,6 +70,9 @@ func TestLoadKeyStoreFromEncryptedFile(t *testing.T) {
 	aesKey := []byte("0123456789abcdef0123456789abcdef")
 	aesKeyHex := hex.EncodeToString(aesKey)
 
+	// set key environment variable
+	os.Setenv("AES_KEY_HEX", aesKeyHex)
+
 	// Encrypt the test data
 	encryptedData := encryptTestData(t, jsonData, aesKey)
 	encryptedDataHex := hex.EncodeToString(encryptedData)
@@ -79,7 +82,7 @@ func TestLoadKeyStoreFromEncryptedFile(t *testing.T) {
 	defer os.Remove(testFile.Name())
 
 	// Test the function
-	result, err := LoadKeyStoreFromEncryptedFile(testFile.Name(), aesKeyHex)
+	result, err := LoadKeyStoreFromEncryptedFile(testFile.Name())
 	require.NoError(t, err, "LoadKeyStoreFromEncryptedFile should not return an error")
 
 	// Check the results

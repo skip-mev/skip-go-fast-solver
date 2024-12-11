@@ -14,11 +14,11 @@ import (
 // source chain and all share the same destination chain.
 type SettlementBatch []db.OrderSettlement
 
-// IntoSettlementBatches converts a slice of settlements that may be from
+// IntoSettlementBatchesByChains converts a slice of settlements that may be from
 // different source chains and to different destination chains into a list of
 // settlement batches where each settlement batch contains settlements from the
 // same source chain and to the same destination chain.
-func IntoSettlementBatches(settlements []db.OrderSettlement) ([]SettlementBatch, error) {
+func IntoSettlementBatchesByChains(settlements []db.OrderSettlement) []SettlementBatch {
 	type key struct {
 		// ensure settlements are from the same source (if not then they would
 		// have different repayment addresses and would be in a different
@@ -41,7 +41,27 @@ func IntoSettlementBatches(settlements []db.OrderSettlement) ([]SettlementBatch,
 	for _, batch := range batchesSet {
 		batches = append(batches, batch)
 	}
-	return batches, nil
+	return batches
+}
+
+// IntoSettlementBatchesByHash converts a slice of settlements into a slice of
+// settlement batches. The order settlement must have a valid initiate tx
+// associated with it for it to be included in a batch. All orders with the
+// same initiate settlement tx will be in a batch together.
+func IntoSettlementBatchesByHash(settlements []db.OrderSettlement) []SettlementBatch {
+	batchesSet := make(map[string]SettlementBatch)
+	for _, settlement := range settlements {
+		if !settlement.InitiateSettlementTx.Valid {
+			continue
+		}
+		batchesSet[settlement.InitiateSettlementTx.String] = append(batchesSet[settlement.InitiateSettlementTx.String], settlement)
+	}
+
+	var batches []SettlementBatch
+	for _, batch := range batchesSet {
+		batches = append(batches, batch)
+	}
+	return batches
 }
 
 func (b SettlementBatch) OrderIDs() []string {
@@ -110,6 +130,18 @@ func (b SettlementBatch) TotalValue() (*big.Int, error) {
 		value, ok := new(big.Int).SetString(settlement.Amount, 10)
 		if !ok {
 			return nil, fmt.Errorf("converting settlement amount %s to *big.Int", settlement.Amount)
+		}
+		sum = sum.Add(sum, value)
+	}
+	return sum, nil
+}
+
+func (b SettlementBatch) TotalProfit() (*big.Int, error) {
+	sum := big.NewInt(0)
+	for _, settlement := range b {
+		value, ok := new(big.Int).SetString(settlement.Profit, 10)
+		if !ok {
+			return nil, fmt.Errorf("converting settlement profit %s to *big.Int", settlement.Profit)
 		}
 		sum = sum.Add(sum, value)
 	}

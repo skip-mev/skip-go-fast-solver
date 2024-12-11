@@ -25,13 +25,15 @@ type EVMChainRPC interface {
 	GetLogs(ctx context.Context, topics [][]common.Hash, addresses []common.Address) ([]types.Log, error)
 	BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error)
 	HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error)
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 	PendingNonceAt(ctx context.Context, address common.Address) (uint64, error)
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 	SuggestGasPrice(ctx context.Context) (*big.Int, error)
 	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
 	GetUSDCBalance(ctx context.Context, contractAddress string, account string) (*big.Int, error)
 	Client() *ethclient.Client
-	CodeAt(ctx context.Context, address string, blockHeight *big.Int) ([]byte, error)
+	CodeAt(ctx context.Context, address common.Address, blockHeight *big.Int) ([]byte, error)
+	CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
 }
 
 type ERC20Transfer struct {
@@ -132,6 +134,10 @@ func (cr *chainRPCImpl) HeaderByHash(ctx context.Context, hash common.Hash) (*ty
 	return cr.cc.HeaderByHash(ctx, hash)
 }
 
+func (cr *chainRPCImpl) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+	return cr.cc.HeaderByNumber(ctx, number)
+}
+
 func (cr *chainRPCImpl) PendingNonceAt(ctx context.Context, address common.Address) (uint64, error) {
 	return cr.cc.PendingNonceAt(ctx, address)
 }
@@ -148,6 +154,10 @@ func (cr *chainRPCImpl) SuggestGasTipCap(ctx context.Context) (*big.Int, error) 
 	return cr.cc.SuggestGasTipCap(ctx)
 }
 
-func (cr *chainRPCImpl) CodeAt(ctx context.Context, address string, blockHeight *big.Int) ([]byte, error) {
-	return cr.cc.CodeAt(ctx, common.HexToAddress(address), blockHeight)
+func (cr *chainRPCImpl) CodeAt(ctx context.Context, address common.Address, blockHeight *big.Int) ([]byte, error) {
+	return cr.cc.CodeAt(ctx, address, blockHeight)
+}
+
+func (cr *chainRPCImpl) CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
+	return cr.cc.CallContract(ctx, call, blockNumber)
 }

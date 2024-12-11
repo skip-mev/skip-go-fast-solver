@@ -60,6 +60,39 @@ func (q *Queries) GetAllOrdersWithOrderStatus(ctx context.Context, orderStatus s
 	return items, nil
 }
 
+const getOrderByOrderID = `-- name: GetOrderByOrderID :one
+SELECT id, created_at, updated_at, source_chain_id, destination_chain_id, source_chain_gateway_contract_address, sender, recipient, amount_in, amount_out, nonce, order_id, timeout_timestamp, order_creation_tx, order_creation_tx_block_height, data, filler, fill_tx, refund_tx, order_status, order_status_message FROM orders WHERE order_id = ?
+`
+
+func (q *Queries) GetOrderByOrderID(ctx context.Context, orderID string) (Order, error) {
+	row := q.db.QueryRowContext(ctx, getOrderByOrderID, orderID)
+	var i Order
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.SourceChainID,
+		&i.DestinationChainID,
+		&i.SourceChainGatewayContractAddress,
+		&i.Sender,
+		&i.Recipient,
+		&i.AmountIn,
+		&i.AmountOut,
+		&i.Nonce,
+		&i.OrderID,
+		&i.TimeoutTimestamp,
+		&i.OrderCreationTx,
+		&i.OrderCreationTxBlockHeight,
+		&i.Data,
+		&i.Filler,
+		&i.FillTx,
+		&i.RefundTx,
+		&i.OrderStatus,
+		&i.OrderStatusMessage,
+	)
+	return i, err
+}
+
 const insertOrder = `-- name: InsertOrder :one
 INSERT INTO orders (
     source_chain_id,

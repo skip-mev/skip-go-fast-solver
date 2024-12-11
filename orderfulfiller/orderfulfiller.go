@@ -2,6 +2,7 @@ package orderfulfiller
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
@@ -24,19 +25,13 @@ const (
 type OrderFulfillmentHandler interface {
 	UpdateFulfillmentStatus(ctx context.Context, order db.Order) (fulfillmentStatus string, err error)
 	FillOrder(ctx context.Context, order db.Order) (string, error)
-	InitiateTimeout(ctx context.Context, order db.Order) error
+	InitiateTimeout(ctx context.Context, order db.Order) (string, error)
+	SubmitTimeoutForRelay(ctx context.Context, order db.Order, txHash string) error
 }
 
 type Database interface {
 	GetAllOrdersWithOrderStatus(ctx context.Context, orderStatus string) ([]db.Order, error)
-
-	SetFillTx(ctx context.Context, arg db.SetFillTxParams) (db.Order, error)
-	SetOrderStatus(ctx context.Context, arg db.SetOrderStatusParams) (db.Order, error)
-
-	InsertSubmittedTx(ctx context.Context, arg db.InsertSubmittedTxParams) (db.SubmittedTx, error)
-	GetSubmittedTxsByOrderIdAndType(ctx context.Context, arg db.GetSubmittedTxsByOrderIdAndTypeParams) ([]db.SubmittedTx, error)
-
-	SetRefundTx(ctx context.Context, arg db.SetRefundTxParams) (db.Order, error)
+	InTx(ctx context.Context, fn func(ctx context.Context, q db.Querier) error, opts *sql.TxOptions) error
 }
 
 type OrderFulfiller struct {
@@ -67,10 +62,8 @@ func (r *OrderFulfiller) Run(ctx context.Context) {
 	if r.shouldRefundOrders {
 		go r.startOrderTimeoutWorker(ctx)
 	}
-	if r.shouldFillOrders {
-		go r.startOrderFillWorkers(ctx)
-		r.dispatchOrderFills(ctx)
-	}
+	go r.startOrderFillWorkers(ctx)
+	r.dispatchOrderFills(ctx)
 }
 
 func (r *OrderFulfiller) dispatchOrderFills(ctx context.Context) {
@@ -106,26 +99,54 @@ func (r *OrderFulfiller) startOrderTimeoutWorker(ctx context.Context) {
 				lmt.Logger(ctx).Error("error getting expired orders", zap.Error(err))
 				continue
 			}
+
 			for _, order := range orders {
-				if fulfillmentStatus, err := r.fillHandler.UpdateFulfillmentStatus(ctx, order); err != nil {
+				fulfillmentStatus, err := r.fillHandler.UpdateFulfillmentStatus(ctx, order)
+				if err != nil {
 					lmt.Logger(ctx).Warn(
 						"error updating fulfillment status",
 						zap.Error(err),
 						zap.String("orderID", order.OrderID),
 						zap.String("sourceChainID", order.SourceChainID),
+						zap.String("destinationChainID", order.DestinationChainID),
 					)
-				} else if fulfillmentStatus == dbtypes.OrderStatusExpiredPendingRefund && r.shouldRefundOrders {
-					if err := r.fillHandler.InitiateTimeout(ctx, order); err != nil {
-						lmt.Logger(ctx).Warn(
-							"error initiating timeout",
-							zap.Error(err),
-							zap.String("orderID", order.OrderID),
-							zap.String("sourceChainID", order.SourceChainID),
-						)
-					} else {
-						lmt.Logger(ctx).Info("successfully initiated timeout", zap.String("orderID", order.OrderID), zap.String("sourceChainID", order.SourceChainID))
-					}
+					continue
 				}
+
+				// do not try and refund this order
+				if !r.shouldRefundOrders || fulfillmentStatus != dbtypes.OrderStatusExpiredPendingRefund {
+					continue
+				}
+
+				txHash, err := r.fillHandler.InitiateTimeout(ctx, order)
+				if err != nil {
+					lmt.Logger(ctx).Error(
+						"error initiating timeout for order",
+						zap.Error(err),
+						zap.String("orderID", order.OrderID),
+						zap.String("sourceChainID", order.SourceChainID),
+						zap.String("destinationChainID", order.DestinationChainID),
+					)
+					continue
+				}
+
+				if err = r.fillHandler.SubmitTimeoutForRelay(ctx, order, txHash); err != nil {
+					lmt.Logger(ctx).Error(
+						"error submitting timeout to be relayed",
+						zap.Error(err),
+						zap.String("orderID", order.OrderID),
+						zap.String("sourceChainID", order.SourceChainID),
+						zap.String("destinationChainID", order.DestinationChainID),
+					)
+					continue
+				}
+
+				lmt.Logger(ctx).Debug(
+					"successfully submitted timeout for relay (this may be a duplicate)",
+					zap.String("orderID", order.OrderID),
+					zap.String("sourceChainID", order.SourceChainID),
+					zap.String("destinationChainID", order.DestinationChainID),
+				)
 			}
 		}
 	}
@@ -155,7 +176,7 @@ func (r *OrderFulfiller) startOrderFillWorkers(ctx context.Context) {
 								zap.String("orderID", order.OrderID),
 								zap.String("sourceChainID", order.SourceChainID),
 							)
-						} else {
+						} else if hash != "" {
 							lmt.Logger(ctx).Info(
 								"successfully filled order",
 								zap.String("orderID", order.OrderID),

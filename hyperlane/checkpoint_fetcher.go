@@ -156,6 +156,12 @@ func (f *S3Fetcher) Checkpoint(ctx context.Context, index uint64) (*types.Signed
 		return nil, fmt.Errorf("performing request: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, ErrCheckpointDoesNotExist
+		}
+		return nil, fmt.Errorf("unexpected status code %d fetching s3 checkpoint from %s", resp.StatusCode, u)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

@@ -2,7 +2,9 @@ package fundrebalancer
 
 import (
 	"context"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 )
@@ -14,6 +16,7 @@ type FakeTransfer struct {
 	DestinationChainID string
 	Amount             string
 	Status             string
+	CreatedAt          time.Time
 }
 
 type FakeDatabase struct {
@@ -47,6 +50,10 @@ func (fdb *FakeDatabase) GetPendingRebalanceTransfersToChain(ctx context.Context
 	return pendingTransfers, nil
 }
 
+func (fdb *FakeDatabase) InsertSubmittedTx(ctx context.Context, arg db.InsertSubmittedTxParams) (db.SubmittedTx, error) {
+	return db.SubmittedTx{}, nil
+}
+
 func (fdb *FakeDatabase) InsertRebalanceTransfer(ctx context.Context, arg db.InsertRebalanceTransferParams) (int64, error) {
 	fdb.dbLock.Lock()
 	defer fdb.dbLock.Unlock()
@@ -63,6 +70,7 @@ func (fdb *FakeDatabase) InsertRebalanceTransfer(ctx context.Context, arg db.Ins
 		DestinationChainID: arg.DestinationChainID,
 		Amount:             arg.Amount,
 		Status:             "PENDING",
+		CreatedAt:          time.Now(),
 	})
 
 	return nextID, nil
@@ -81,6 +89,7 @@ func (fdb *FakeDatabase) GetAllPendingRebalanceTransfers(ctx context.Context) ([
 				SourceChainID:      transfer.SourceChainID,
 				DestinationChainID: transfer.DestinationChainID,
 				Amount:             transfer.Amount,
+				CreatedAt:          transfer.CreatedAt,
 			})
 		}
 	}
@@ -101,4 +110,17 @@ func (fdb *FakeDatabase) UpdateTransferStatus(ctx context.Context, arg db.Update
 
 func (fdb *FakeDatabase) GetDBContents() []*FakeTransfer {
 	return fdb.db
+}
+
+func (fdb *FakeDatabase) UpdateTransferCreatedAt(ctx context.Context, id int64, createdAt time.Time) error {
+	fdb.dbLock.Lock()
+	defer fdb.dbLock.Unlock()
+
+	for _, transfer := range fdb.db {
+		if transfer.ID == id {
+			transfer.CreatedAt = createdAt
+			return nil
+		}
+	}
+	return fmt.Errorf("transfer with id %d not found", id)
 }

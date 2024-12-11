@@ -3,7 +3,10 @@ package evm
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/big"
+
+	"github.com/skip-mev/go-fast-solver/shared/lmt"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -89,7 +92,7 @@ func WithChainID(chainID string) TxBuildOption {
 	}
 }
 
-func WithNonce(address string) TxBuildOption {
+func WithNonceOfSigner(address string) TxBuildOption {
 	return func(ctx context.Context, b TxBuilder, tx *types.DynamicFeeTx) error {
 		nonce, err := b.rpc.PendingNonceAt(ctx, common.HexToAddress(address))
 		if err != nil {
@@ -99,6 +102,35 @@ func WithNonce(address string) TxBuildOption {
 		tx.Nonce = nonce
 		return nil
 	}
+}
+
+func WithNonce(nonce uint64) TxBuildOption {
+	return func(ctx context.Context, b TxBuilder, tx *types.DynamicFeeTx) error {
+		tx.Nonce = nonce
+		return nil
+	}
+}
+
+// EstimateGasForTx estimates the gas needed for a transaction with the given parameters
+func (b TxBuilder) EstimateGasForTx(ctx context.Context, from, to, value string, data []byte) (uint64, error) {
+	toAddr := common.HexToAddress(to)
+
+	valueInt, ok := new(big.Int).SetString(value, 10)
+	if !ok {
+		return 0, fmt.Errorf("could not convert value %s to *big.Int", value)
+	}
+
+	gasLimit, err := b.rpc.EstimateGas(ctx, ethereum.CallMsg{
+		From:  common.HexToAddress(from),
+		To:    &toAddr,
+		Value: valueInt,
+		Data:  data,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("estimating gas limit: %w", err)
+	}
+
+	return gasLimit, nil
 }
 
 func WithEstimatedGasLimit(from, to, value string, data []byte) TxBuildOption {
@@ -120,16 +152,27 @@ func WithEstimatedGasLimit(from, to, value string, data []byte) TxBuildOption {
 			return fmt.Errorf("estimating gas limit: %w", err)
 		}
 
-		tx.Gas = gasLimit
+		tx.Gas = uint64(math.Ceil(float64(gasLimit) * 1.2))
 		return nil
 	}
 }
 
-func WithEstimatedGasTipCap() TxBuildOption {
+func WithEstimatedGasTipCap(minGasTipCap *big.Int) TxBuildOption {
 	return func(ctx context.Context, b TxBuilder, tx *types.DynamicFeeTx) error {
 		tipCap, err := b.rpc.SuggestGasTipCap(ctx)
 		if err != nil {
 			return fmt.Errorf("getting suggested gas tip cap: %w", err)
+		}
+
+		if minGasTipCap != nil {
+			// The polygon node occasionally suggests a tip cap less than the network minimum
+			// Here we enforce a minimum on the tip cap to prevent the transaction from being stuck
+			if tipCap.Cmp(minGasTipCap) < 0 {
+				lmt.Logger(ctx).Debug(
+					fmt.Sprintf("Suggested tip cap %s less than configured minimum %s. Using the minimum instead", tipCap.String(), minGasTipCap.String()),
+				)
+				tipCap = minGasTipCap
+			}
 		}
 
 		tx.GasTipCap = tipCap
@@ -137,14 +180,25 @@ func WithEstimatedGasTipCap() TxBuildOption {
 	}
 }
 
-func WithEstimatedGasFeeCap() TxBuildOption {
+func WithEstimatedGasFeeCap(minGasTipCap *big.Int, jitter *big.Float) TxBuildOption {
 	return func(ctx context.Context, b TxBuilder, tx *types.DynamicFeeTx) error {
-		price, err := b.rpc.SuggestGasPrice(ctx)
-		if err != nil {
-			return fmt.Errorf("getting suggested gas price: %w", err)
+		if tx.GasTipCap == nil {
+			if err := WithEstimatedGasTipCap(minGasTipCap)(ctx, b, tx); err != nil {
+				return fmt.Errorf("getting estimated gas tip cap: %w", err)
+			}
 		}
 
-		tx.GasFeeCap = price
+		head, err := b.rpc.HeaderByNumber(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("getting latest block header: %w", err)
+		}
+
+		baseFee := new(big.Float).SetInt(head.BaseFee)
+		baseFee.Mul(baseFee, jitter)
+		baseFeeInt, _ := baseFee.Int(nil)
+
+		tx.GasFeeCap = new(big.Int).Add(tx.GasTipCap, baseFeeInt)
+
 		return nil
 	}
 }
