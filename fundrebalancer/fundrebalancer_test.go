@@ -671,11 +671,11 @@ func TestFundRebalancer_Rebalance(t *testing.T) {
 		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, []byte{}, "999", osmosisAddress, mock.Anything).Return("arbitrum hash", "", nil)
 
 		// mock executing the approval tx
-		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, mock.Anything, "0", arbitrumUSDCDenom, mock.Anything).Return("arbitrum hash", "", nil)
+		mockEVMTxExecutor.On("ExecuteTx", mockContext, arbitrumChainID, arbitrumAddress, mock.Anything, "0", arbitrumUSDCDenom, mock.Anything).Return("arbitrum approval hash", "", nil)
 
 		mockDatabse.EXPECT().InsertSubmittedTx(mockContext, db.InsertSubmittedTxParams{
 			ChainID:  arbitrumChainID,
-			TxHash:   "arbitrum hash",
+			TxHash:   "arbitrum approval hash",
 			TxType:   dbtypes.TxTypeERC20Approval,
 			TxStatus: dbtypes.TxStatusPending,
 		}).Return(db.SubmittedTx{}, nil).Once()
