@@ -86,6 +86,7 @@ make build-cli
 ```
 
 To make the solver command available system-wide, copy it to your PATH:
+
 ```shell
 cp ./build/solvercli /usr/local/bin/solver && chmod 755 /usr/local/bin/solver
 ```
