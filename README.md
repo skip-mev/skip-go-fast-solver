@@ -79,10 +79,15 @@ make db-clean # clean all existing db entries
 
 ### CLI Tool
 
-First, build and install the CLI from the project root directory:
+Build the CLI tool from the project root directory:
 
 ```shell
 make build-cli
+```
+
+To make the solver command available system-wide, copy it to your PATH:
+```shell
+cp ./build/solvercli /usr/local/bin/solver && chmod 755 /usr/local/bin/solver
 ```
 
 Now you can run the solver commands from anywhere. Available commands:

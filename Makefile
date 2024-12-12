@@ -24,7 +24,6 @@ build: ${SERVER_BIN}
 
 .PHONY: build-cli
 build-cli: ${CLI_BIN}
-	sudo sh -c 'cp ${CLI_BIN} /usr/local/bin/solver && chmod 755 /usr/local/bin/solver'
 
 deps:
 	go env

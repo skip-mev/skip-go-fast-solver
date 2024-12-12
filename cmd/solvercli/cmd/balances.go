@@ -119,13 +119,15 @@ func init() {
 	balancesCmd.Flags().String("osmosis-address", "", "Optional Osmosis address to check balances for instead of config address")
 }
 
-func getBalances(ctx context.Context,
+func getBalances(
+	ctx context.Context,
 	usdcBalances map[string]*ChainBalance,
 	gasBalances map[string]*ChainGasBalance,
 	customBalances map[string][]*ChainBalance,
 	totalUSDCBalance *big.Int,
 	totalCustomAssetsUSDValue *big.Float,
-	cmd *cobra.Command) error {
+	cmd *cobra.Command,
+) error {
 	request, err := buildBalancesRequest(ctx, cmd)
 	if err != nil {
 		return fmt.Errorf("building balances request: %w", err)
