@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
@@ -36,15 +37,21 @@ type Database interface {
 	SetSubmittedTxStatus(ctx context.Context, arg db.SetSubmittedTxStatusParams) (db.SubmittedTx, error)
 }
 
+type Oracle interface {
+	GasCostUUSDC(ctx context.Context, txFee *big.Int, chainID string) (*big.Int, error)
+}
+
 type TxVerifier struct {
 	db            Database
 	clientManager *clientmanager.ClientManager
+	oracle        Oracle
 }
 
-func NewTxVerifier(ctx context.Context, db Database, clientManager *clientmanager.ClientManager) (*TxVerifier, error) {
+func NewTxVerifier(ctx context.Context, db Database, clientManager *clientmanager.ClientManager, oracle Oracle) (*TxVerifier, error) {
 	return &TxVerifier{
 		db:            db,
 		clientManager: clientManager,
+		oracle:        oracle,
 	}, nil
 }
 
@@ -98,7 +105,7 @@ func (r *TxVerifier) VerifyTx(ctx context.Context, submittedTx db.SubmittedTx) e
 	if err != nil {
 		return fmt.Errorf("failed to get client: %w", err)
 	}
-	_, failure, err := bridgeClient.GetTxResult(ctx, submittedTx.TxHash)
+	gasCost, failure, err := bridgeClient.GetTxResult(ctx, submittedTx.TxHash)
 	if err != nil {
 		if errors.As(err, &cctp.ErrTxResultNotFound{}) {
 			return r.handleTxResultNotFound(ctx, submittedTx)
@@ -107,22 +114,36 @@ func (r *TxVerifier) VerifyTx(ctx context.Context, submittedTx db.SubmittedTx) e
 		return fmt.Errorf("failed to get tx result: %w", err)
 	} else if failure != nil {
 		lmt.Logger(ctx).Error("tx failed", zap.String("failure", failure.String()))
+
+		cost, err := r.oracle.GasCostUUSDC(ctx, gasCost, submittedTx.ChainID)
+		if err != nil {
+			return fmt.Errorf("getting gas cost in uusdc for failed tx %s on chain %s: %w", submittedTx.TxHash, submittedTx.ChainID, err)
+		}
+
 		metrics.FromContext(ctx).IncTransactionVerified(false, submittedTx.ChainID)
 		if _, err := r.db.SetSubmittedTxStatus(ctx, db.SetSubmittedTxStatusParams{
 			TxStatus:        dbtypes.TxStatusFailed,
 			TxHash:          submittedTx.TxHash,
 			ChainID:         submittedTx.ChainID,
 			TxStatusMessage: sql.NullString{String: failure.String(), Valid: true},
+			TxCostUusdc:     sql.NullString{String: cost.String(), Valid: true},
 		}); err != nil {
 			return fmt.Errorf("failed to set tx status to failed: %w", err)
 		}
 		return fmt.Errorf("tx failed: %s", failure.String())
 	} else {
 		metrics.FromContext(ctx).IncTransactionVerified(true, submittedTx.ChainID)
+
+		cost, err := r.oracle.GasCostUUSDC(ctx, gasCost, submittedTx.ChainID)
+		if err != nil {
+			return fmt.Errorf("getting gas cost in uusdc for tx %s on chain %s: %w", submittedTx.TxHash, submittedTx.ChainID, err)
+		}
+
 		if _, err := r.db.SetSubmittedTxStatus(ctx, db.SetSubmittedTxStatusParams{
-			TxStatus: dbtypes.TxStatusSuccess,
-			TxHash:   submittedTx.TxHash,
-			ChainID:  submittedTx.ChainID,
+			TxStatus:    dbtypes.TxStatusSuccess,
+			TxHash:      submittedTx.TxHash,
+			ChainID:     submittedTx.ChainID,
+			TxCostUusdc: sql.NullString{String: cost.String(), Valid: true},
 		}); err != nil {
 			return fmt.Errorf("failed to set tx status to success: %w", err)
 		}

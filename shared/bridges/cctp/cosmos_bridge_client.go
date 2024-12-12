@@ -171,11 +171,31 @@ func (c *CosmosBridgeClient) GetTxResult(ctx context.Context, txHash string) (*b
 			return nil, nil, ErrTxResultNotFound{TxHash: txHash}
 		}
 		return nil, nil, err
-	} else if result.TxResult.Code != 0 {
-		return big.NewInt(result.TxResult.GasUsed), &TxFailure{fmt.Sprintf("tx failed with code: %d and log: %s", result.TxResult.Code, result.TxResult.Log)}, nil
 	}
 
-	return big.NewInt(result.TxResult.GasUsed), nil, nil
+	tx, err := c.txConfig.TxDecoder()(result.Tx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("decoding tx bytes: %w", err)
+	}
+
+	// parse tx fee event and use as the gas cost. we are using the fee event
+	// as the gas cost, technically this is not always true for all cosmos
+	// txns, however for all of the transactions that the solver will submit
+	// and get results of via this function, this should be true
+	feeTx, ok := tx.(sdk.FeeTx)
+	if !ok {
+		return nil, nil, fmt.Errorf("could not convert decoded tx to sdk.FeeTx")
+	}
+
+	fee := feeTx.GetFee().AmountOf(c.gasDenom)
+	if fee == math.ZeroInt() {
+		return nil, nil, fmt.Errorf("zero fee amount found for denom %s in tx result auth info", c.gasDenom)
+	}
+
+	if result.TxResult.Code != 0 {
+		return fee.BigInt(), &TxFailure{fmt.Sprintf("tx failed with code: %d and log: %s", result.TxResult.Code, result.TxResult.Log)}, nil
+	}
+	return fee.BigInt(), nil, nil
 }
 
 func (c *CosmosBridgeClient) IsSettlementComplete(ctx context.Context, gatewayContractAddress, orderID string) (bool, error) {

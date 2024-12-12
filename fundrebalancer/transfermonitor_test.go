@@ -12,6 +12,7 @@ import (
 	mock_skipgo "github.com/skip-mev/go-fast-solver/mocks/shared/clients/skipgo"
 	mock_config "github.com/skip-mev/go-fast-solver/mocks/shared/config"
 	mock_evmrpc "github.com/skip-mev/go-fast-solver/mocks/shared/evmrpc"
+	mock_oracle "github.com/skip-mev/go-fast-solver/mocks/shared/oracle"
 	evm2 "github.com/skip-mev/go-fast-solver/mocks/shared/txexecutor/evm"
 	"github.com/skip-mev/go-fast-solver/shared/clients/skipgo"
 	"github.com/skip-mev/go-fast-solver/shared/config"
@@ -175,7 +176,7 @@ func TestFundRebalancer_RebalanceWithAbandonedTransfer(t *testing.T) {
 	mockEVMClientManager.EXPECT().GetClient(ctx, arbitrumChainID).Return(mockEVMClient, nil)
 	fakeDatabase := mock_database.NewFakeDatabase()
 	mockEVMTxExecutor := evm2.NewMockEVMTxExecutor(t)
-	mockTxPriceOracle := mock_evmrpc.NewMockOracle(t)
+	mockTxPriceOracle := mock_oracle.NewMockTxPriceOracle(t)
 	mockTxPriceOracle.On("TxFeeUUSDC", ctx, mock.Anything, mock.Anything).Return(big.NewInt(75), nil)
 	keystore, err := keys.LoadKeyStoreFromPlaintextFile(f.Name())
 	assert.NoError(t, err)

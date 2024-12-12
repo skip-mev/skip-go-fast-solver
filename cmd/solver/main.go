@@ -10,6 +10,7 @@ import (
 
 	"github.com/skip-mev/go-fast-solver/gasmonitor"
 
+	"github.com/skip-mev/go-fast-solver/shared/oracle"
 	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
 	"github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
@@ -97,9 +98,9 @@ func main() {
 	rateLimitedClient := utils.DefaultRateLimitedHTTPClient(3)
 	coingeckoClient := coingecko.NewCoingeckoClient(rateLimitedClient, "https://api.coingecko.com/api/v3/", "")
 	cachedCoinGeckoClient := coingecko.NewCachedPriceClient(coingeckoClient, 15*time.Minute)
-	evmTxPriceOracle := evmrpc.NewOracle(cachedCoinGeckoClient)
+	txPriceOracle := oracle.NewOracle(cachedCoinGeckoClient)
 
-	hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmManager, keyStore, evmTxPriceOracle, evmTxExecutor)
+	hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmManager, keyStore, txPriceOracle, evmTxExecutor)
 	if err != nil {
 		lmt.Logger(ctx).Fatal("creating hyperlane multi client from config", zap.Error(err))
 	}
@@ -144,7 +145,7 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		r, err := fundrebalancer.NewFundRebalancer(ctx, keyStore, skipgo, evmManager, db.New(dbConn), evmTxPriceOracle, evmTxExecutor)
+		r, err := fundrebalancer.NewFundRebalancer(ctx, keyStore, skipgo, evmManager, db.New(dbConn), txPriceOracle, evmTxExecutor)
 		if err != nil {
 			return fmt.Errorf("creating fund rebalancer: %w", err)
 		}
@@ -153,7 +154,7 @@ func main() {
 	})
 
 	eg.Go(func() error {
-		r, err := txverifier.NewTxVerifier(ctx, db.New(dbConn), clientManager)
+		r, err := txverifier.NewTxVerifier(ctx, db.New(dbConn), clientManager, txPriceOracle)
 		if err != nil {
 			return err
 		}

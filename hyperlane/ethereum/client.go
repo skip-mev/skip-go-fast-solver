@@ -11,11 +11,10 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/signing/evm"
 	evmtxexecutor "github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	interchain_security_module "github.com/skip-mev/go-fast-solver/shared/contracts/hyperlane/InterchainSecurityModule"
 	mailbox "github.com/skip-mev/go-fast-solver/shared/contracts/hyperlane/Mailbox"
 	multisig_ism "github.com/skip-mev/go-fast-solver/shared/contracts/hyperlane/MultisigIsm"
-
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -28,7 +27,7 @@ import (
 )
 
 type TxPriceOracle interface {
-	TxFeeUUSDC(ctx context.Context, tx *ethtypes.Transaction, gasTokenCoingeckoID string) (*big.Int, error)
+	TxFeeUUSDC(ctx context.Context, tx *ethtypes.Transaction) (*big.Int, error)
 }
 
 type HyperlaneClient struct {
@@ -271,22 +270,14 @@ func (c *HyperlaneClient) Process(ctx context.Context, domain string, message []
 }
 
 func (c *HyperlaneClient) QuoteProcessUUSDC(ctx context.Context, domain string, message []byte, metadata []byte) (*big.Int, error) {
-	destinationMailbox, err := mailbox.NewMailbox(c.mailboxAddress, c.client.Client())
+	abi, err := mailbox.MailboxMetaData.GetAbi()
 	if err != nil {
-		return nil, fmt.Errorf("creating mailbox contract caller for address %s: %w", c.mailboxAddress.String(), err)
-	}
-	destinationChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(domain)
-	if err != nil {
-		return nil, fmt.Errorf("getting chainID for hyperlane domain %s: %w", domain, err)
-	}
-	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(destinationChainID)
-	if err != nil {
-		return nil, fmt.Errorf("getting destination chain %s config: %w", destinationChainID, err)
+		return nil, fmt.Errorf("getting mailbox abi: %w", err)
 	}
 
-	signer, err := c.signer(ctx, domain)
+	chainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(domain)
 	if err != nil {
-		return nil, fmt.Errorf("getting signer: %w", err)
+		return nil, fmt.Errorf("getting chainID for hyperlane domain %s: %w", domain, err)
 	}
 
 	addr, err := c.address(ctx, domain)
@@ -294,22 +285,29 @@ func (c *HyperlaneClient) QuoteProcessUUSDC(ctx context.Context, domain string, 
 		return nil, fmt.Errorf("getting address: %w", err)
 	}
 
-	unsentProcessTx, err := destinationMailbox.Process(&bind.TransactOpts{
-		From:    addr,
-		Context: ctx,
-		Signer: evm.EthereumSignerToBindSignerFn(
-			signer,
-			destinationChainID,
-		),
-		// NoSend dry runs the tx, this will populate the tx with all necessary
-		// gas estimates from the node needed to get the tx fee in uusdc
-		NoSend: true,
-	}, metadata, message)
+	data, err := abi.Pack("process", metadata, message)
 	if err != nil {
-		return nil, fmt.Errorf("simulating process tx: %w", err)
+		return nil, fmt.Errorf("packing mailbox process call: %w", err)
+	}
+	to := c.mailboxAddress.String()
+	value := "0"
+
+	tx, err := evm.NewTxBuilder(c.client).Build(
+		ctx,
+		evm.WithData(data),
+		evm.WithValue(value),
+		evm.WithTo(to),
+		evm.WithChainID(chainID),
+		evm.WithNonceOfSigner(addr.String()),
+		evm.WithEstimatedGasLimit(addr.String(), to, value, data),
+		evm.WithEstimatedGasTipCap(nil),
+		evm.WithEstimatedGasFeeCap(nil, big.NewFloat(1.5)),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("building process tx to simulate: %w", err)
 	}
 
-	txFeeUUSDC, err := c.txPriceOracle.TxFeeUUSDC(ctx, unsentProcessTx, destinationChainConfig.GasTokenCoingeckoID)
+	txFeeUUSDC, err := c.txPriceOracle.TxFeeUUSDC(ctx, tx)
 	if err != nil {
 		return nil, fmt.Errorf("getting tx fee in uusdc from gas oracle: %w", err)
 	}

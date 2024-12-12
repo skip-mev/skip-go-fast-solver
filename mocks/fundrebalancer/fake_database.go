@@ -50,6 +50,10 @@ func (fdb *FakeDatabase) GetPendingRebalanceTransfersToChain(ctx context.Context
 	return pendingTransfers, nil
 }
 
+func (fdb *FakeDatabase) InsertSubmittedTx(ctx context.Context, arg db.InsertSubmittedTxParams) (db.SubmittedTx, error) {
+	return db.SubmittedTx{}, nil
+}
+
 func (fdb *FakeDatabase) InsertRebalanceTransfer(ctx context.Context, arg db.InsertRebalanceTransferParams) (int64, error) {
 	fdb.dbLock.Lock()
 	defer fdb.dbLock.Unlock()

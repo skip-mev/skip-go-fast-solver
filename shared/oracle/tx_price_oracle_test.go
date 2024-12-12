@@ -1,4 +1,4 @@
-package evmrpc_test
+package oracle_test
 
 import (
 	"context"
@@ -7,7 +7,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/skip-mev/go-fast-solver/mocks/shared/clients/coingecko"
-	"github.com/skip-mev/go-fast-solver/shared/evmrpc"
+	"github.com/skip-mev/go-fast-solver/shared/config"
+	"github.com/skip-mev/go-fast-solver/shared/oracle"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -45,7 +46,14 @@ func Test_Oracle_TxFeeUUSDC(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
 			ctx := context.Background()
+			cfg := config.Config{
+				Chains: map[string]config.ChainConfig{
+					"ethereum": {ChainID: "1", GasTokenSymbol: "ETH", GasTokenDecimals: 18, GasTokenCoingeckoID: "ethereum"},
+				},
+			}
+			ctx = config.ConfigReaderContext(ctx, config.NewConfigReader(cfg))
 			tx := types.NewTx(&types.DynamicFeeTx{
+				ChainID: big.NewInt(1),
 				// max wei paid per gas
 				GasFeeCap: big.NewInt(int64(tt.MaxPricePerGas)),
 				// total gas used
@@ -55,8 +63,8 @@ func Test_Oracle_TxFeeUUSDC(t *testing.T) {
 			mockcoingecko := coingecko.NewMockPriceClient(t)
 			mockcoingecko.EXPECT().GetSimplePrice(ctx, "ethereum", "usd").Return(tt.ETHPriceUSD, nil)
 
-			oracle := evmrpc.NewOracle(mockcoingecko)
-			uusdcPrice, err := oracle.TxFeeUUSDC(ctx, tx, "ethereum")
+			oracle := oracle.NewOracle(mockcoingecko)
+			uusdcPrice, err := oracle.TxFeeUUSDC(ctx, tx)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.ExpectedUUSDCPrice, uusdcPrice.Int64())
 		})

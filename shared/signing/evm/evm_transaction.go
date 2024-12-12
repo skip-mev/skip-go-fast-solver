@@ -3,8 +3,10 @@ package evm
 import (
 	"context"
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"math"
 	"math/big"
+
+	"github.com/skip-mev/go-fast-solver/shared/lmt"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -150,7 +152,7 @@ func WithEstimatedGasLimit(from, to, value string, data []byte) TxBuildOption {
 			return fmt.Errorf("estimating gas limit: %w", err)
 		}
 
-		tx.Gas = gasLimit
+		tx.Gas = uint64(math.Ceil(float64(gasLimit) * 1.2))
 		return nil
 	}
 }
@@ -178,7 +180,7 @@ func WithEstimatedGasTipCap(minGasTipCap *big.Int) TxBuildOption {
 	}
 }
 
-func WithEstimatedGasFeeCap(minGasTipCap *big.Int) TxBuildOption {
+func WithEstimatedGasFeeCap(minGasTipCap *big.Int, jitter *big.Float) TxBuildOption {
 	return func(ctx context.Context, b TxBuilder, tx *types.DynamicFeeTx) error {
 		if tx.GasTipCap == nil {
 			if err := WithEstimatedGasTipCap(minGasTipCap)(ctx, b, tx); err != nil {
@@ -191,10 +193,11 @@ func WithEstimatedGasFeeCap(minGasTipCap *big.Int) TxBuildOption {
 			return fmt.Errorf("getting latest block header: %w", err)
 		}
 
-		tx.GasFeeCap = new(big.Int).Add(
-			tx.GasTipCap,
-			new(big.Int).Mul(head.BaseFee, big.NewInt(2)),
-		)
+		baseFee := new(big.Float).SetInt(head.BaseFee)
+		baseFee.Mul(baseFee, jitter)
+		baseFeeInt, _ := baseFee.Int(nil)
+
+		tx.GasFeeCap = new(big.Int).Add(tx.GasTipCap, baseFeeInt)
 
 		return nil
 	}

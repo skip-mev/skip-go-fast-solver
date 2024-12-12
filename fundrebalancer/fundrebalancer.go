@@ -1,6 +1,7 @@
 package fundrebalancer
 
 import (
+	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/skip-mev/go-fast-solver/shared/keys"
+	"github.com/skip-mev/go-fast-solver/shared/oracle"
 	evmtxsubmission "github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -39,6 +41,7 @@ type Database interface {
 	InsertRebalanceTransfer(ctx context.Context, arg db.InsertRebalanceTransferParams) (int64, error)
 	GetAllPendingRebalanceTransfers(ctx context.Context) ([]db.GetAllPendingRebalanceTransfersRow, error)
 	UpdateTransferStatus(ctx context.Context, arg db.UpdateTransferStatusParams) error
+	InsertSubmittedTx(ctx context.Context, arg db.InsertSubmittedTxParams) (db.SubmittedTx, error)
 }
 
 type profitabilityFailure struct {
@@ -54,7 +57,7 @@ type FundRebalancer struct {
 	database              Database
 	trasferTracker        *TransferTracker
 	evmTxExecutor         evmtxsubmission.EVMTxExecutor
-	evmTxPriceOracle      evmrpc.IOracle
+	txPriceOracle         oracle.TxPriceOracle
 	profitabilityFailures map[string]*profitabilityFailure
 }
 
@@ -64,7 +67,7 @@ func NewFundRebalancer(
 	skipgo skipgo.SkipGoClient,
 	evmClientManager evmrpc.EVMRPCClientManager,
 	database Database,
-	evmTxPriceOracle evmrpc.IOracle,
+	txPriceOracle oracle.TxPriceOracle,
 	evmTxExecutor evmtxsubmission.EVMTxExecutor,
 ) (*FundRebalancer, error) {
 	return &FundRebalancer{
@@ -74,7 +77,7 @@ func NewFundRebalancer(
 		config:                config.GetConfigReader(ctx).Config().FundRebalancer,
 		database:              database,
 		trasferTracker:        NewTransferTracker(skipgo, database),
-		evmTxPriceOracle:      evmTxPriceOracle,
+		txPriceOracle:         txPriceOracle,
 		evmTxExecutor:         evmTxExecutor,
 		profitabilityFailures: make(map[string]*profitabilityFailure),
 	}, nil
@@ -213,14 +216,14 @@ func (r *FundRebalancer) USDCNeeded(
 // rebalanceToChain.
 func (r *FundRebalancer) MoveFundsToChain(
 	ctx context.Context,
-	rebalanceToChain string,
+	rebalanceToChainID string,
 	usdcToReachTarget *big.Int,
 ) ([]skipgo.TxHash, *big.Int, error) {
 	var hashes []skipgo.TxHash
 	totalUSDCcMoved := big.NewInt(0)
 	remainingUSDCNeeded := usdcToReachTarget
 	for rebalanceFromChainID := range r.config {
-		if rebalanceFromChainID == rebalanceToChain {
+		if rebalanceFromChainID == rebalanceToChainID {
 			// do not try and rebalance funds from the same chain
 			continue
 		}
@@ -249,7 +252,7 @@ func (r *FundRebalancer) MoveFundsToChain(
 			usdcToRebalance = usdcToSpare
 		}
 
-		txns, err := r.GetRebalanceTxns(ctx, usdcToRebalance, rebalanceFromChainID, rebalanceToChain)
+		txns, err := r.GetRebalanceTxns(ctx, usdcToRebalance, rebalanceFromChainID, rebalanceToChainID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("getting txns required for fund rebalancing: %w", err)
 		}
@@ -257,13 +260,37 @@ func (r *FundRebalancer) MoveFundsToChain(
 			return nil, nil, fmt.Errorf("only single transaction transfers are supported")
 		}
 		txn := txns[0]
+
+		approvalHash, err := r.ApproveTxn(ctx, rebalanceFromChainID, txn)
+		if err != nil {
+			return nil, nil, fmt.Errorf("approving rebalance txn from %s: %w", rebalanceFromChainID, err)
+		}
+		if approvalHash != "" {
+			// not we are not linking this submitted tx to the rebalance since the rebalance
+			// has not yet been created
+			approveTx := db.InsertSubmittedTxParams{
+				ChainID:  rebalanceFromChainID,
+				TxHash:   approvalHash,
+				TxType:   dbtypes.TxTypeERC20Approval,
+				TxStatus: dbtypes.TxStatusPending,
+			}
+			if _, err = r.database.InsertSubmittedTx(ctx, approveTx); err != nil {
+				return nil, nil, fmt.Errorf("inserting submitted tx for erc20 approval with hash %s on chain %s into db: %w", approvalHash, rebalanceFromChainID, err)
+			}
+		}
+
+		txnWithMetadata, err := r.TxnWithMetadata(ctx, rebalanceFromChainID, rebalanceFromChainID, usdcToRebalance, txn)
+		if err != nil {
+			return nil, nil, fmt.Errorf("getting transaction metadata: %w", err)
+		}
+
 		chainFundRebalancingConfig, err := config.GetConfigReader(ctx).GetFundRebalancingConfig(rebalanceFromChainID)
 		if err != nil {
-			return nil, nil, fmt.Errorf("getting chain config for gas threshold check: %w", err)
+			return nil, nil, fmt.Errorf("getting fund rebalancer config for gas threshold check: %w", err)
 		}
 
 		if chainFundRebalancingConfig.MaxRebalancingGasCostUUSDC != "" {
-			gasAcceptable, gasCostUUSDC, err := r.isGasAcceptable(ctx, txns, rebalanceFromChainID)
+			gasAcceptable, gasCostUUSDC, err := r.isGasAcceptable(ctx, txnWithMetadata, rebalanceFromChainID)
 			if err != nil {
 				return nil, nil, fmt.Errorf("checking if total rebalancing gas cost is acceptable: %w", err)
 			}
@@ -274,7 +301,7 @@ func (r *FundRebalancer) MoveFundsToChain(
 				}
 				lmt.Logger(ctx).Info(
 					"skipping rebalance from chain "+rebalanceFromChainID+" due to high rebalancing gas cost",
-					zap.String("destinationChainID", rebalanceToChain),
+					zap.String("destinationChainID", rebalanceToChainID),
 					zap.String("estimatedGasCostUUSDC", gasCostUUSDC),
 					zap.String("maxRebalancingGasCostUUSDC", maxCost.String()),
 				)
@@ -282,14 +309,38 @@ func (r *FundRebalancer) MoveFundsToChain(
 			}
 		}
 
-		txHash, err := r.SignAndSubmitTxn(ctx, txn)
+		rebalanceHash, err := r.SignAndSubmitTxn(ctx, txnWithMetadata)
 		if err != nil {
 			return nil, nil, fmt.Errorf("signing and submitting transaction: %w", err)
 		}
-		metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(rebalanceFromChainID, rebalanceToChain, dbtypes.RebalanceTransferStatusPending)
+		metrics.FromContext(ctx).IncFundsRebalanceTransferStatusChange(rebalanceFromChainID, rebalanceToChainID, dbtypes.RebalanceTransferStatusPending)
+
+		// add rebalance transfer to the db
+		rebalanceTransfer := db.InsertRebalanceTransferParams{
+			TxHash:             string(rebalanceHash),
+			Amount:             txnWithMetadata.amount.String(),
+			SourceChainID:      rebalanceFromChainID,
+			DestinationChainID: rebalanceToChainID,
+		}
+		rebalanceID, err := r.database.InsertRebalanceTransfer(ctx, rebalanceTransfer)
+		if err != nil {
+			return nil, nil, fmt.Errorf("updating rebalance transfer with hash %s: %w", string(rebalanceHash), err)
+		}
+
+		// add rebalance tx to submitted txs table
+		rebalanceTx := db.InsertSubmittedTxParams{
+			RebalanceTransferID: sql.NullInt64{Int64: rebalanceID, Valid: true},
+			ChainID:             txnWithMetadata.sourceChainID,
+			TxHash:              string(rebalanceHash),
+			TxType:              dbtypes.TxTypeFundRebalnance,
+			TxStatus:            dbtypes.TxStatusPending,
+		}
+		if _, err = r.database.InsertSubmittedTx(ctx, rebalanceTx); err != nil {
+			return nil, nil, fmt.Errorf("inserting submitted tx for rebalance transfer with hash %s into db: %w", rebalanceHash, err)
+		}
 
 		totalUSDCcMoved = new(big.Int).Add(totalUSDCcMoved, usdcToRebalance)
-		hashes = append(hashes, txHash)
+		hashes = append(hashes, rebalanceHash)
 
 		// if there is no more usdc needed, we are done rebalancing
 		remainingUSDCNeeded = new(big.Int).Sub(remainingUSDCNeeded, usdcToRebalance)
@@ -300,6 +351,27 @@ func (r *FundRebalancer) MoveFundsToChain(
 
 	// we have moved all available funds from all available chains
 	return hashes, totalUSDCcMoved, nil
+}
+
+func (r *FundRebalancer) ApproveTxn(
+	ctx context.Context,
+	chainID string,
+	txn skipgo.Tx,
+) (string, error) {
+	needsApproal, err := r.NeedsERC20Approval(ctx, txn)
+	if err != nil {
+		return "", fmt.Errorf("checking if ERC20 approval is necessary for rebalance txn from %s: %w", chainID, err)
+	}
+	if !needsApproal {
+		return "", nil
+	}
+
+	hash, err := r.ERC20Approval(ctx, txn)
+	if err != nil {
+		return "", fmt.Errorf("handling ERC20 approval for rebalance txn from %s: %w", chainID, err)
+	}
+
+	return hash, nil
 }
 
 // USDCToSpare returns a chains current balance - a chains target amount of
@@ -419,7 +491,7 @@ func (r *FundRebalancer) GetRebalanceTxns(
 	amount *big.Int,
 	sourceChainID string,
 	destChainID string,
-) ([]SkipGoTxnWithMetadata, error) {
+) ([]skipgo.Tx, error) {
 	rebalanceFromDenom, err := config.GetConfigReader(ctx).GetUSDCDenom(sourceChainID)
 	if err != nil {
 		return nil, fmt.Errorf("getting usdc denom for chain %s: %w", sourceChainID, err)
@@ -488,59 +560,48 @@ func (r *FundRebalancer) GetRebalanceTxns(
 		return nil, fmt.Errorf("getting rebalancing txn operations from Skip Go: %w", err)
 	}
 
-	txnsWithMetadata := make([]SkipGoTxnWithMetadata, 0, len(txns))
-	for _, txn := range txns {
-		var gasEstimate uint64
-		if txn.EVMTx != nil {
-			client, err := r.evmClientManager.GetClient(ctx, txn.EVMTx.ChainID)
-			if err != nil {
-				return nil, fmt.Errorf("getting evm client for chain %s: %w", txn.EVMTx.ChainID, err)
-			}
+	return txns, nil
+}
 
-			decodedData, err := hex.DecodeString(txn.EVMTx.Data)
-			if err != nil {
-				return nil, fmt.Errorf("hex decoding evm call data: %w", err)
-			}
-
-			approvalTxn := SkipGoTxnWithMetadata{
-				tx:                 skipgo.Tx{EVMTx: txn.EVMTx},
-				sourceChainID:      sourceChainID,
-				destinationChainID: destChainID,
-				amount:             amount,
-			}
-			needsApproal, err := r.NeedsERC20Approval(ctx, approvalTxn)
-			if err != nil {
-				return nil, fmt.Errorf("checking if ERC20 approval is necessary for rebalance txn from %s to %s for amount %s: %w", sourceChainID, destChainID, amount.String(), err)
-			}
-			if needsApproal {
-				if err := r.ERC20Approval(ctx, approvalTxn); err != nil {
-					return nil, fmt.Errorf("handling ERC20 approval for rebalance txn from %s to %s for amount %s: %w", sourceChainID, destChainID, amount.String(), err)
-				}
-			}
-
-			txBuilder := evm.NewTxBuilder(client)
-			estimate, err := txBuilder.EstimateGasForTx(
-				ctx,
-				sourceChainConfig.SolverAddress,
-				txn.EVMTx.To,
-				txn.EVMTx.Value,
-				decodedData,
-			)
-			if err != nil {
-				return nil, fmt.Errorf("estimating gas: %w", err)
-			}
-			gasEstimate = estimate
-		}
-		txnsWithMetadata = append(txnsWithMetadata, SkipGoTxnWithMetadata{
-			tx:                 txn,
-			sourceChainID:      sourceChainID,
-			destinationChainID: destChainID,
-			amount:             amount,
-			gasEstimate:        gasEstimate,
-		})
+func (r *FundRebalancer) TxnWithMetadata(
+	ctx context.Context,
+	sourceChainID string,
+	destinationChainID string,
+	amount *big.Int,
+	txn skipgo.Tx,
+) (SkipGoTxnWithMetadata, error) {
+	sourceChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(sourceChainID)
+	if err != nil {
+		return SkipGoTxnWithMetadata{}, fmt.Errorf("getting source chain config for chain %s: %w", sourceChainID, err)
+	}
+	decodedData, err := hex.DecodeString(txn.EVMTx.Data)
+	if err != nil {
+		return SkipGoTxnWithMetadata{}, fmt.Errorf("hex decoding evm call data: %w", err)
 	}
 
-	return txnsWithMetadata, nil
+	client, err := r.evmClientManager.GetClient(ctx, sourceChainID)
+	if err != nil {
+		return SkipGoTxnWithMetadata{}, fmt.Errorf("getting evm rpc client for chain %s: %w", sourceChainID, err)
+	}
+	txBuilder := evm.NewTxBuilder(client)
+	estimate, err := txBuilder.EstimateGasForTx(
+		ctx,
+		sourceChainConfig.SolverAddress,
+		txn.EVMTx.To,
+		txn.EVMTx.Value,
+		decodedData,
+	)
+	if err != nil {
+		return SkipGoTxnWithMetadata{}, fmt.Errorf("estimating gas: %w", err)
+	}
+
+	return SkipGoTxnWithMetadata{
+		tx:                 txn,
+		sourceChainID:      sourceChainID,
+		destinationChainID: destinationChainID,
+		amount:             amount,
+		gasEstimate:        estimate,
+	}, nil
 }
 
 // SignAndSubmitTxn signs and submits txs to chain
@@ -582,16 +643,6 @@ func (r *FundRebalancer) SignAndSubmitTxn(
 			zap.String("txnHash", txHash),
 		)
 
-		args := db.InsertRebalanceTransferParams{
-			TxHash:             txHash,
-			SourceChainID:      txn.sourceChainID,
-			DestinationChainID: txn.destinationChainID,
-			Amount:             txn.amount.String(),
-		}
-		if _, err := r.database.InsertRebalanceTransfer(ctx, args); err != nil {
-			return "", fmt.Errorf("inserting rebalance txHash with hash %s into db: %w", txHash, err)
-		}
-
 		return skipgo.TxHash(txHash), nil
 	case txn.tx.CosmosTx != nil:
 		return "", fmt.Errorf("cosmos txns not supported yet")
@@ -600,12 +651,15 @@ func (r *FundRebalancer) SignAndSubmitTxn(
 	}
 }
 
-func (r *FundRebalancer) NeedsERC20Approval(ctx context.Context, txn SkipGoTxnWithMetadata) (bool, error) {
-	if txn.tx.EVMTx == nil {
+func (r *FundRebalancer) NeedsERC20Approval(
+	ctx context.Context,
+	txn skipgo.Tx,
+) (bool, error) {
+	if txn.EVMTx == nil {
 		// if this isnt an evm tx, no erc20 approvals are required
 		return false, nil
 	}
-	evmTx := txn.tx.EVMTx
+	evmTx := txn.EVMTx
 	if len(evmTx.RequiredERC20Approvals) == 0 {
 		// if no approvals are required, return with no error
 		return false, nil
@@ -653,59 +707,60 @@ func (r *FundRebalancer) NeedsERC20Approval(ctx context.Context, txn SkipGoTxnWi
 	return allowance.Cmp(necessaryApprovalAmount) < 0, nil
 }
 
-func (r *FundRebalancer) ERC20Approval(ctx context.Context, txn SkipGoTxnWithMetadata) error {
-	if txn.tx.EVMTx == nil {
+func (r *FundRebalancer) ERC20Approval(ctx context.Context, txn skipgo.Tx) (string, error) {
+	if txn.EVMTx == nil {
 		// if this isnt an evm tx, no erc20 approvals are required
-		return nil
+		return "", nil
 	}
-	evmTx := txn.tx.EVMTx
+
+	evmTx := txn.EVMTx
 	if len(evmTx.RequiredERC20Approvals) == 0 {
 		// if no approvals are required, return with no error
-		return nil
+		return "", nil
 	}
 	if len(evmTx.RequiredERC20Approvals) > 1 {
 		// only support single approval
-		return fmt.Errorf("expected 1 required erc20 approval but got %d", len(evmTx.RequiredERC20Approvals))
+		return "", fmt.Errorf("expected 1 required erc20 approval but got %d", len(evmTx.RequiredERC20Approvals))
 	}
 	approval := evmTx.RequiredERC20Approvals[0]
 
 	chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(evmTx.ChainID)
 	if err != nil {
-		return fmt.Errorf("getting config for chain %s: %w", evmTx.ChainID, err)
+		return "", fmt.Errorf("getting config for chain %s: %w", evmTx.ChainID, err)
 	}
 	usdcDenom, err := config.GetConfigReader(ctx).GetUSDCDenom(evmTx.ChainID)
 	if err != nil {
-		return fmt.Errorf("fetching usdc denom on chain %s: %w", evmTx.ChainID, err)
+		return "", fmt.Errorf("fetching usdc denom on chain %s: %w", evmTx.ChainID, err)
 	}
 
 	// sanity check on the address being returned to be what the solver expects
 	if !strings.EqualFold(approval.TokenContract, usdcDenom) {
-		return fmt.Errorf("expected required approval for usdc token contract %s, but got %s", usdcDenom, approval.TokenContract)
+		return "", fmt.Errorf("expected required approval for usdc token contract %s, but got %s", usdcDenom, approval.TokenContract)
 	}
 
 	signer, err := signing.NewSigner(ctx, evmTx.ChainID, r.chainIDToPrivateKey)
 	if err != nil {
-		return fmt.Errorf("creating signer for chain %s: %w", evmTx.ChainID, err)
+		return "", fmt.Errorf("creating signer for chain %s: %w", evmTx.ChainID, err)
 	}
 
 	spender := common.HexToAddress(approval.Spender)
 
 	amount, ok := new(big.Int).SetString(approval.Amount, 10)
 	if !ok {
-		return fmt.Errorf("error converting erc20 approval amount %s on chain %s to *big.Int", approval.Amount, evmTx.ChainID)
+		return "", fmt.Errorf("error converting erc20 approval amount %s on chain %s to *big.Int", approval.Amount, evmTx.ChainID)
 	}
 
 	abi, err := usdc.UsdcMetaData.GetAbi()
 	if err != nil {
-		return fmt.Errorf("getting usdc contract abi: %w", err)
+		return "", fmt.Errorf("getting usdc contract abi: %w", err)
 	}
 
 	input, err := abi.Pack("approve", spender, amount)
 	if err != nil {
-		return fmt.Errorf("packing input to erc20 approval tx: %w", err)
+		return "", fmt.Errorf("packing input to erc20 approval tx: %w", err)
 	}
 
-	_, err = r.evmTxExecutor.ExecuteTx(
+	hash, err := r.evmTxExecutor.ExecuteTx(
 		ctx,
 		evmTx.ChainID,
 		chainConfig.SolverAddress,
@@ -715,28 +770,15 @@ func (r *FundRebalancer) ERC20Approval(ctx context.Context, txn SkipGoTxnWithMet
 		signer,
 	)
 	if err != nil {
-		return fmt.Errorf("executing erc20 approve for %s at contract %s for spender %s on %s: %w", amount.String(), approval.TokenContract, approval.Spender, evmTx.ChainID, err)
+		return "", fmt.Errorf("executing erc20 approve for %s at contract %s for spender %s on %s: %w", amount.String(), approval.TokenContract, approval.Spender, evmTx.ChainID, err)
 	}
 
-	return nil
+	return hash, nil
 }
 
-func (r *FundRebalancer) estimateTotalGas(txns []SkipGoTxnWithMetadata) (uint64, error) {
-	var totalGas uint64
-	for _, txn := range txns {
-		totalGas += txn.gasEstimate
-	}
-	return totalGas, nil
-}
-
-// isGasAcceptable checks if the gas cost for rebalancing transactions is acceptable based on configured thresholds
-// and timeouts
-func (r *FundRebalancer) isGasAcceptable(ctx context.Context, txns []SkipGoTxnWithMetadata, chainID string) (bool, string, error) {
-	totalGas, err := r.estimateTotalGas(txns)
-	if err != nil {
-		return false, "", fmt.Errorf("estimating total gas: %w", err)
-	}
-
+// isGasAcceptable checks if the gas cost for rebalancing transactions is
+// acceptable based on configured thresholds and timeouts
+func (r *FundRebalancer) isGasAcceptable(ctx context.Context, txn SkipGoTxnWithMetadata, chainID string) (bool, string, error) {
 	client, err := r.evmClientManager.GetClient(ctx, chainID)
 	if err != nil {
 		return false, "", fmt.Errorf("getting evm client: %w", err)
@@ -747,20 +789,21 @@ func (r *FundRebalancer) isGasAcceptable(ctx context.Context, txns []SkipGoTxnWi
 		return false, "", fmt.Errorf("getting gas price: %w", err)
 	}
 
-	chainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
-	if err != nil {
-		return false, "", fmt.Errorf("getting chain config: %w", err)
-	}
-
 	chainFundRebalancingConfig, err := config.GetConfigReader(ctx).GetFundRebalancingConfig(chainID)
 	if err != nil {
 		return false, "", fmt.Errorf("getting chain fund rebalancing config: %w", err)
 	}
 
-	gasCostUUSDC, err := r.evmTxPriceOracle.TxFeeUUSDC(ctx, types.NewTx(&types.DynamicFeeTx{
-		Gas:       totalGas,
+	chainIDBigInt, ok := new(big.Int).SetString(chainID, 10)
+	if !ok {
+		return false, "", fmt.Errorf("could not convert chainID %s to *big.Int", chainID)
+	}
+
+	gasCostUUSDC, err := r.txPriceOracle.TxFeeUUSDC(ctx, types.NewTx(&types.DynamicFeeTx{
+		Gas:       txn.gasEstimate,
 		GasFeeCap: gasPrice,
-	}), chainConfig.GasTokenCoingeckoID)
+		ChainID:   chainIDBigInt,
+	}))
 	if err != nil {
 		return false, "", fmt.Errorf("calculating total fund rebalancing gas cost in UUSDC: %w", err)
 	}
