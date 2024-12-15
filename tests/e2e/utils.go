@@ -58,7 +58,6 @@ type HyperlaneAddresses struct {
 }
 
 func parseHyperlaneAddresses(output string) HyperlaneAddresses {
-	// The output format is: "mailbox:0x...,ism:0x...,merkleHook:0x...,validatorAnnounce:0x..."
 	parts := strings.Split(output, ",")
 	addresses := HyperlaneAddresses{}
 
@@ -137,23 +136,46 @@ func (s *TestSuite) fundAddress(ctx context.Context, chain *cosmos.CosmosChain, 
 	s.Require().NoError(err)
 }
 
-func (s *TestSuite) GetEthContractsFromDeployOutput(stdout string) DeployedContracts {
-	// Extract the JSON part using regex that matches forge's JSON output format
+func (s *TestSuite) GetEthContractsFromDeployOutput(baseOutput string, hyperlaneOutput string) DeployedContracts {
 	re := regexp.MustCompile(`"value":"({.*?})"`)
-	matches := re.FindStringSubmatch(stdout)
-	if len(matches) != 2 {
-		s.T().Fatalf("Failed to find JSON in forge output")
+
+	baseMatches := re.FindStringSubmatch(baseOutput)
+	if len(baseMatches) != 2 {
+		s.T().Fatalf("Failed to find JSON in base forge output")
 	}
+	baseJsonStr := strings.ReplaceAll(baseMatches[1], `\`, ``)
 
-	jsonStr := matches[1]
-	// Unescape the JSON string
-	jsonStr = strings.ReplaceAll(jsonStr, `\`, ``)
-
-	var contracts DeployedContracts
-	err := json.Unmarshal([]byte(jsonStr), &contracts)
+	var baseContracts struct {
+		Erc20               string `json:"erc20"`
+		FastTransferGateway string `json:"fastTransferGateway"`
+	}
+	err := json.Unmarshal([]byte(baseJsonStr), &baseContracts)
 	s.Require().NoError(err)
 
-	// Verify all required fields are present
+	hyperlaneMatches := re.FindStringSubmatch(hyperlaneOutput)
+	if len(hyperlaneMatches) != 2 {
+		s.T().Fatalf("Failed to find JSON in hyperlane forge output")
+	}
+	hyperlaneJsonStr := strings.ReplaceAll(hyperlaneMatches[1], `\`, ``)
+
+	var hyperlaneContracts struct {
+		Mailbox           string `json:"mailbox"`
+		Ism               string `json:"ism"`
+		MerkleHook        string `json:"merkleHook"`
+		ValidatorAnnounce string `json:"validatorAnnounce"`
+	}
+	err = json.Unmarshal([]byte(hyperlaneJsonStr), &hyperlaneContracts)
+	s.Require().NoError(err)
+
+	contracts := DeployedContracts{
+		Erc20:               baseContracts.Erc20,
+		FastTransferGateway: baseContracts.FastTransferGateway,
+		Mailbox:             hyperlaneContracts.Mailbox,
+		Ism:                 hyperlaneContracts.Ism,
+		MerkleHook:          hyperlaneContracts.MerkleHook,
+		ValidatorAnnounce:   hyperlaneContracts.ValidatorAnnounce,
+	}
+
 	s.Require().NotEmpty(contracts.Erc20)
 	s.Require().NotEmpty(contracts.FastTransferGateway)
 	s.Require().NotEmpty(contracts.Mailbox)

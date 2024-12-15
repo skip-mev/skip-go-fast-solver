@@ -44,10 +44,11 @@ unit-test:
 setup-foundry:
 	cd tests/e2e && forge install \
 		foundry-rs/forge-std \
-		OpenZeppelin/openzeppelin-contracts@v4.8.3 \
-		OpenZeppelin/openzeppelin-contracts-upgradeable@v4.8.3 \
+		OpenZeppelin/openzeppelin-contracts \
+		OpenZeppelin/openzeppelin-contracts-upgradeable \
 		hyperlane-xyz/hyperlane-monorepo \
-		--no-commit
+		--no-commit \
+		&& cd lib/hyperlane-monorepo/solidity && yarn install --frozen-lockfile
 
 .PHONY: e2e-test
 e2e-test: setup-foundry

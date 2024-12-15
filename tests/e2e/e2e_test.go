@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/skip-mev/fast-transfer-solver/shared/config"
 	"github.com/skip-mev/fast-transfer-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/strangelove-ventures/interchaintest/v8/chain/ethereum"
 
@@ -52,8 +51,6 @@ type SolverTestSuite struct {
 	mockIsm               *hyperlane.TestIsm
 	mockMerkleHook        *hyperlane.MerkleTreeHook
 	mockValidatorAnnounce *hyperlane.ValidatorAnnounce
-
-	config *config.Config
 }
 
 func (s *SolverTestSuite) SetupSuite(ctx context.Context) {
@@ -103,21 +100,43 @@ func (s *SolverTestSuite) SetupSuite(ctx context.Context) {
 
 		s.T().Logf("Deploying contracts with sender: %s", s.deployer.FormattedAddress())
 
+		// First deploy base contracts
 		stdout, stderr, err = eth.ForgeScript(ctx, s.deployer.KeyName(), ethereum.ForgeScriptOpts{
-			ContractRootDir: ".", // Point to project root as os.ChDir(../..) is called as first step
-			// in "Set up environment" suite
-			SolidityContract: "./tests/e2e/scripts/MockE2ETestDeploy.s.sol",
+			ContractRootDir:  "./tests/e2e",
+			SolidityContract: "scripts/MockE2ETestDeploy.s.sol:BaseTestDeploy",
 			RawOptions: []string{
 				"--json",
-				"--force",                                 // sometimes forge cache returns a nothing to compile error
-				"-vvvv",                                   // Add verbose logging
-				"--sender", s.deployer.FormattedAddress(), // This, combined with the keyname, makes msg.sender the deployer
+				"--force",
+				"-vvvv",
+				"--sender", s.deployer.FormattedAddress(),
+				"--lib-paths", "lib",
 			},
 		})
 
 		s.Require().NoError(err, fmt.Sprintf("error deploying contracts: \nstderr: %s\nstdout: %s\nerr: %s", stderr, stdout, err))
 
-		s.contractAddresses = s.GetEthContractsFromDeployOutput(string(stdout))
+		// deploy Hyperlane contracts with a different set of remappings
+		hyperlaneDeployOutput, stderr, err := eth.ForgeScript(ctx, s.deployer.KeyName(), ethereum.ForgeScriptOpts{
+			ContractRootDir:  "./tests/e2e",
+			SolidityContract: "scripts/HyperlaneTestDeploy.s.sol:HyperlaneTestDeploy",
+			RawOptions: []string{
+				"--json",
+				"--force",
+				"-vvvv",
+				"--sender", s.deployer.FormattedAddress(),
+				"--lib-paths", "lib",
+				"--remappings", "@openzeppelin/contracts-upgradeable=lib/hyperlane-monorepo/node_modules/@openzeppelin/contracts-upgradeable",
+				"--remappings", "@openzeppelin=lib/hyperlane-monorepo/node_modules/@openzeppelin",
+				"--remappings", "@eth-optimism=lib/hyperlane-monorepo/node_modules/@eth-optimism",
+				"--remappings", "@hyperlane-xyz/=lib/hyperlane-monorepo/solidity/contracts/",
+				"--remappings", "forge-std/=lib/forge-std/src/",
+				"--remappings", "ds-test/=lib/openzeppelin-contracts/lib/forge-std/lib/ds-test/src/",
+				"--remappings", "hyperlane-monorepo/=lib/hyperlane-monorepo/",
+			},
+		})
+		s.Require().NoError(err, fmt.Sprintf("error deploying hyperlane contracts: \nstderr: %s\nstdout: %s\nerr: %s", stderr, stdout, err))
+
+		s.contractAddresses = s.GetEthContractsFromDeployOutput(string(stdout), string(hyperlaneDeployOutput))
 		ethClient, err := ethclient.Dial(eth.GetHostRPCAddress())
 		s.Require().NoError(err)
 		s.Require().NotNil(ethClient)

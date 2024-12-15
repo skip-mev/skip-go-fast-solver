@@ -5,7 +5,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {OwnableUpgradeable} from "@openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {Initializable} from "@openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin-contracts-upgradeable/contracts/security/ReentrancyGuardUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
 
 import {TypeCasts} from "./libraries/TypeCasts.sol";
 import {OrderEncoder} from "./libraries/OrderEncoder.sol";
@@ -95,7 +95,7 @@ contract FastTransferGateway is Initializable, UUPSUpgradeable, OwnableUpgradeab
         external
         initializer
     {
-        __Ownable_init();
+        __Ownable_init(_owner);
         _transferOwnership(_owner);
 
         token = _token;
