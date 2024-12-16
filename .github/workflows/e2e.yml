@@ -32,8 +32,6 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
-        with:
-          submodules: false
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1

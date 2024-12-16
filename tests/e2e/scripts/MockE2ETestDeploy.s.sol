@@ -19,24 +19,20 @@ contract BaseTestDeploy is Script {
         
         vm.startBroadcast();
 
-        // Deploy ERC20
         TestERC20 erc20 = new TestERC20();
 
-        // Deploy implementation
         FastTransferGateway gatewayImpl = new FastTransferGateway();
 
-        // Prepare initialization data
         bytes memory initData = abi.encodeWithSelector(
             FastTransferGateway.initialize.selector,
-            31337,              // Local domain (Anvil chain ID)
-            deployerAddress,    // Owner
-            address(erc20),     // Token
+            31337,
+            deployerAddress,
+            address(erc20),
             address(0),         // Will be set after Hyperlane deployment
             address(0),         // Will be set after Hyperlane deployment
-            MOCK_PERMIT2       // Permit2
+            MOCK_PERMIT2
         );
 
-        // Deploy proxy with initialization data
         ERC1967Proxy gatewayProxy = new ERC1967Proxy(
             address(gatewayImpl),
             initData
@@ -49,7 +45,6 @@ contract BaseTestDeploy is Script {
         
         vm.stopBroadcast();
 
-        // Create JSON output with base contract addresses
         string memory json = "{";
         json = _appendField(json, "erc20", address(erc20));
         json = _appendField(json, "fastTransferGateway", address(gatewayProxy));
