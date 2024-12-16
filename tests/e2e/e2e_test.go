@@ -103,7 +103,7 @@ func (s *SolverTestSuite) SetupSuite(ctx context.Context) {
 		// First deploy base contracts
 		stdout, stderr, err = eth.ForgeScript(ctx, s.deployer.KeyName(), ethereum.ForgeScriptOpts{
 			ContractRootDir:  "./tests/e2e",
-			SolidityContract: "scripts/MockE2ETestDeploy.s.sol:BaseTestDeploy",
+			SolidityContract: "scripts/E2EContractsDeploy.s.sol:E2EContractsDeploy",
 			RawOptions: []string{
 				"--json",
 				"--force",

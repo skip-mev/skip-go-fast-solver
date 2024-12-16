@@ -8,7 +8,7 @@ import { FastTransferGateway } from "./FastTransferGateway.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
-contract BaseTestDeploy is Script {
+contract E2EContractsDeploy is Script {
     using stdJson for string;
 
     string public constant E2E_FAUCET = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
