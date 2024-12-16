@@ -40,18 +40,8 @@ run-solver:
 unit-test:
 	go test --tags=test -v -race $(shell go list ./... | grep -v /tests)
 
-.PHONY: setup-foundry
-setup-foundry:
-	cd tests/e2e && forge install \
-		foundry-rs/forge-std \
-		OpenZeppelin/openzeppelin-contracts \
-		OpenZeppelin/openzeppelin-contracts-upgradeable \
-		hyperlane-xyz/hyperlane-monorepo \
-		--no-commit \
-		&& cd lib/hyperlane-monorepo/solidity && yarn install --frozen-lockfile
-
 .PHONY: e2e-test
-e2e-test: setup-foundry
+e2e-test:
 	cd tests/e2e && go test -v ./
 
 ###############################################################################
