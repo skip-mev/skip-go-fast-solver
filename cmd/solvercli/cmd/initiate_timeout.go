@@ -88,6 +88,7 @@ func initiateTimeout(cmd *cobra.Command, args []string) {
 
 	client, gateway, err := setupGatewayContract(ctx, sourceChainConfig, gatewayAddr)
 	if err != nil {
+		lmt.Logger(ctx).Error("Failed to setup fast transfer gateway contract", zap.Error(err))
 		return
 	}
 
@@ -98,6 +99,7 @@ func initiateTimeout(cmd *cobra.Command, args []string) {
 	}
 
 	if err := verifyOrderTimeout(ctx, order); err != nil {
+		lmt.Logger(ctx).Error("Failed to verify order timeout", zap.Error(err))
 		return
 	}
 	cosmosTxExecutor := cosmos.DefaultSerializedCosmosTxExecutor()
