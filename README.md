@@ -121,25 +121,25 @@ solver relay \
   --checkpoint-storage-location-override <storage path>
 ```
 
-**balances**: Show current on-chain balances (USDC, gas token, and custom assets requested)
+**balances**: Get current on-chain balances (USDC, gas token, and custom assets requested)
 
 ```shell
 solver balances --custom-assets '{"osmosis-1":["uosmo","uion"],"celestia-1":["utia"]}'
 ```
 
-**inventory**: Show complete solver inventory including balances, pending settlements, and pending rebalance transfers
+**inventory**: Get complete solver inventory including balances, pending settlements, and pending rebalance transfers
 
 ```shell
 solver inventory --custom-assets '{"osmosis-1":["uosmo","uion"],"celestia-1":["utia"]}'
 ```
 
-**rebalances**: Show pending rebalance transfers
+**rebalances**: Get pending rebalance transfers
 
 ```shell
 solver rebalances
 ```
 
-**settlements**: Show pending order settlements
+**settlements**: Get pending order settlements
 
 ```shell
 solver settlements
