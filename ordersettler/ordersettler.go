@@ -106,7 +106,7 @@ func (r *OrderSettler) Run(ctx context.Context) {
 }
 
 func (r *OrderSettler) createPendingSettlements(ctx context.Context) error {
-	pendingSettlements, err := DetectPendingSettlements(ctx, r.clientManager, r.ordersSeen)
+	pendingSettlements, err := DetectPendingSettlements(ctx, r.clientManager, &r.ordersSeen)
 	if err != nil {
 		return fmt.Errorf("detecting pending settlements: %w", err)
 	}
