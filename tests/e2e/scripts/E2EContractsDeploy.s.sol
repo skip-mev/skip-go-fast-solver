@@ -6,7 +6,7 @@ import { TestERC20 } from "./TestERC20.sol";
 import { ICS20Lib } from "./ICS20Lib.sol";
 import { FastTransferGateway } from "./FastTransferGateway.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract E2EContractsDeploy is Script {
     using stdJson for string;
