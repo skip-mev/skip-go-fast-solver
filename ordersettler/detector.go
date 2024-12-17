@@ -27,7 +27,7 @@ type PendingSettlement struct {
 func DetectPendingSettlements(
 	ctx context.Context,
 	clientManager *clientmanager.ClientManager,
-	ordersSeen *map[string]bool,
+	ordersSeen map[string]bool,
 ) ([]PendingSettlement, error) {
 	var pendingSettlements []PendingSettlement
 
@@ -48,7 +48,7 @@ func DetectPendingSettlements(
 		}
 
 		for _, fill := range fills {
-			if ordersSeen != nil && (*ordersSeen)[fill.OrderID] {
+			if ordersSeen != nil && ordersSeen[fill.OrderID] {
 				continue
 			}
 
@@ -60,7 +60,7 @@ func DetectPendingSettlements(
 					zap.String("orderID", fill.OrderID),
 					zap.Error(err),
 				)
-				(*ordersSeen)[fill.OrderID] = true
+				ordersSeen[fill.OrderID] = true
 				continue
 			}
 
@@ -85,7 +85,7 @@ func DetectPendingSettlements(
 				return nil, fmt.Errorf("checking if order %s exists on chainID %s: %w", fill.OrderID, sourceChainID, err)
 			}
 			if !exists {
-				(*ordersSeen)[fill.OrderID] = true
+				ordersSeen[fill.OrderID] = true
 				continue
 			}
 
@@ -96,7 +96,7 @@ func DetectPendingSettlements(
 				return nil, fmt.Errorf("getting order %s status on chainID %s: %w", fill.OrderID, sourceChainID, err)
 			}
 			if status != fast_transfer_gateway.OrderStatusUnfilled {
-				(*ordersSeen)[fill.OrderID] = true
+				ordersSeen[fill.OrderID] = true
 				continue
 			}
 
