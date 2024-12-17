@@ -32,6 +32,16 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Update hyperlane-monorepo submodule to specific branch
+        run: |
+          git submodule update --init --recursive
+          cd tests/e2e/lib/hyperlane-monorepo
+          git checkout solver-e2etest-changes
+          cd solidity
+          yarn install --frozen-lockfile
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
