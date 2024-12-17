@@ -43,10 +43,13 @@ jobs:
       - name: Setup hyperlane-monorepo
         run: |
           cd tests/e2e/lib
-          git clone https://github.com/hyperlane-xyz/hyperlane-monorepo.git
+          git subtree add --prefix hyperlane-monorepo https://github.com/hyperlane-xyz/hyperlane-monorepo.git main --squash
           cd hyperlane-monorepo
-          git checkout -b solver-e2etest-changes
-          echo "${{ secrets.HYPERLANE_CHANGES }}" | git apply -
+          
+          echo "${{ secrets.HYPERLANE_PATCH }}" > changes.patch
+          git apply --3way changes.patch
+          rm changes.patch
+          
           cd solidity
           yarn install --frozen-lockfile
 
