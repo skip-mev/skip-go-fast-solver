@@ -6,7 +6,7 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { MockHyperlaneEnvironment } from "@hyperlane-xyz/mock/MockHyperlaneEnvironment.sol";
 import { TestMerkle } from "@hyperlane-xyz/test/TestMerkle.sol";
-import { ValidatorAnnounce } from "@hyperlane-xyz/ValidatorAnnounce.sol";
+import { ValidatorAnnounce } from "@hyperlane-xyz/isms/multisig/ValidatorAnnounce.sol";
 
 contract HyperlaneTestDeploy is Script {
     using stdJson for string;

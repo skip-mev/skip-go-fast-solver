@@ -125,13 +125,13 @@ func (s *SolverTestSuite) SetupSuite(ctx context.Context) {
 				"-vvvv",
 				"--sender", s.deployer.FormattedAddress(),
 				"--lib-paths", "lib",
-				"--remappings", "@openzeppelin/contracts-upgradeable=lib/hyperlane-monorepo/node_modules/@openzeppelin/contracts-upgradeable",
-				"--remappings", "@openzeppelin=lib/hyperlane-monorepo/node_modules/@openzeppelin",
-				"--remappings", "@eth-optimism=lib/hyperlane-monorepo/node_modules/@eth-optimism",
-				"--remappings", "@hyperlane-xyz/=lib/hyperlane-monorepo/solidity/contracts/",
+				"--remappings", "@openzeppelin/contracts-upgradeable=hyperlane-monorepo/node_modules/@openzeppelin/contracts-upgradeable",
+				"--remappings", "@openzeppelin=hyperlane-monorepo/node_modules/@openzeppelin",
+				"--remappings", "@eth-optimism=hyperlane-monorepo/node_modules/@eth-optimism",
+				"--remappings", "@hyperlane-xyz/=hyperlane-monorepo/solidity/contracts/",
 				"--remappings", "forge-std/=lib/forge-std/src/",
 				"--remappings", "ds-test/=lib/openzeppelin-contracts/lib/forge-std/lib/ds-test/src/",
-				"--remappings", "hyperlane-monorepo/=lib/hyperlane-monorepo/",
+				"--remappings", "hyperlane-monorepo/=hyperlane-monorepo/",
 			},
 		})
 		s.Require().NoError(err, fmt.Sprintf("error deploying hyperlane contracts: \nstderr: %s\nstdout: %s\nerr: %s", stderr, stdout, err))
