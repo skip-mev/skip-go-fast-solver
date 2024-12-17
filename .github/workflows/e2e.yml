@@ -33,20 +33,20 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
 
-      - name: Initialize and update submodules
+      - name: Initialize standard submodules
         run: |
           git submodule init
           git submodule update --init tests/e2e/lib/forge-std
           git submodule update --init tests/e2e/lib/openzeppelin-contracts
           git submodule update --init tests/e2e/lib/openzeppelin-contracts-upgradeable
 
-      - name: Setup hyperlane-monorepo submodule
+      - name: Setup hyperlane-monorepo
         run: |
-          git submodule init tests/e2e/lib/hyperlane-monorepo
-          git submodule update --init tests/e2e/lib/hyperlane-monorepo
-          cd tests/e2e/lib/hyperlane-monorepo
-          git fetch origin solver-e2etest-changes
-          git checkout solver-e2etest-changes
+          cd tests/e2e/lib
+          git clone https://github.com/hyperlane-xyz/hyperlane-monorepo.git
+          cd hyperlane-monorepo
+          git checkout -b solver-e2etest-changes
+          echo "${{ secrets.HYPERLANE_CHANGES }}" | git apply -
           cd solidity
           yarn install --frozen-lockfile
 
