@@ -41,13 +41,19 @@ jobs:
           git submodule update --init tests/e2e/lib/openzeppelin-contracts-upgradeable
 
       - name: Setup hyperlane-monorepo
-        run: |
-          cd tests/e2e/lib
-          git subtree add --prefix hyperlane-monorepo https://github.com/hyperlane-xyz/hyperlane-monorepo.git main --squash
-          cd hyperlane-monorepo
+        run: |          
+          # Add hyperlane as a subtree
+          mkdir -p tests/e2e/lib
+          git subtree add --prefix tests/e2e/lib/hyperlane-monorepo https://github.com/hyperlane-xyz/hyperlane-monorepo.git main --squash
+          cd tests/e2e/lib/hyperlane-monorepo
           
+          # Apply changes from secret
           echo "${{ secrets.HYPERLANE_PATCH }}" > changes.patch
-          git apply --3way changes.patch
+          git apply --3way changes.patch || {
+            echo "Patch failed to apply. Showing rejects:"
+            find . -name "*.rej" -exec cat {} \;
+            exit 1
+          }
           rm changes.patch
           
           cd solidity
