@@ -22,7 +22,7 @@ type Client interface {
 	ValidatorsAndThreshold(ctx context.Context, domain string, recipient string, message string) ([]common.Address, uint8, error)
 	ValidatorStorageLocations(ctx context.Context, domain string, validators []common.Address) ([]*types.ValidatorStorageLocation, error)
 	MerkleTreeLeafCount(ctx context.Context, domain string) (uint64, error)
-	Process(ctx context.Context, domain string, message []byte, metadata []byte) ([]byte, error)
+	Process(ctx context.Context, domain string, message []byte, metadata []byte) ([]byte, string, error)
 	IsContract(ctx context.Context, domain, address string) (bool, error)
 	GetHyperlaneDispatch(ctx context.Context, domain, originChainID, initiateTxHash string) (*types.MailboxDispatchEvent, *types.MailboxMerkleHookPostDispatchEvent, error)
 	QuoteProcessUUSDC(ctx context.Context, domain string, message []byte, metadata []byte) (*big.Int, error)
@@ -117,10 +117,10 @@ func (c *MultiClient) MerkleTreeLeafCount(ctx context.Context, domain string) (u
 	return client.MerkleTreeLeafCount(ctx, domain)
 }
 
-func (c *MultiClient) Process(ctx context.Context, domain string, message []byte, metadata []byte) ([]byte, error) {
+func (c *MultiClient) Process(ctx context.Context, domain string, message []byte, metadata []byte) ([]byte, string, error) {
 	client, ok := c.clients[domain]
 	if !ok {
-		return nil, fmt.Errorf("no configured client for domain %s", domain)
+		return nil, "", fmt.Errorf("no configured client for domain %s", domain)
 	}
 	return client.Process(ctx, domain, message, metadata)
 }

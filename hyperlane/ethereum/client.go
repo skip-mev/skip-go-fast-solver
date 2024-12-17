@@ -210,29 +210,29 @@ func (c *HyperlaneClient) getISMAddress(ctx context.Context, recipient string) (
 	return ismAddress, nil
 }
 
-func (c *HyperlaneClient) Process(ctx context.Context, domain string, message []byte, metadata []byte) ([]byte, error) {
+func (c *HyperlaneClient) Process(ctx context.Context, domain string, message []byte, metadata []byte) ([]byte, string, error) {
 	destinationMailbox, err := mailbox.NewMailbox(c.mailboxAddress, c.client.Client())
 	if err != nil {
-		return nil, fmt.Errorf("creating mailbox contract caller for address %s: %w", c.mailboxAddress.String(), err)
+		return nil, "", fmt.Errorf("creating mailbox contract caller for address %s: %w", c.mailboxAddress.String(), err)
 	}
 
 	destinationChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(domain)
 	if err != nil {
-		return nil, fmt.Errorf("getting chainID for hyperlane domain %s: %w", domain, err)
+		return nil, "", fmt.Errorf("getting chainID for hyperlane domain %s: %w", domain, err)
 	}
 	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(destinationChainID)
 	if err != nil {
-		return nil, fmt.Errorf("getting destination chain %s config: %w", destinationChainID, err)
+		return nil, "", fmt.Errorf("getting destination chain %s config: %w", destinationChainID, err)
 	}
 
 	signer, err := c.signer(ctx, domain)
 	if err != nil {
-		return nil, fmt.Errorf("getting signer: %w", err)
+		return nil, "", fmt.Errorf("getting signer: %w", err)
 	}
 
 	addr, err := c.address(ctx, domain)
 	if err != nil {
-		return nil, fmt.Errorf("getting address: %w", err)
+		return nil, "", fmt.Errorf("getting address: %w", err)
 	}
 
 	tx, err := destinationMailbox.Process(&bind.TransactOpts{
@@ -245,10 +245,10 @@ func (c *HyperlaneClient) Process(ctx context.Context, domain string, message []
 		NoSend: true, // generate the transaction without sending
 	}, metadata, message)
 	if err != nil {
-		return nil, fmt.Errorf("creating process transaction: %w", err)
+		return nil, "", fmt.Errorf("creating process transaction: %w", err)
 	}
 
-	txHash, err := c.txExecutor.ExecuteTx(
+	txHash, rawTx, err := c.txExecutor.ExecuteTx(
 		ctx,
 		destinationChainID,
 		destinationChainConfig.SolverAddress,
@@ -258,15 +258,15 @@ func (c *HyperlaneClient) Process(ctx context.Context, domain string, message []
 		signer,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("processing message on destination mailbox: %w", err)
+		return nil, "", fmt.Errorf("processing message on destination mailbox: %w", err)
 	}
 
 	txHashBytes, err := hex.DecodeString(strings.TrimPrefix(txHash, "0x"))
 	if err != nil {
-		return nil, fmt.Errorf("decoding process tx hash %s: %w", txHash, err)
+		return nil, "", fmt.Errorf("decoding process tx hash %s: %w", txHash, err)
 	}
 
-	return txHashBytes, nil
+	return txHashBytes, rawTx, nil
 }
 
 func (c *HyperlaneClient) QuoteProcessUUSDC(ctx context.Context, domain string, message []byte, metadata []byte) (*big.Int, error) {
