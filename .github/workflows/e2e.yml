@@ -48,7 +48,7 @@ jobs:
         run: |
           make tidy
           git submodule update --init --recursive
-          cd tests/e2e/lib/openzeppelin-contracts && git checkout v4.8.0
+          cd tests/e2e/lib/openzeppelin-contracts && git checkout v4.8.0 
           cd ../openzeppelin-contracts-upgradeable && git checkout v4.8.0
           cd ../hyperlane-monorepo/solidity && yarn install --frozen-lockfile
           cd ../../../../.. && make e2e-test

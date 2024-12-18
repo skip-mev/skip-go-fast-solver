@@ -5,8 +5,8 @@ keys.json.plaintext
 solver.db
 vendor
 .idea
-out
-cache
-broadcast
 config/local/config.yml
 config/local/keys.json
+out
+broadcast
+cache

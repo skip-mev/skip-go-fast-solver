@@ -115,7 +115,7 @@ func (s *SolverTestSuite) SetupSuite(ctx context.Context) {
 
 		s.Require().NoError(err, fmt.Sprintf("error deploying contracts: \nstderr: %s\nstdout: %s\nerr: %s", stderr, stdout, err))
 
-		// deploy Hyperlane contracts with a different set of remappings
+		// deploy hyperlane contracts with a different set of remappings
 		hyperlaneDeployOutput, stderr, err := eth.ForgeScript(ctx, s.deployer.KeyName(), ethereum.ForgeScriptOpts{
 			ContractRootDir:  "./tests/e2e",
 			SolidityContract: "scripts/HyperlaneTestDeploy.s.sol:HyperlaneTestDeploy",
@@ -179,7 +179,6 @@ func (s *SolverTestSuite) TestDeploy() {
 	s.SetupSuite(ctx)
 
 	s.Require().True(s.Run("Verify deployment", func() {
-		// Verify that the contracts have been deployed
 		s.Require().True(s.Run("Verify ERC20 Genesis", func() {
 			userBalance, err := s.erc20Contract.BalanceOf(nil, crypto.PubkeyToAddress(s.key.PublicKey))
 			s.Require().NoError(err)

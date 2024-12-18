@@ -46,8 +46,8 @@ setup-foundry:
 		foundry-rs/forge-std \
 		OpenZeppelin/openzeppelin-contracts@v4.8.0 \
 		OpenZeppelin/openzeppelin-contracts-upgradeable@v4.8.0 \
-		hyperlane-xyz/hyperlane-monorepo \
-		--no-commit
+		hyperlane-xyz/hyperlane-monorepo --no-commit \
+		&& cd lib/hyperlane-monorepo/solidity && yarn install --frozen-lockfile
 
 .PHONY: e2e-test
 e2e-test:
