@@ -48,6 +48,8 @@ Use these addresses in the solver config and when using the CLI tool to submit t
 1. Update [config/local/keys.json](config/local/keys.json) with the corresponding solver private keys and addresses.
 2. Update [config/local/config.yml](config/local/config.yml) with the needed config values (solver addresses, chain rpc links, etc.). Values that need to be set are in `<>` brackets. Reference the [shared/config/config.go](shared/config/config.go) file for more info about the config fields.
    - The [config/local/config.yml](config/local/config.yml) config file is pre-filled with recommended values. To customize your solver deployment, reference [config/sample/config.yml](config/sample/config.yml) to see which config values can be modified.
+3. Please make sure that the addresses used for each of the chains configured (EVM and Cosmos) are constantly topped up with sufficient gas balance. If the solver runs out of gas on a chain, it can prevent
+the solver from completing operations like rebalancing, settlement, or filling orders on that chain.
 
 ```shell
 make build # build solver server binary
