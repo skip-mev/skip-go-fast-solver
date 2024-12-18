@@ -18,7 +18,7 @@ contract E2EContractsDeploy is Script {
         
         vm.startBroadcast();
 
-        USDCERC20 erc20 = new USDCERC20();
+        USDCERC20 usdc = new USDCERC20();
 
         FastTransferGateway gatewayImpl = new FastTransferGateway();
 
@@ -26,8 +26,8 @@ contract E2EContractsDeploy is Script {
             FastTransferGateway.initialize.selector,
             31337,
             deployerAddress,
-            address(erc20),
-            address(0),         // Will be set after Hyperlane deployment
+            address(usdc),
+            address(0),         // will be set after Hyperlane deployment
             address(0),         // Will be set after Hyperlane deployment
             MOCK_PERMIT2
         );
@@ -40,12 +40,12 @@ contract E2EContractsDeploy is Script {
         (address addr, bool ok) = hexStringToAddress(E2E_FAUCET);
         require(ok, "invalid address");
 
-        erc20.mint(addr, 1_000_000_000_000_000_000);
+        usdc.mint(addr, 1_000_000_000_000_000_000);
         
         vm.stopBroadcast();
 
         string memory json = "{";
-        json = _appendField(json, "erc20", address(erc20));
+        json = _appendField(json, "erc20", address(usdc));
         json = _appendField(json, "fastTransferGateway", address(gatewayProxy));
         json = string.concat(json, "}");
 
