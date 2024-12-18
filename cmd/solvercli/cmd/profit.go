@@ -19,7 +19,7 @@ var profitCmd = &cobra.Command{
 	Long: `Calculate the total profit made by the solver by summing all settlement profits
 and subtracting transaction costs. This includes costs from fill transactions,
 settlement transactions, and rebalancing transactions.`,
-	Example: `./build/solvercli profit`,
+	Example: `solver profit`,
 	Run:     calculateProfit,
 }
 
