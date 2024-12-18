@@ -3,7 +3,6 @@ pragma solidity >=0.8.25 <0.9.0;
 import { stdJson } from "forge-std/StdJson.sol";
 import { Script } from "forge-std/Script.sol";
 import { TestERC20 } from "./TestERC20.sol";
-import { ICS20Lib } from "./ICS20Lib.sol";
 import { FastTransferGateway } from "./FastTransferGateway.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
@@ -38,7 +37,7 @@ contract E2EContractsDeploy is Script {
             initData
         );
 
-        (address addr, bool ok) = ICS20Lib.hexStringToAddress(E2E_FAUCET);
+        (address addr, bool ok) = hexStringToAddress(E2E_FAUCET);
         require(ok, "invalid address");
 
         erc20.mint(addr, 1_000_000_000_000_000_000);
@@ -62,5 +61,30 @@ contract E2EContractsDeploy is Script {
 
     function _addressToString(address addr) internal pure returns (string memory) {
         return Strings.toHexString(uint160(addr), 20);
+    }
+
+    function hexStringToAddress(string memory addrHexString) internal pure returns (address, bool) {
+        bytes memory addrBytes = bytes(addrHexString);
+        if (addrBytes.length != 42) {
+            return (address(0), false);
+        } else if (addrBytes[0] != "0" || addrBytes[1] != "x") {
+            return (address(0), false);
+        }
+        uint256 addr = 0;
+        unchecked {
+            for (uint256 i = 2; i < 42; i++) {
+                uint256 c = uint256(uint8(addrBytes[i]));
+                if (c >= 48 && c <= 57) {
+                    addr = addr * 16 + (c - 48);
+                } else if (c >= 97 && c <= 102) {
+                    addr = addr * 16 + (c - 87);
+                } else if (c >= 65 && c <= 70) {
+                    addr = addr * 16 + (c - 55);
+                } else {
+                    return (address(0), false);
+                }
+            }
+        }
+        return (address(uint160(addr)), true);
     }
 }

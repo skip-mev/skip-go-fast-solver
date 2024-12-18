@@ -42,7 +42,7 @@ unit-test:
 
 .PHONY: setup-foundry
 setup-foundry:
-	cd tests/e2e && forge install \
+	cd tests/e2e && rm -rf lib && forge install \
 		foundry-rs/forge-std \
 		OpenZeppelin/openzeppelin-contracts@v4.8.0 \
 		OpenZeppelin/openzeppelin-contracts-upgradeable@v4.8.0 \

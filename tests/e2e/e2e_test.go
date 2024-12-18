@@ -60,7 +60,7 @@ func (s *SolverTestSuite) SetupSuite(ctx context.Context) {
 	s.Require().NotNil(eth, "Ethereum chain (ChainA) is nil")
 	s.Require().NotNil(simd, "Cosmos chain (ChainB) is nil")
 
-	s.Require().True(s.Run("Set up environment", func() {
+	s.Require().True(s.Run("Set up EVM environment", func() {
 		err := os.Chdir("../..")
 		s.Require().NoError(err)
 
@@ -72,7 +72,6 @@ func (s *SolverTestSuite) SetupSuite(ctx context.Context) {
 		s.Require().NoError(err)
 		s.Require().NotNil(s.deployer, "Deployer wallet is nil")
 
-		// get faucet private key from string
 		s.faucet, err = crypto.HexToECDSA(testvalues.FaucetPrivateKey)
 		s.Require().NoError(err)
 
@@ -91,19 +90,19 @@ func (s *SolverTestSuite) SetupSuite(ctx context.Context) {
 		}))
 	}))
 
-	s.Require().True(s.Run("Deploy contracts", func() {
+	s.Require().True(s.Run("Deploy required EVM contracts", func() {
 		var (
 			stdout []byte
 			stderr []byte
 			err    error
 		)
 
-		s.T().Logf("Deploying contracts with sender: %s", s.deployer.FormattedAddress())
+		s.T().Logf("Deploying EVM contracts with sender: %s", s.deployer.FormattedAddress())
 
 		// First deploy base contracts
 		stdout, stderr, err = eth.ForgeScript(ctx, s.deployer.KeyName(), ethereum.ForgeScriptOpts{
 			ContractRootDir:  "./tests/e2e",
-			SolidityContract: "scripts/E2EContractsDeploy.s.sol:E2EContractsDeploy",
+			SolidityContract: "contracts/solidity/E2EContractsDeploy.s.sol:E2EContractsDeploy",
 			RawOptions: []string{
 				"--json",
 				"--force",
@@ -115,10 +114,12 @@ func (s *SolverTestSuite) SetupSuite(ctx context.Context) {
 
 		s.Require().NoError(err, fmt.Sprintf("error deploying contracts: \nstderr: %s\nstdout: %s\nerr: %s", stderr, stdout, err))
 
+		s.T().Logf("Deploying EVM hyperlane contracts with sender: %s", s.deployer.FormattedAddress())
+
 		// deploy hyperlane contracts with a different set of remappings
 		hyperlaneDeployOutput, stderr, err := eth.ForgeScript(ctx, s.deployer.KeyName(), ethereum.ForgeScriptOpts{
 			ContractRootDir:  "./tests/e2e",
-			SolidityContract: "scripts/HyperlaneTestDeploy.s.sol:HyperlaneTestDeploy",
+			SolidityContract: "contracts/solidity/HyperlaneTestDeploy.s.sol:HyperlaneTestDeploy",
 			RawOptions: []string{
 				"--json",
 				"--force",
@@ -157,7 +158,7 @@ func (s *SolverTestSuite) SetupSuite(ctx context.Context) {
 		s.Require().NoError(err)
 	}))
 
-	s.Require().True(s.Run("Fund address with ERC20", func() {
+	s.Require().True(s.Run("Fund user address with ERC20", func() {
 		tx, err := s.erc20Contract.Transfer(s.GetTransactOpts(s.faucet), crypto.PubkeyToAddress(s.key.PublicKey), big.NewInt(testvalues.InitialBalance))
 		s.Require().NoError(err)
 

@@ -14,17 +14,11 @@ const (
 	EnvKeyTendermintRPC = "TENDERMINT_RPC_URL"
 	// EnvKeyEthRPC Ethereum RPC URL.
 	EnvKeyEthRPC = "RPC_URL"
-	// EnvKeyOperatorPrivateKey Private key used to submit transactions by the operator.
-	EnvKeyOperatorPrivateKey = "PRIVATE_KEY"
-	// EnvKeyGenerateFixtures Generate fixtures for the solidity tests if set to true.
-	EnvKeyGenerateFixtures = "GENERATE_FIXTURES"
 	// The log level for the Rust logger.
 	EnvKeyRustLog = "RUST_LOG"
 
 	// Log level for the Rust logger.
 	EnvValueRustLog_Info = "info"
-	// EnvValueGenerateFixtures_True is the value to set to generate fixtures for the solidity tests.
-	EnvValueGenerateFixtures_True = "true"
 
 	// FaucetPrivateKey is the private key of the faucet account.
 	// '0x' prefix is trimmed.

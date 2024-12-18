@@ -70,8 +70,6 @@ func modifyGovV1AppState(chainConfig ibc.ChainConfig, govAppState []byte) ([]byt
 	govGenesisState.Params.MaxDepositPeriod = &MaxDepositPeriod
 	govGenesisState.Params.VotingPeriod = &VotingPeriod
 
-	// govGenBz := MustProtoMarshalJSON(govGenesisState)
-
 	govGenBz, err := cdc.MarshalJSON(govGenesisState)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal gov genesis state: %w", err)

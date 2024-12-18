@@ -53,8 +53,11 @@ jobs:
           cd ../hyperlane-monorepo/solidity && yarn install --frozen-lockfile
           cd ../../../../.. && make e2e-test
 
+      - name: List broadcast directory
+        run: |
+          ls -R broadcast/ || echo "Broadcast directory not found"
+
       - name: Upload run-latest.json // this contains info about all the transactions that were submitted to chain in e2e test
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: e2e-test-artifacts

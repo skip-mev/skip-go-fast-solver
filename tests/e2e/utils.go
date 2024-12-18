@@ -5,14 +5,12 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
+	"github.com/skip-mev/fast-transfer-solver/e2e/testvalues"
 	"math/big"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
-
-	"github.com/skip-mev/fast-transfer-solver/e2e/testvalues"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -48,39 +46,6 @@ type DeployedContracts struct {
 	Ism                 string
 	MerkleHook          string
 	ValidatorAnnounce   string
-}
-
-type HyperlaneAddresses struct {
-	mailbox           ethcommon.Address
-	ism               ethcommon.Address
-	merkleHook        ethcommon.Address
-	validatorAnnounce ethcommon.Address
-}
-
-func parseHyperlaneAddresses(output string) HyperlaneAddresses {
-	parts := strings.Split(output, ",")
-	addresses := HyperlaneAddresses{}
-
-	for _, part := range parts {
-		keyValue := strings.Split(part, ":")
-		if len(keyValue) != 2 {
-			continue
-		}
-
-		address := ethcommon.HexToAddress(keyValue[1])
-		switch keyValue[0] {
-		case "mailbox":
-			addresses.mailbox = address
-		case "ism":
-			addresses.ism = address
-		case "merkleHook":
-			addresses.merkleHook = address
-		case "validatorAnnounce":
-			addresses.validatorAnnounce = address
-		}
-	}
-
-	return addresses
 }
 
 // FundAddressChainB sends funds to the given address on Chain B.
@@ -241,13 +206,4 @@ func (s *TestSuite) GetTransactOpts(key *ecdsa.PrivateKey) *bind.TransactOpts {
 	s.Require().NoError(err)
 
 	return txOpts
-}
-
-func IsLowercase(s string) bool {
-	for _, r := range s {
-		if !unicode.IsLower(r) && unicode.IsLetter(r) {
-			return false
-		}
-	}
-	return true
 }
