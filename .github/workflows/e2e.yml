@@ -47,9 +47,11 @@ jobs:
       - name: Install dependencies and run E2E Tests
         run: |
           make tidy
-          make setup-foundry
-          cd tests/e2e/lib/hyperlane-monorepo/solidity && yarn install --frozen-lockfile
-          make e2e-test
+          git submodule update --init --recursive
+          cd tests/e2e/lib/openzeppelin-contracts && git checkout v4.8.0
+          cd ../openzeppelin-contracts-upgradeable && git checkout v4.8.0
+          cd ../hyperlane-monorepo/solidity && yarn install --frozen-lockfile
+          cd ../../../../.. && make e2e-test
 
       - name: Upload run-latest.json // this contains info about all the transactions that were submitted to chain in e2e test
         if: always()
