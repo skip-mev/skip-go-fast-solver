@@ -4,15 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    paths:
-      - "**.rs"
-      - "**.go"
-      - "**.toml"
-      - "**.lock"
-      - "**.mod"
-      - "**.sum"
-      - "**.sol"
-      - ".github/workflows/e2e.yml"
 env:
   FOUNDRY_PROFILE: ci
   FOUNDRY_VERSION: nightly
