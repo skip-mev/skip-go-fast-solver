@@ -145,6 +145,12 @@ solver rebalances
 solver settlements
 ```
 
+**profit**: Calculate solver total profit
+
+```shell
+solver profit
+```
+
 ### Main Project Modules
 
 - transfer monitor: monitors for user transfer intent events and creates pending order fills in the solver database
