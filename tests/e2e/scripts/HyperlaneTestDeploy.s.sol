@@ -4,7 +4,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { Script } from "forge-std/Script.sol";
 import { MockHyperlaneEnvironment } from "@hyperlane-xyz/mock/MockHyperlaneEnvironment.sol";
 import { TestMerkle } from "@hyperlane-xyz/test/TestMerkle.sol";
-import { ValidatorAnnounce } from "@hyperlane-xyz/isms/multisig/ValidatorAnnounce.sol";
+import { ValidatorAnnounce } from "@hyperlane-xyz/ValidatorAnnounce.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 

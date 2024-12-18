@@ -7,3 +7,6 @@
 [submodule "tests/e2e/lib/openzeppelin-contracts"]
 	path = tests/e2e/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "tests/e2e/lib/hyperlane-monorepo"]
+	path = tests/e2e/lib/hyperlane-monorepo
+	url = https://github.com/hyperlane-xyz/hyperlane-monorepo

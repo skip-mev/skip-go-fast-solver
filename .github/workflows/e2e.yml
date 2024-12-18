@@ -33,32 +33,6 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
 
-      - name: Initialize standard submodules
-        run: |
-          git submodule init
-          git submodule update --init tests/e2e/lib/forge-std
-          git submodule update --init tests/e2e/lib/openzeppelin-contracts
-          git submodule update --init tests/e2e/lib/openzeppelin-contracts-upgradeable
-
-      - name: Setup hyperlane-monorepo
-        run: |          
-          # Add hyperlane as a subtree
-          mkdir -p tests/e2e/lib
-          git subtree add --prefix tests/e2e/lib/hyperlane-monorepo https://github.com/hyperlane-xyz/hyperlane-monorepo.git main --squash
-          cd tests/e2e/lib/hyperlane-monorepo
-          
-          # Apply changes from secret
-          echo "${{ secrets.HYPERLANE_PATCH }}" > changes.patch
-          git apply --3way changes.patch || {
-            echo "Patch failed to apply. Showing rejects:"
-            find . -name "*.rej" -exec cat {} \;
-            exit 1
-          }
-          rm changes.patch
-          
-          cd solidity
-          yarn install --frozen-lockfile
-
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
@@ -73,6 +47,8 @@ jobs:
       - name: Install dependencies and run E2E Tests
         run: |
           make tidy
+          make setup-foundry
+          cd tests/e2e/lib/hyperlane-monorepo/solidity && yarn install --frozen-lockfile
           make e2e-test
 
       - name: Upload run-latest.json // this contains info about all the transactions that were submitted to chain in e2e test
