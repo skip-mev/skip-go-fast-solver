@@ -39,8 +39,8 @@ type ForgeDeployOutput struct {
 	Returns map[string]ForgeScriptReturnValues `json:"returns"`
 }
 
-type DeployedContracts struct {
-	Erc20               string
+type DeployedEVMContracts struct {
+	USDCERC20           string
 	FastTransferGateway string
 	Mailbox             string
 	Ism                 string
@@ -101,7 +101,7 @@ func (s *TestSuite) fundAddress(ctx context.Context, chain *cosmos.CosmosChain, 
 	s.Require().NoError(err)
 }
 
-func (s *TestSuite) GetEthContractsFromDeployOutput(baseOutput string, hyperlaneOutput string) DeployedContracts {
+func (s *TestSuite) GetEthContractsFromDeployOutput(baseOutput string, hyperlaneOutput string) DeployedEVMContracts {
 	re := regexp.MustCompile(`"value":"({.*?})"`)
 
 	baseMatches := re.FindStringSubmatch(baseOutput)
@@ -132,8 +132,8 @@ func (s *TestSuite) GetEthContractsFromDeployOutput(baseOutput string, hyperlane
 	err = json.Unmarshal([]byte(hyperlaneJsonStr), &hyperlaneContracts)
 	s.Require().NoError(err)
 
-	contracts := DeployedContracts{
-		Erc20:               baseContracts.Erc20,
+	contracts := DeployedEVMContracts{
+		USDCERC20:           baseContracts.Erc20,
 		FastTransferGateway: baseContracts.FastTransferGateway,
 		Mailbox:             hyperlaneContracts.Mailbox,
 		Ism:                 hyperlaneContracts.Ism,
@@ -141,7 +141,7 @@ func (s *TestSuite) GetEthContractsFromDeployOutput(baseOutput string, hyperlane
 		ValidatorAnnounce:   hyperlaneContracts.ValidatorAnnounce,
 	}
 
-	s.Require().NotEmpty(contracts.Erc20)
+	s.Require().NotEmpty(contracts.USDCERC20)
 	s.Require().NotEmpty(contracts.FastTransferGateway)
 	s.Require().NotEmpty(contracts.Mailbox)
 	s.Require().NotEmpty(contracts.Ism)

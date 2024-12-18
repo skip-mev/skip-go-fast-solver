@@ -2,7 +2,7 @@ pragma solidity >=0.8.25 <0.9.0;
 
 import { stdJson } from "forge-std/StdJson.sol";
 import { Script } from "forge-std/Script.sol";
-import { TestERC20 } from "./TestERC20.sol";
+import {USDCERC20} from "./USDCERC20.sol";
 import { FastTransferGateway } from "./FastTransferGateway.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
@@ -18,7 +18,7 @@ contract E2EContractsDeploy is Script {
         
         vm.startBroadcast();
 
-        TestERC20 erc20 = new TestERC20();
+        USDCERC20 erc20 = new USDCERC20();
 
         FastTransferGateway gatewayImpl = new FastTransferGateway();
 
