@@ -28,9 +28,8 @@ import (
 var submitCmd = &cobra.Command{
 	Use:   "submit-transfer",
 	Short: "Submit a new fast transfer order",
-	Long: `Submit a new fast transfer order through the FastTransfer gateway contract.
-Example:
-  ./build/solvercli submit-transfer \
+	Long:  `Submit a new fast transfer order through the FastTransfer gateway contract.`,
+	Example: `solver submit-transfer \
   --config ./config/local/config.yml \
   --token 0xaf88d065e77c8cC2239327C5EDb3A432268e5831 \
   --recipient osmo13c9seh3vgvtfvdufz4eh2zhp0cepq4wj0egc02 \
