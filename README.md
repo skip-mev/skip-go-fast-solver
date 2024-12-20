@@ -150,11 +150,11 @@ solver settlements
 settle-orders: settle all pending order batches immediately without any threshold checks (ignoring configured BatchUUSDCSettleUpThreshold)
 
 ```shell
-make build-cli
-./build/solvercli settle-orders \
-  --config <configFilePath> \ # e.g ./config/local/config.yml
-  --keys <keysFilePath> \ # e.g ./config/local/keys.json
-  --key-store-type <plaintext-file|encrypted-file|env>
+solver settle-orders
+
+# The above only initiates batch settlements. To relay the settlement transactions, you need to relay the settlements
+# individually using the relay CLI command
+solver relay --origin-chain-id <chain_id> --origin-tx-hash <settlement_tx_hash>
 ```
 
 ### Main Project Modules

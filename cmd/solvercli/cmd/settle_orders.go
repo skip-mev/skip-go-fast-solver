@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/shared/oracle"
 	"os/signal"
 	"strconv"
 	"syscall"
@@ -106,9 +107,9 @@ func settleOrders(cmd *cobra.Command, args []string) {
 	rateLimitedClient := utils.DefaultRateLimitedHTTPClient(3)
 	coingeckoClient := coingecko.NewCoingeckoClient(rateLimitedClient, "https://api.coingecko.com/api/v3/", "")
 	cachedCoinGeckoClient := coingecko.NewCachedPriceClient(coingeckoClient, 15*time.Minute)
-	evmTxPriceOracle := evmrpc.NewOracle(cachedCoinGeckoClient)
+	txPriceOracle := oracle.NewOracle(cachedCoinGeckoClient)
 
-	hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmManager, keyStore, evmTxPriceOracle, evmTxExecutor)
+	hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmManager, keyStore, txPriceOracle, evmTxExecutor)
 	if err != nil {
 		lmt.Logger(ctx).Fatal("creating hyperlane multi client from config", zap.Error(err))
 	}
