@@ -113,14 +113,7 @@ solver submit-transfer \
 **relay**: Manually relay a hyperlane transaction
 
 ```shell
-solver relay \
-  --config <configFilePath> \
-  --keys <keysFilePath> \
-  --key-store-type <store type> \
-  --aes-key-hex <hex key> \
-  --origin-chain-id <chain id> \
-  --originTxHash <tx hash> \
-  --checkpoint-storage-location-override <storage path>
+solver relay --origin-chain-id <chain_id> --origin-tx-hash <tx_hash>
 ```
 
 **balances**: Get current on-chain balances (USDC, gas token, and custom assets requested)
@@ -145,6 +138,16 @@ solver rebalances
 
 ```shell
 solver settlements
+```
+
+**initiate-timeout**: Initiate timeout for an expired order
+
+```shell
+solver initiate-timeout --order-id <order_id> --tx-hash <order_tx_hash> --chain-id <chain_id>
+
+# The above only initiates a timeout tx. To relay the transaction, get the timeout tx hash returned by the
+# command above and call the relay CLI command
+solver relay --origin-chain-id <chain_id> --origin-tx-hash <timeout_tx_hash>
 ```
 
 ### Main Project Modules
