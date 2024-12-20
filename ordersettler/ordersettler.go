@@ -194,7 +194,7 @@ func (r *OrderSettler) submitInitiatedSettlementsForRelay(ctx context.Context) e
 		// these batches are grouped by initiation hash, so just choose the
 		// first one since they are all the same
 		hash := batch[0].InitiateSettlementTx.String
-		if err := r.relayBatch(ctx, hash, batch); err != nil {
+		if err := r.RelayBatch(ctx, hash, batch); err != nil {
 			// continue to try and relay other settlements if one fails to be
 			// submitted
 			lmt.Logger(ctx).Error(
@@ -210,10 +210,10 @@ func (r *OrderSettler) submitInitiatedSettlementsForRelay(ctx context.Context) e
 	return nil
 }
 
-// relayBatch submits a tx hash for an initiated batch settlement to be relayed
+// RelayBatch submits a tx hash for an initiated batch settlement to be relayed
 // from the settlements initiation chain (the orders destination chain), to the
 // payout chain (the orders source chain).
-func (r *OrderSettler) relayBatch(
+func (r *OrderSettler) RelayBatch(
 	ctx context.Context,
 	txHash string,
 	batch types.SettlementBatch,
