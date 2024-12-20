@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/hyperlane"
 	"math/big"
 	"os/signal"
 	"syscall"
@@ -29,9 +30,8 @@ import (
 var initiateTimeoutCmd = &cobra.Command{
 	Use:   "initiate-timeout",
 	Short: "Initiate timeout for an expired order",
-	Long: `Initiate timeout for an expired order that hasn't been filled.
-Example:
-  ./build/solvercli initiate-timeout \
+	Long:  `Initiate timeout for an expired order that hasn't been filled.`,
+	Example: `solver initiate-timeout \
   --order-id <order_id> \
   --tx-hash <tx_hash> \
   --chain-id <chain_id>`,
@@ -116,6 +116,16 @@ func initiateTimeout(cmd *cobra.Command, args []string) {
 		lmt.Logger(ctx).Error("Failed to initiate timeout", zap.Error(err))
 		return
 	}
+
+	destinationTxHash, destinationChainID, _, err := hyperlane.NewRelayer(hype, storageOverrideMap).Relay(ctx, originChainID, originTxHash, nil)
+	if err != nil {
+		lmt.Logger(ctx).Error("Error relaying message", zap.Error(err))
+		return
+	}
+	lmt.Logger(ctx).Info(
+		"Successfully relayed timeout tx",
+		zap.String("tx_hash", destinationTxHash),
+		zap.String("chain_id", destinationChainID))
 
 	fmt.Printf("Successfully initiated timeout for order %s\n", orderID)
 	fmt.Printf("Timeout transaction hash: %s\n", timeoutTxHash)
