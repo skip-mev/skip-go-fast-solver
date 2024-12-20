@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/hyperlane"
 	"math/big"
 	"os/signal"
 	"syscall"
@@ -30,7 +29,8 @@ import (
 var initiateTimeoutCmd = &cobra.Command{
 	Use:   "initiate-timeout",
 	Short: "Initiate timeout for an expired order",
-	Long:  `Initiate timeout for an expired order that hasn't been filled.`,
+	Long: `Initiate timeout for an expired order that hasn't been filled. Note that the timeout transaction needs
+to be relayed separately.`,
 	Example: `solver initiate-timeout \
   --order-id <order_id> \
   --tx-hash <tx_hash> \
@@ -43,6 +43,7 @@ func init() {
 	initiateTimeoutCmd.Flags().String("order-id", "", "ID of the order to timeout")
 	initiateTimeoutCmd.Flags().String("chain-id", "", "Chain ID where the order was created")
 	initiateTimeoutCmd.Flags().String("tx-hash", "", "Transaction hash that created the order")
+	initiateTimeoutCmd.Flags().String("checkpoint-storage-location-override", "{}", "map of validator addresses to storage locations")
 
 	requiredFlags := []string{"order-id", "chain-id", "tx-hash"}
 	for _, flag := range requiredFlags {
@@ -116,16 +117,6 @@ func initiateTimeout(cmd *cobra.Command, args []string) {
 		lmt.Logger(ctx).Error("Failed to initiate timeout", zap.Error(err))
 		return
 	}
-
-	destinationTxHash, destinationChainID, _, err := hyperlane.NewRelayer(hype, storageOverrideMap).Relay(ctx, originChainID, originTxHash, nil)
-	if err != nil {
-		lmt.Logger(ctx).Error("Error relaying message", zap.Error(err))
-		return
-	}
-	lmt.Logger(ctx).Info(
-		"Successfully relayed timeout tx",
-		zap.String("tx_hash", destinationTxHash),
-		zap.String("chain_id", destinationChainID))
 
 	fmt.Printf("Successfully initiated timeout for order %s\n", orderID)
 	fmt.Printf("Timeout transaction hash: %s\n", timeoutTxHash)
