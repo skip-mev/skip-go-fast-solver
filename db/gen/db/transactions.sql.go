@@ -10,6 +10,48 @@ import (
 	"database/sql"
 )
 
+const getAllSubmittedTxs = `-- name: GetAllSubmittedTxs :many
+SELECT id, created_at, updated_at, order_id, order_settlement_id, hyperlane_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status, tx_status_message, tx_cost_uusdc, rebalance_transfer_id FROM submitted_txs
+`
+
+func (q *Queries) GetAllSubmittedTxs(ctx context.Context) ([]SubmittedTx, error) {
+	rows, err := q.db.QueryContext(ctx, getAllSubmittedTxs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SubmittedTx
+	for rows.Next() {
+		var i SubmittedTx
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrderID,
+			&i.OrderSettlementID,
+			&i.HyperlaneTransferID,
+			&i.ChainID,
+			&i.TxHash,
+			&i.RawTx,
+			&i.TxType,
+			&i.TxStatus,
+			&i.TxStatusMessage,
+			&i.TxCostUusdc,
+			&i.RebalanceTransferID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getSubmittedTxsByHyperlaneTransferId = `-- name: GetSubmittedTxsByHyperlaneTransferId :many
 SELECT id, created_at, updated_at, order_id, order_settlement_id, hyperlane_transfer_id, chain_id, tx_hash, raw_tx, tx_type, tx_status, tx_status_message, tx_cost_uusdc, rebalance_transfer_id FROM submitted_txs WHERE hyperlane_transfer_id = ?
 `
