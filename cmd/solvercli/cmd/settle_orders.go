@@ -16,7 +16,6 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/evmrpc"
 	"github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
-	"github.com/skip-mev/go-fast-solver/db/connect"
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/ordersettler"
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
@@ -39,7 +38,6 @@ var settleCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(settleCmd)
-	settleCmd.Flags().String("config", "", "Path to config file")
 }
 
 func settleOrders(cmd *cobra.Command, args []string) {
@@ -58,18 +56,6 @@ func settleOrders(cmd *cobra.Command, args []string) {
 	keysPath, err := cmd.Flags().GetString("keys")
 	if err != nil {
 		lmt.Logger(ctx).Error("Failed to get keys path", zap.Error(err))
-		return
-	}
-
-	sqliteDBPath, err := cmd.Flags().GetString("sqlite-db-path")
-	if err != nil {
-		lmt.Logger(ctx).Error("Failed to get sqlite-db-path", zap.Error(err))
-		return
-	}
-
-	migrationsPath, err := cmd.Flags().GetString("migrations-path")
-	if err != nil {
-		lmt.Logger(ctx).Error("Failed to get migrations-path", zap.Error(err))
 		return
 	}
 
@@ -97,11 +83,10 @@ func settleOrders(cmd *cobra.Command, args []string) {
 
 	clientManager := clientmanager.NewClientManager(keyStore, cosmosTxExecutor)
 
-	dbConn, err := connect.ConnectAndMigrate(ctx, sqliteDBPath, migrationsPath)
+	database, err := setupDatabase(ctx, cmd)
 	if err != nil {
-		lmt.Logger(ctx).Fatal("Unable to connect to db", zap.Error(err))
+		lmt.Logger(ctx).Fatal("Failed to setup database", zap.Error(err))
 	}
-	defer dbConn.Close()
 
 	evmManager := evmrpc.NewEVMRPCClientManager()
 	rateLimitedClient := utils.DefaultRateLimitedHTTPClient(3)
@@ -115,9 +100,9 @@ func settleOrders(cmd *cobra.Command, args []string) {
 	}
 
 	relayer := hyperlane.NewRelayer(hype, make(map[string]string))
-	relayerRunner := hyperlane.NewRelayerRunner(db.New(dbConn), hype, relayer)
+	relayerRunner := hyperlane.NewRelayerRunner(database, hype, relayer)
 
-	settler, err := ordersettler.NewOrderSettler(ctx, db.New(dbConn), clientManager, relayerRunner)
+	settler, err := ordersettler.NewOrderSettler(ctx, database, clientManager, relayerRunner)
 	if err != nil {
 		lmt.Logger(ctx).Error("creating order settler", zap.Error(err))
 		return

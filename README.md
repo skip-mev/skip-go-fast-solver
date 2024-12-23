@@ -99,28 +99,21 @@ Now you can run the solver commands from anywhere. Available commands:
 
 ```shell
 solver submit-transfer \
-  --config <configFilePath> \
-  --token <usdc address> \
-  --recipient <destination address> \
-  --amount <usdc amount> \
-  --source-chain-id <source chain id> \
-  --destination-chain-id <destination chain id> \
-  --gateway <gateway contract> \
-  --private-key <private key> \
-  --deadline-hours <timeout in hours>
+  --token <usdc_address> \
+  --recipient <destination_address> \
+  --amount-in <amount_in> \
+  --amount-out <amount_out> \
+  --source-chain-id <source_chain_id> \
+  --destination-chain-id <destination_chain_id> \
+  --gateway <fast_transfer_gateway_contract> \
+  --private-key <private_key> \
+  --deadline-hours <timeout_in_hours>
 ```
 
 **relay**: Manually relay a hyperlane transaction
 
 ```shell
-solver relay \
-  --config <configFilePath> \
-  --keys <keysFilePath> \
-  --key-store-type <store type> \
-  --aes-key-hex <hex key> \
-  --origin-chain-id <chain id> \
-  --originTxHash <tx hash> \
-  --checkpoint-storage-location-override <storage path>
+solver relay --origin-chain-id <chain_id> --origin-tx-hash <settlement_tx_hash>
 ```
 
 **balances**: Get current on-chain balances (USDC, gas token, and custom assets requested)
