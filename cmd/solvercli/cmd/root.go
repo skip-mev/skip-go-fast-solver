@@ -38,6 +38,6 @@ func init() {
 	rootCmd.PersistentFlags().String("keys", "./config/local/keys.json", "path to solver key file. must be specified if key-store-type is plaintext-file or encrpyted-file")
 	rootCmd.PersistentFlags().String("key-store-type", "plaintext-file", "where to load the solver keys from. (plaintext-file, encrypted-file, env)")
 	rootCmd.PersistentFlags().String("aes-key-hex", "", "hex-encoded AES key used to decrypt keys file. must be specified if key-store-type is encrypted-file")
-	rootCmd.Flags().String("sqlite-db-path", "./solver.db", "path to sqlite db file")
-	rootCmd.Flags().String("migrations-path", "./db/migrations", "path to db migrations directory")
+	rootCmd.PersistentFlags().String("sqlite-db-path", "./solver.db", "path to sqlite db file")
+	rootCmd.PersistentFlags().String("migrations-path", "./db/migrations", "path to db migrations directory")
 }
