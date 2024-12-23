@@ -17,3 +17,6 @@ WHERE tx_hash = ? AND chain_id = ? RETURNING *;
 
 -- name: GetSubmittedTxsByOrderStatusAndType :many
 SELECT submitted_txs.* FROM submitted_txs INNER JOIN orders on submitted_txs.order_id = orders.id WHERE orders.order_status = ? AND submitted_txs.tx_type = ?;
+
+-- name: GetAllSubmittedTxs :many
+SELECT * FROM submitted_txs;

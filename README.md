@@ -145,9 +145,15 @@ solver settlements
 ```shell
 solver initiate-timeout --order-id <order_id> --tx-hash <order_tx_hash> --chain-id <chain_id>
 
-# The above only initiates a timeout tx. To relay the transaction, get the timeout tx hash returned by the
+# The above only initiates a timeout tx. To relay the transaction, retrieve the timeout tx hash returned by the
 # command above and call the relay CLI command
 solver relay --origin-chain-id <chain_id> --origin-tx-hash <timeout_tx_hash>
+```
+
+**profit**: Calculate solver total profit
+
+```shell
+solver profit
 ```
 
 ### Main Project Modules
