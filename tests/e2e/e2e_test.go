@@ -36,9 +36,6 @@ type SolverTestSuite struct {
 	faucet   *ecdsa.PrivateKey
 	deployer ibc.Wallet
 
-	simdClientID string
-	ethClientID  string
-
 	evmContractsAddresses DeployedEVMContracts
 
 	usdcERC20Contract       *erc20.Contract
@@ -56,9 +53,9 @@ type SolverTestSuite struct {
 func (s *SolverTestSuite) SetupSuite(ctx context.Context) {
 	s.TestSuite.SetupSuite(ctx)
 
-	eth, simd := s.ChainA, s.ChainB
+	eth, osmosis := s.ChainA, s.ChainB
 	s.Require().NotNil(eth, "Ethereum chain (ChainA) is nil")
-	s.Require().NotNil(simd, "Cosmos chain (ChainB) is nil")
+	s.Require().NotNil(osmosis, "Osmosis (ChainB) is nil")
 
 	s.Require().True(s.Run("Set up EVM environment", func() {
 		err := os.Chdir("../..")
@@ -77,7 +74,7 @@ func (s *SolverTestSuite) SetupSuite(ctx context.Context) {
 
 		os.Setenv(testvalues.EnvKeyRustLog, testvalues.EnvValueRustLog_Info)
 		os.Setenv(testvalues.EnvKeyEthRPC, eth.GetHostRPCAddress())
-		os.Setenv(testvalues.EnvKeyTendermintRPC, simd.GetHostRPCAddress())
+		os.Setenv(testvalues.EnvKeyTendermintRPC, osmosis.GetHostRPCAddress())
 
 		s.Require().NoError(eth.SendFunds(ctx, "faucet", ibc.WalletAmount{
 			Amount:  testvalues.StartingEthBalance,

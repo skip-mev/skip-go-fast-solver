@@ -7,31 +7,38 @@ import (
 )
 
 var DefaultChainSpecs = []*interchaintest.ChainSpec{
-	// -- ETH --
+	// -- Ethereum --
 	{ChainConfig: ethereum.DefaultEthereumAnvilChainConfig("ethereum")},
-	// -- IBC-Go --
+	// -- Osmosis --
 	{
 		ChainConfig: ibc.ChainConfig{
 			Type:    "cosmos",
-			Name:    "ibc-go-simd",
-			ChainID: "simd-1",
+			Name:    "osmosis",
+			ChainID: "osmosis1",
 			Images: []ibc.DockerImage{
 				{
-					// TODO: Save this image to skip repository and import it from there instead
-					Repository: "ghcr.io/cosmos/ibc-go-simd", // FOR LOCAL IMAGE USE: Docker Image Name
-					Version:    "poc-solidity-ibc-eureka",    // FOR LOCAL IMAGE USE: Docker Image Tag
+					Repository: "osmolabs/osmosis",
+					Version:    "27.0.1",
 					UidGid:     "1025:1025",
 				},
 			},
-			Bin:            "simd",
-			Bech32Prefix:   "cosmos",
+			Bin:            "osmosisd",
+			Bech32Prefix:   "osmo",
 			Denom:          "stake",
-			GasPrices:      "0.00stake",
+			GasPrices:      "0.0025stake",
 			GasAdjustment:  1.3,
 			EncodingConfig: CosmosEncodingConfig(),
 			ModifyGenesis:  defaultModifyGenesis(),
 			TrustingPeriod: "508h",
 			NoHostMount:    false,
+			AdditionalStartArgs: []string{
+				"in-place-testnet",
+				"localosmosis",
+				"osmo12smx2wdlyttvyzvzg54y2vnqwq2qjateuf7thj",
+				"&&",
+				"osmosisd",
+				"start",
+			},
 		},
 	},
 }
