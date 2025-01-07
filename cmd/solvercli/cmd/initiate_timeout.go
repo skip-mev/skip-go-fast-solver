@@ -1,26 +1,25 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
-	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
-	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
-
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
-
-	"strings"
-
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/keys"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
+
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
@@ -32,20 +31,19 @@ var initiateTimeoutCmd = &cobra.Command{
 	Long: `Initiate timeout for an expired order that hasn't been filled. Note that the timeout transaction needs
 to be relayed separately.`,
 	Example: `solver initiate-timeout \
-  --order-id <order_id> \
   --tx-hash <tx_hash> \
-  --chain-id <chain_id>`,
+  --source-chain-id <chain_id> \
+  --destination-chain-id <chain_id>`,
 	Run: initiateTimeout,
 }
 
 func init() {
 	rootCmd.AddCommand(initiateTimeoutCmd)
-	initiateTimeoutCmd.Flags().String("order-id", "", "ID of the order to timeout")
-	initiateTimeoutCmd.Flags().String("chain-id", "", "Chain ID where the order was created")
+	initiateTimeoutCmd.Flags().String("source-chain-id", "", "Source chain ID")
+	initiateTimeoutCmd.Flags().String("destination-chain-id", "", "Destination chain ID")
 	initiateTimeoutCmd.Flags().String("tx-hash", "", "Transaction hash that created the order")
-	initiateTimeoutCmd.Flags().String("checkpoint-storage-location-override", "{}", "map of validator addresses to storage locations")
 
-	requiredFlags := []string{"order-id", "chain-id", "tx-hash"}
+	requiredFlags := []string{"source-chain-id", "destination-chain-id", "tx-hash"}
 	for _, flag := range requiredFlags {
 		if err := initiateTimeoutCmd.MarkFlagRequired(flag); err != nil {
 			panic(fmt.Sprintf("failed to mark %s flag as required: %v", flag, err))
@@ -60,7 +58,7 @@ func initiateTimeout(cmd *cobra.Command, args []string) {
 	lmt.ConfigureLogger()
 	ctx = lmt.LoggerContext(ctx)
 
-	orderID, chainID, timeoutTxHash, err := getRequiredFlags(cmd)
+	sourceChainID, destinationChainID, timeoutTxHash, err := getRequiredFlags(cmd)
 	if err != nil {
 		lmt.Logger(ctx).Error("Failed to get required flags", zap.Error(err))
 		return
@@ -68,34 +66,33 @@ func initiateTimeout(cmd *cobra.Command, args []string) {
 
 	cfg, keyStore, err := setupConfig(cmd)
 	if err != nil {
+		lmt.Logger(ctx).Error("Failed to setup config", zap.Error(err))
 		return
 	}
 	ctx = config.ConfigReaderContext(ctx, config.NewConfigReader(*cfg))
 
-	sourceChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(chainID)
+	sourceChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(sourceChainID)
 	if err != nil {
-		lmt.Logger(ctx).Error("source chain not found in config", zap.String("sourceChainID", chainID))
+		lmt.Logger(ctx).Error("Source chain not found in config", zap.String("sourceChainID", sourceChainID))
 		return
 	}
+
 	if sourceChainConfig.Type != config.ChainType_EVM {
-		lmt.Logger(ctx).Error(
-			"source chain must be of type evm",
-			zap.String("sourceChainID", chainID),
-			zap.String("sourceChainType", string(sourceChainConfig.Type)),
-		)
-		return
-	}
-	gatewayAddr := sourceChainConfig.FastTransferContractAddress
-
-	client, gateway, err := setupGatewayContract(ctx, sourceChainConfig, gatewayAddr)
-	if err != nil {
-		lmt.Logger(ctx).Error("Failed to setup fast transfer gateway contract", zap.Error(err))
+		lmt.Logger(ctx).Error("Source chain must be an EVM chain",
+			zap.String("sourceChainID", sourceChainID),
+			zap.String("chainType", string(sourceChainConfig.Type)))
 		return
 	}
 
-	order, err := getOrderFromContract(ctx, gateway, client, orderID, chainID, gatewayAddr, timeoutTxHash)
+	sourceGatewayAddr := sourceChainConfig.FastTransferContractAddress
+	if sourceGatewayAddr == "" {
+		lmt.Logger(ctx).Error("Gateway contract address not found in config", zap.String("sourceChainID", sourceChainID))
+		return
+	}
+
+	order, err := getEVMOrderDetails(ctx, sourceChainConfig, sourceChainID, destinationChainID, sourceGatewayAddr, timeoutTxHash)
 	if err != nil {
-		lmt.Logger(ctx).Error("Failed to get order from contract", zap.Error(err))
+		lmt.Logger(ctx).Error("Failed to get order details", zap.Error(err))
 		return
 	}
 
@@ -103,34 +100,147 @@ func initiateTimeout(cmd *cobra.Command, args []string) {
 		lmt.Logger(ctx).Error("Failed to verify order timeout", zap.Error(err))
 		return
 	}
+
+	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(destinationChainID)
+	if err != nil {
+		lmt.Logger(ctx).Error("Destination chain not found in config", zap.String("destinationChainID", destinationChainID))
+		return
+	}
+
+	if destinationChainConfig.Type != config.ChainType_COSMOS {
+		lmt.Logger(ctx).Error("Destination chain must be a Cosmos chain",
+			zap.String("destinationChainID", destinationChainID),
+			zap.String("chainType", string(destinationChainConfig.Type)))
+		return
+	}
+
+	destinationGatewayAddr := destinationChainConfig.FastTransferContractAddress
+	if destinationGatewayAddr == "" {
+		lmt.Logger(ctx).Error("Gateway contract address not found in config", zap.String("destinationChainID", destinationChainID))
+		return
+	}
+
 	cosmosTxExecutor := cosmos.DefaultSerializedCosmosTxExecutor()
 	clientManager := clientmanager.NewClientManager(keyStore, cosmosTxExecutor)
 
-	bridgeClient, err := clientManager.GetClient(ctx, chainID)
+	bridgeClient, err := clientManager.GetClient(ctx, destinationChainID)
 	if err != nil {
 		lmt.Logger(ctx).Error("Failed to create bridge client", zap.Error(err))
 		return
 	}
 
-	timeoutTxHash, _, _, err = bridgeClient.InitiateTimeout(ctx, *order, gatewayAddr)
+	timeoutTxHash, _, _, err = bridgeClient.InitiateTimeout(ctx, *order, destinationGatewayAddr)
 	if err != nil {
 		lmt.Logger(ctx).Error("Failed to initiate timeout", zap.Error(err))
 		return
 	}
 
-	fmt.Printf("Successfully initiated timeout for order %s\n", orderID)
+	fmt.Printf("Successfully initiated timeout for order %s\n", order.OrderID)
 	fmt.Printf("Timeout transaction hash: %s\n", timeoutTxHash)
+	fmt.Printf("Note: You must relay this transaction using:\n")
+	fmt.Printf("solver relay --origin-chain-id %s --origin-tx-hash %s\n", destinationChainID, timeoutTxHash)
+}
+
+func getEVMOrderDetails(ctx context.Context, chainConfig config.ChainConfig, chainID, destinationChainID, gatewayAddr, txHash string) (*db.Order, error) {
+	client, err := ethclient.Dial(chainConfig.EVM.RPC)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to EVM network: %w", err)
+	}
+	defer client.Close()
+
+	gateway, err := fast_transfer_gateway.NewFastTransferGateway(common.HexToAddress(gatewayAddr), client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gateway contract: %w", err)
+	}
+
+	tx, isPending, err := client.TransactionByHash(ctx, common.HexToHash(txHash))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
+	}
+	if isPending {
+		return nil, fmt.Errorf("transaction is still pending")
+	}
+
+	receipt, err := client.TransactionReceipt(ctx, tx.Hash())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transaction receipt: %w", err)
+	}
+
+	contractABI, err := abi.JSON(strings.NewReader(fast_transfer_gateway.FastTransferGatewayABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ABI: %w", err)
+	}
+
+	var orderIDBytes common.Hash
+	for _, log := range receipt.Logs {
+		if len(log.Topics) > 0 {
+			if log.Topics[0] == contractABI.Events["OrderSubmitted"].ID {
+				orderIDBytes = log.Topics[1]
+				fmt.Println("DEBUG: Found OrderSubmitted event, raw order ID bytes:", log.Topics[1].Hex())
+				fmt.Println("DEBUG: Event Data:", hex.EncodeToString(log.Data))
+				break
+			}
+		}
+	}
+
+	if orderIDBytes == (common.Hash{}) {
+		return nil, fmt.Errorf("OrderSubmitted event not found in transaction logs")
+	}
+
+	orderID := strings.ToUpper(orderIDBytes.Hex()[2:])
+
+	orderStatus, err := gateway.OrderStatuses(nil, orderIDBytes)
+	if err != nil {
+		fmt.Println("Error checking order status:", err)
+	}
+
+	if orderStatus != 0 { // 0 = Pending
+		return nil, fmt.Errorf("order is not in pending status (status: %d)", orderStatus)
+	}
+
+	method, err := contractABI.MethodById(tx.Data()[:4])
+	if err != nil {
+		return nil, fmt.Errorf("failed to get method from transaction data: %w", err)
+	}
+
+	if method.Name != "submitOrder" {
+		return nil, fmt.Errorf("transaction is not a submitOrder transaction (got %s)", method.Name)
+	}
+
+	args, err := method.Inputs.Unpack(tx.Data()[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack transaction data: %w", err)
+	}
+
+	sender := args[0].([32]byte)
+	recipient := args[1].([32]byte)
+	amountIn := args[2].(*big.Int)
+	amountOut := args[3].(*big.Int)
+	timeoutTimestamp := args[5].(uint64)
+
+	return &db.Order{
+		OrderID:                           orderID,
+		SourceChainID:                     chainID,
+		DestinationChainID:                destinationChainID,
+		TimeoutTimestamp:                  time.Unix(int64(timeoutTimestamp), 0),
+		Sender:                            sender[:],
+		Recipient:                         recipient[:],
+		AmountIn:                          amountIn.String(),
+		AmountOut:                         amountOut.String(),
+		Nonce:                             int64(tx.Nonce()),
+		SourceChainGatewayContractAddress: gatewayAddr,
+	}, nil
 }
 
 func getRequiredFlags(cmd *cobra.Command) (string, string, string, error) {
-	orderID, err := cmd.Flags().GetString("order-id")
+	sourceChainId, err := cmd.Flags().GetString("source-chain-id")
 	if err != nil {
-		return "", "", "", fmt.Errorf("failed to get order-id: %w", err)
+		return "", "", "", fmt.Errorf("failed to get source-chain-id: %w", err)
 	}
 
-	chainID, err := cmd.Flags().GetString("chain-id")
+	destinationChainId, err := cmd.Flags().GetString("destination-chain-id")
 	if err != nil {
-		return "", "", "", fmt.Errorf("failed to get chain-id: %w", err)
+		return "", "", "", fmt.Errorf("failed to get destination-chain-id: %w", err)
 	}
 
 	txHash, err := cmd.Flags().GetString("tx-hash")
@@ -138,7 +248,7 @@ func getRequiredFlags(cmd *cobra.Command) (string, string, string, error) {
 		return "", "", "", fmt.Errorf("failed to get tx-hash: %w", err)
 	}
 
-	return orderID, chainID, txHash, nil
+	return sourceChainId, destinationChainId, txHash, nil
 }
 
 func setupConfig(cmd *cobra.Command) (*config.Config, keys.KeyStore, error) {
@@ -170,66 +280,6 @@ func setupConfig(cmd *cobra.Command) (*config.Config, keys.KeyStore, error) {
 	return &cfg, keyStore, nil
 }
 
-func getOrderFromContract(ctx context.Context, gateway *fast_transfer_gateway.FastTransferGateway, client *ethclient.Client, orderID string, chainID string, gatewayAddr string, txHash string) (*db.Order, error) {
-	orderStatus, err := gateway.OrderStatuses(nil, common.HexToHash(orderID))
-	if err != nil {
-		return nil, fmt.Errorf("failed to get order status: %w", err)
-	}
-
-	if orderStatus != 0 { // 0 = Pending
-		return nil, fmt.Errorf("order is not in pending status (status: %d)", orderStatus)
-	}
-
-	tx, isPending, err := client.TransactionByHash(ctx, common.HexToHash(txHash))
-	if err != nil {
-		return nil, fmt.Errorf("failed to get transaction: %w", err)
-	}
-	if isPending {
-		return nil, fmt.Errorf("transaction is still pending")
-	}
-
-	contractABI, err := abi.JSON(strings.NewReader(fast_transfer_gateway.FastTransferGatewayABI))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse ABI: %w", err)
-	}
-
-	method, err := contractABI.MethodById(tx.Data()[:4])
-	if err != nil {
-		return nil, fmt.Errorf("failed to get method from transaction data: %w", err)
-	}
-
-	if method.Name != "submitOrder" {
-		return nil, fmt.Errorf("transaction is not a submitOrder transaction (got %s)", method.Name)
-	}
-
-	args, err := method.Inputs.Unpack(tx.Data()[4:])
-	if err != nil {
-		return nil, fmt.Errorf("failed to unpack transaction data: %w", err)
-	}
-
-	sender := args[0].([32]byte)
-	recipient := args[1].([32]byte)
-	amountIn := args[2].(*big.Int)
-	amountOut := args[3].(*big.Int)
-	destinationDomain := args[4].(uint32)
-	timeoutTimestamp := args[5].(uint64)
-
-	order := &db.Order{
-		OrderID:                           orderID,
-		SourceChainID:                     chainID,
-		DestinationChainID:                fmt.Sprintf("%d", destinationDomain),
-		TimeoutTimestamp:                  time.Unix(int64(timeoutTimestamp), 0),
-		Sender:                            sender[:],
-		Recipient:                         recipient[:],
-		AmountIn:                          amountIn.String(),
-		AmountOut:                         amountOut.String(),
-		Nonce:                             int64(tx.Nonce()),
-		SourceChainGatewayContractAddress: gatewayAddr,
-	}
-
-	return order, nil
-}
-
 func verifyOrderTimeout(ctx context.Context, order *db.Order) error {
 	if !time.Now().UTC().After(order.TimeoutTimestamp) {
 		return fmt.Errorf("order has not timed out yet (timeout: %s, current: %s)",
@@ -237,19 +287,4 @@ func verifyOrderTimeout(ctx context.Context, order *db.Order) error {
 			time.Now().UTC())
 	}
 	return nil
-}
-
-func setupGatewayContract(ctx context.Context, sourceChainConfig config.ChainConfig, gatewayAddr string) (*ethclient.Client, *fast_transfer_gateway.FastTransferGateway, error) {
-	client, err := ethclient.Dial(sourceChainConfig.EVM.RPC)
-	if err != nil {
-		lmt.Logger(ctx).Error("Failed to connect to the network", zap.Error(err))
-		return nil, nil, fmt.Errorf("failed to connect to the network: %w", err)
-	}
-
-	gateway, err := fast_transfer_gateway.NewFastTransferGateway(common.HexToAddress(gatewayAddr), client)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create gateway contract: %w", err)
-	}
-
-	return client, gateway, nil
 }
