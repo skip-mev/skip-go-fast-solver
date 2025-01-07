@@ -2,24 +2,15 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/skip-mev/go-fast-solver/shared/oracle"
 	"os/signal"
 	"strconv"
 	"syscall"
-	"time"
-
-	"github.com/skip-mev/go-fast-solver/hyperlane"
-	"github.com/skip-mev/go-fast-solver/ordersettler/types"
-	"github.com/skip-mev/go-fast-solver/shared/clients/coingecko"
-	"github.com/skip-mev/go-fast-solver/shared/clients/utils"
-	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
-	"github.com/skip-mev/go-fast-solver/shared/evmrpc"
-	"github.com/skip-mev/go-fast-solver/shared/txexecutor/evm"
 
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
-	"github.com/skip-mev/go-fast-solver/ordersettler"
+	"github.com/skip-mev/go-fast-solver/ordersettler/types"
 	"github.com/skip-mev/go-fast-solver/shared/clientmanager"
 	"github.com/skip-mev/go-fast-solver/shared/config"
+	"github.com/skip-mev/go-fast-solver/shared/contracts/fast_transfer_gateway"
 	"github.com/skip-mev/go-fast-solver/shared/keys"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
 	"github.com/skip-mev/go-fast-solver/shared/txexecutor/cosmos"
@@ -79,34 +70,7 @@ func settleOrders(cmd *cobra.Command, args []string) {
 	}
 
 	cosmosTxExecutor := cosmos.DefaultSerializedCosmosTxExecutor()
-	evmTxExecutor := evm.DefaultEVMTxExecutor()
-
 	clientManager := clientmanager.NewClientManager(keyStore, cosmosTxExecutor)
-
-	database, err := setupDatabase(ctx, cmd)
-	if err != nil {
-		lmt.Logger(ctx).Fatal("Failed to setup database", zap.Error(err))
-	}
-
-	evmManager := evmrpc.NewEVMRPCClientManager()
-	rateLimitedClient := utils.DefaultRateLimitedHTTPClient(3)
-	coingeckoClient := coingecko.NewCoingeckoClient(rateLimitedClient, "https://api.coingecko.com/api/v3/", "")
-	cachedCoinGeckoClient := coingecko.NewCachedPriceClient(coingeckoClient, 15*time.Minute)
-	txPriceOracle := oracle.NewOracle(cachedCoinGeckoClient)
-
-	hype, err := hyperlane.NewMultiClientFromConfig(ctx, evmManager, keyStore, txPriceOracle, evmTxExecutor)
-	if err != nil {
-		lmt.Logger(ctx).Fatal("creating hyperlane multi client from config", zap.Error(err))
-	}
-
-	relayer := hyperlane.NewRelayer(hype, make(map[string]string))
-	relayerRunner := hyperlane.NewRelayerRunner(database, hype, relayer)
-
-	settler, err := ordersettler.NewOrderSettler(ctx, database, clientManager, relayerRunner)
-	if err != nil {
-		lmt.Logger(ctx).Error("creating order settler", zap.Error(err))
-		return
-	}
 
 	chains, err := config.GetConfigReader(ctx).GetAllChainConfigsOfType(config.ChainType_COSMOS)
 	if err != nil {
@@ -191,19 +155,23 @@ func settleOrders(cmd *cobra.Command, args []string) {
 	batches := types.IntoSettlementBatchesByChains(pendingSettlements)
 	fmt.Printf("Found %d pending settlement batches\n", len(batches))
 
-	hashes, err := settler.SettleBatches(ctx, batches)
-	if err != nil {
-		lmt.Logger(ctx).Error("settling pending batches", zap.Error(err))
-		return
-	}
-
 	for i, batch := range batches {
-		hash := hashes[i]
+		destinationBridgeClient, err := clientManager.GetClient(ctx, batch.DestinationChainID())
+		if err != nil {
+			lmt.Logger(ctx).Error("getting destination bridge client", zap.Error(err))
+			continue
+		}
+
+		txHash, _, err := destinationBridgeClient.InitiateBatchSettlement(ctx, batch)
+		if err != nil {
+			lmt.Logger(ctx).Error("initiating batch settlement", zap.Error(err))
+			continue
+		}
 
 		fmt.Printf("Initiated settlement batch %d:\n", i+1)
 		fmt.Printf("Source Chain: %s\n", batch.SourceChainID())
 		fmt.Printf("Destination Chain: %s\n", batch.DestinationChainID())
 		fmt.Printf("Number of Orders: %d\n", len(batch.OrderIDs()))
-		fmt.Printf("Transaction Hash: %s\n", hash)
+		fmt.Printf("Transaction Hash: %s\n", txHash)
 	}
 }
