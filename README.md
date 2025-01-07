@@ -150,6 +150,12 @@ solver initiate-timeout --order-id <order_id> --tx-hash <order_tx_hash> --chain-
 solver relay --origin-chain-id <chain_id> --origin-tx-hash <timeout_tx_hash>
 ```
 
+**profit**: Calculate solver total profit
+
+```shell
+solver profit
+```
+
 ### Main Project Modules
 
 - transfer monitor: monitors for user transfer intent events and creates pending order fills in the solver database
