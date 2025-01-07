@@ -143,7 +143,7 @@ solver settlements
 **initiate-timeout**: Initiate timeout for an expired order
 
 ```shell
-solver initiate-timeout --order-id <order_id> --tx-hash <order_tx_hash> --chain-id <chain_id>
+solver initiate-timeout --order-id <order_id> --tx-hash <order_tx_hash> --source-chain-id <chain_id> --destination-chain-id <chain_id>
 
 # The above only initiates a timeout tx. To relay the transaction, get the timeout tx hash returned by the
 # command above and call the relay CLI command
