@@ -140,7 +140,7 @@ solver rebalances
 solver settlements
 ```
 
-settle-orders: settle all pending order batches immediately without any threshold checks (ignoring configured BatchUUSDCSettleUpThreshold)
+**settle-orders**: settle all pending order batches immediately without any threshold checks (ignoring configured BatchUUSDCSettleUpThreshold)
 
 ```shell
 solver settle-orders
@@ -148,6 +148,12 @@ solver settle-orders
 # The above only initiates batch settlements. To relay the settlement transactions, you need to relay the settlements
 # individually using the relay CLI command
 solver relay --origin-chain-id <chain_id> --origin-tx-hash <settlement_tx_hash>
+```
+
+**profit**: Calculate solver total profit
+
+```shell
+solver profit
 ```
 
 ### Main Project Modules
