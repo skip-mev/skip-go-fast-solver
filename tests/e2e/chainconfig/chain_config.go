@@ -18,7 +18,7 @@ var DefaultChainSpecs = []*interchaintest.ChainSpec{
 			Images: []ibc.DockerImage{
 				{
 					Repository: "osmolabs/osmosis",
-					Version:    "27.0.1",
+					Version:    "28.0.0",
 					UidGid:     "1025:1025",
 				},
 			},
@@ -35,9 +35,7 @@ var DefaultChainSpecs = []*interchaintest.ChainSpec{
 				"in-place-testnet",
 				"localosmosis",
 				"osmo12smx2wdlyttvyzvzg54y2vnqwq2qjateuf7thj",
-				"&&",
-				"osmosisd",
-				"start",
+				"trigger-testnet-upgrade",
 			},
 		},
 	},

@@ -21,6 +21,10 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+const (
+	osmosisFasTransferAddress = "osmo1muxuugq2rfwsjnctg2xhx7yhdpwnn9zrckpl6ddjegp9pgyvd3xsvuvr4e"
+)
+
 // SolverTestSuite is a suite of tests that wraps TestSuite
 // and can provide additional functionality
 type SolverTestSuite struct {
@@ -181,6 +185,13 @@ func (s *SolverTestSuite) TestDeploy() {
 			userBalance, err := s.usdcERC20Contract.BalanceOf(nil, crypto.PubkeyToAddress(s.key.PublicKey))
 			s.Require().NoError(err)
 			s.Require().Equal(testvalues.InitialBalance, userBalance.Int64())
+		}))
+
+		s.Require().True(s.Run("Verify Osmosis fast transfer contract exists", func() {
+			var response map[string]interface{}
+			queryMsg := struct{}{}
+			err := s.ChainB.QueryContract(ctx, osmosisFasTransferAddress, queryMsg, &response)
+			s.Require().NoError(err, "Test fast transfer contract should exist at the specified address")
 		}))
 	}))
 }
