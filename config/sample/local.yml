@@ -1,0 +1,18 @@
+chains:
+  osmosis-1:
+    solver_address: osmo107ek48hxw6uwg0xm2qdfagjn7r2knwatyvkzes
+    cosmos:
+      rpc: <osmosis_rpc_server_url>
+      grpc: <osmosis_grpc_server_url>
+      grpc_tls_enabled: false
+      min_fill_size: 1
+
+  42161:
+    solver_address: 0x0e310bBc02A9EDD963D22949F54D5F92c73cD31D
+    evm:
+      rpc: <base_mainnet_rpc_server_url>
+
+  137:
+    solver_address: <solver_address>
+    evm:
+      rpc: <polygon_mainnet_rpc_server_url>

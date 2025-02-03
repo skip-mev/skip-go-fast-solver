@@ -1,0 +1,109 @@
+fund_rebalancer:
+  1:
+    target_amount: 0
+    min_allowed_amount: 0
+    max_rebalancing_gas_cost_uusdc: "10000000"
+    profitable_rebalance_timeout: 1h
+    transfer_cost_cap_uusdc: "30000000"
+  42161:
+    target_amount: 0
+    min_allowed_amount: 0
+    max_rebalancing_gas_cost_uusdc: "1000000"
+    profitable_rebalance_timeout: 1h
+    transfer_cost_cap_uusdc: "2000000"
+  43114:
+    target_amount: 0
+    min_allowed_amount: 0
+    max_rebalancing_gas_cost_uusdc: "1000000"
+    profitable_rebalance_timeout: 1h
+    transfer_cost_cap_uusdc: "2000000"
+  137:
+    target_amount: 0
+    min_allowed_amount: 0
+    max_rebalancing_gas_cost_uusdc: "1000000"
+    profitable_rebalance_timeout: 1h
+    transfer_cost_cap_uusdc: "2000000"
+  8453:
+    target_amount: 0
+    min_allowed_amount: 0
+    max_rebalancing_gas_cost_uusdc: "1000000"
+    profitable_rebalance_timeout: 1h
+    transfer_cost_cap_uusdc: "2000000"
+  10:
+    target_amount: 0
+    min_allowed_amount: 0
+    max_rebalancing_gas_cost_uusdc: "1000000"
+    profitable_rebalance_timeout: 1h
+    transfer_cost_cap_uusdc: "2000000"
+  osmosis-1:
+    target_amount: 1000000000000000
+    min_allowed_amount: 1000000000000000
+    max_rebalancing_gas_cost_uusdc: "1000000"
+    profitable_rebalance_timeout: 1h
+    transfer_cost_cap_uusdc: "2000000"
+
+chains:
+  osmosis-1:
+    solver_address: <solver_address>
+    cosmos:
+      address_prefix: "osmo"
+      rpc: <osmosis_rpc_server_url>
+      rpc_basic_auth_var: <server_password>
+      grpc: <osmosis_grpc_server_url>
+      grpc_tls_enabled: <grpc_tls_enabled>
+      min_fill_size: 1000000
+      max_fill_size: <max_fill_size>
+
+  1:
+    solver_address: <solver_address>
+    min_fee_bps: <min_fee_bps>
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold>
+    min_profit_margin_bps: <min_profit_margin_bps>
+    evm:
+      rpc: <ethereum_rpc_server_url>
+      rpc_basic_auth_var: <server_password>
+
+  43114:
+    solver_address: <solver_address>
+    min_fee_bps: <min_fee_bps>
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold>
+    min_profit_margin_bps: <min_profit_margin_bps>
+    evm:
+      rpc: <avalanche_rpc_server_url>
+      rpc_basic_auth_var: <server_password>
+
+  10:
+    solver_address: <solver_address>
+    min_fee_bps: <min_fee_bps>
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold>
+    min_profit_margin_bps: <min_profit_margin_bps>
+    evm:
+      rpc: <optimism_rpc_server_url>
+      rpc_basic_auth_var: <server_password>
+
+  42161:
+    solver_address: <solver_address>
+    min_fee_bps: <min_fee_bps>
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold>
+    min_profit_margin_bps: <min_profit_margin_bps>
+    evm:
+      rpc: <arbitrum_rpc_server_url>
+      rpc_basic_auth_var: <server_password>
+
+  8453:
+    solver_address: <solver_address>
+    min_fee_bps: <min_fee_bps>
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold>
+    min_profit_margin_bps: <min_profit_margin_bps>
+    evm:
+      rpc: <base_mainnet_rpc_server_url>
+      rpc_basic_auth_var: <server_password>
+
+  137:
+    solver_address: <solver_address>
+    min_fee_bps: <min_fee_bps>
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold>
+    min_profit_margin_bps: <min_profit_margin_bps>
+    evm:
+      rpc: <polygon_mainnet_rpc_server_url>
+      rpc_basic_auth_var: <server_password>
