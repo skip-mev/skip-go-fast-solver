@@ -31,7 +31,7 @@ const (
 type Config struct {
 	Chains                map[string]ChainConfig `yaml:"chains"`
 	Metrics               MetricsConfig          `yaml:"metrics"`
-	OrderFillerConfig     OrderFillerConfig      `yaml:"order_filler_config"`
+	OrderFillerConfig     OrderFillerConfig      `yaml:"order_filler"`
 	TransferMonitorConfig TransferMonitorConfig  `yaml:"transfer_monitor"`
 	Coingecko             CoingeckoConfig
 	// FundRebalancer is an optional configuration to aid in inventory
@@ -45,7 +45,7 @@ type OrderFillerConfig struct {
 	// OrderFillWorkerCount specifies the number of concurrent workers that will
 	// process order fills. Each worker handles filling orders independently to
 	// increase throughput.
-	OrderFillWorkerCount int `yaml:"order_fill_worker_count"`
+	OrderFillWorkerCount int `yaml:"order_fill"`
 }
 
 type MetricsConfig struct {
