@@ -289,10 +289,10 @@ type CosmosConfig struct {
 }
 
 type EVMConfig struct {
-	// MinGasTipCap is the minimum tip to include for EIP-1559 transactions
-	// If the gas price oracle price returns a lower tip than MinGasTipCap, MinGasTipCap is used
-	// Used mainly for Polygon where there is a network gas tip cap minimum and nodes frequently return values lower
-	// than it
+	// MinGasTipCap is the minimum tip to include for EIP-1559 transactions. If
+	// the gas price oracle price returns a lower tip than MinGasTipCap,
+	// MinGasTipCap is used. Used mainly for Polygon where there is a network
+	// gas tip cap minimum and nodes frequently return values lower than it
 	MinGasTipCap *int64 `yaml:"min_gas_tip_cap"`
 	// RPC is the HTTP endpoint for the EVM chain's RPC server
 	RPC string `yaml:"rpc"`
@@ -301,8 +301,6 @@ type EVMConfig struct {
 	RPCBasicAuthVar string `yaml:"rpc_basic_auth_var"`
 	// GasBalance contains thresholds for monitoring the solver's gas balance
 	SignerGasBalance SignerGasBalanceConfig `yaml:"signer_gas_balance"`
-	// SolverAddress is the address of the solver wallet on this chain
-	SolverAddress string `yaml:"solver_address"`
 }
 
 type CoingeckoConfig struct {
@@ -325,17 +323,41 @@ type CoingeckoConfig struct {
 
 // Config Helpers
 func LoadConfig(path string) (Config, error) {
+	config := Config{
+		Metrics:               DefaultMetricsConfig,
+		OrderFillerConfig:     DefaultOrderFillerConfig,
+		Coingecko:             DefaultCoinGeckoConfig,
+		TransferMonitorConfig: DefaultTransferMonitorConfig,
+		FundRebalancer:        DefaultFundRebalancerConfig,
+		Chains:                DefaultChainsConfig,
+	}
+
 	cfgBytes, err := os.ReadFile(path)
 	if err != nil {
 		return Config{}, err
 	}
 
-	var config Config
 	if err := yaml.Unmarshal(cfgBytes, &config); err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("unmarshaling config bytes into default config: %w", err)
+	}
+
+	var userConfig Config
+	if err := yaml.Unmarshal(cfgBytes, &userConfig); err != nil {
+		return Config{}, fmt.Errorf("unmarshaling config bytes into user config: %w", err)
+	}
+	if len(userConfig.Chains) == 0 {
+		return Config{}, fmt.Errorf("config does not contain any chain configuration")
 	}
 
 	for chainID, chainConfig := range config.Chains {
+		// the default config contains all chains, if the user did not specify
+		// any configuration for a particular chain, remove it from the config
+		// before validation
+		if _, isChainEnabled := userConfig.Chains[chainID]; !isChainEnabled {
+			delete(config.Chains, chainID)
+			continue
+		}
+
 		if err := ValidateChainConfig(chainConfig); err != nil {
 			return Config{}, fmt.Errorf("invalid configuration for chain %s: %w", chainID, err)
 		}

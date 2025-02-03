@@ -81,7 +81,6 @@ chains:
     fast_transfer_contract_address: 0xe7935104c9670015b21c6300e5b95d2f75474cda
     quick_start_num_blocks_back: 300000
     num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-    max_rebalancing_gas_cost_uusdc: "20000000"
     solver_address: <solver_address>
     usdc_denom: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
     min_fee_bps: 10
