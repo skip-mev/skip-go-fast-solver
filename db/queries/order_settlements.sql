@@ -32,3 +32,9 @@ UPDATE order_settlements
 SET updated_at=CURRENT_TIMESTAMP, settlement_status = ?, settlement_status_message = ?
 WHERE source_chain_id = ? AND order_id = ? AND source_chain_gateway_contract_address = ?
     RETURNING *;
+
+-- name: SetHyperlaneTransferID :one
+UPDATE order_settlements
+SET updated_at=CURRENT_TIMESTAMP, hyperlane_transfer_id = ?
+WHERE source_chain_id = ? AND order_id = ? AND source_chain_gateway_contract_address = ?
+    RETURNING *;

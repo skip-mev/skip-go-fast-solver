@@ -26,7 +26,7 @@ const (
 )
 
 type Relayer interface {
-	SubmitTxToRelay(ctx context.Context, txHash string, sourceChainID string, maxTxFeeUUSDC *big.Int) error
+	SubmitTxToRelay(ctx context.Context, txHash string, sourceChainID string, maxRelayTxFeeUUSDC *big.Int) (int64, error)
 }
 
 type Database interface {
@@ -520,7 +520,7 @@ func (r *orderFulfillmentHandler) SubmitTimeoutForRelay(ctx context.Context, ord
 	)
 
 	for i := 0; i < maxRetries; i++ {
-		if err = r.relayer.SubmitTxToRelay(ctx, txHash, initiateTimeoutChain, nil); err == nil {
+		if _, err = r.relayer.SubmitTxToRelay(ctx, txHash, initiateTimeoutChain, nil); err == nil {
 			return nil
 		}
 		delay := math.Pow(2, float64(i))

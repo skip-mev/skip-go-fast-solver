@@ -32,6 +32,7 @@ type Querier interface {
 	InsertTransferMonitorMetadata(ctx context.Context, arg InsertTransferMonitorMetadataParams) (TransferMonitorMetadatum, error)
 	SetCompleteSettlementTx(ctx context.Context, arg SetCompleteSettlementTxParams) (OrderSettlement, error)
 	SetFillTx(ctx context.Context, arg SetFillTxParams) (Order, error)
+	SetHyperlaneTransferID(ctx context.Context, arg SetHyperlaneTransferIDParams) (OrderSettlement, error)
 	SetInitiateSettlementTx(ctx context.Context, arg SetInitiateSettlementTxParams) (OrderSettlement, error)
 	SetMessageStatus(ctx context.Context, arg SetMessageStatusParams) (HyperlaneTransfer, error)
 	SetOrderStatus(ctx context.Context, arg SetOrderStatusParams) (Order, error)

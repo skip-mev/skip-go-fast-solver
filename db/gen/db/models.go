@@ -60,6 +60,7 @@ type OrderSettlement struct {
 	CompleteSettlementTx              sql.NullString
 	SettlementStatus                  string
 	SettlementStatusMessage           sql.NullString
+	HyperlaneTransferID               sql.NullInt64
 }
 
 type RebalanceTransfer struct {

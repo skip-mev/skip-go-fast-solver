@@ -49,11 +49,13 @@ type Database interface {
 	InsertOrderSettlement(ctx context.Context, arg db.InsertOrderSettlementParams) (db.OrderSettlement, error)
 	SetOrderStatus(ctx context.Context, arg db.SetOrderStatusParams) (db.Order, error)
 
+	SetHyperlaneTransferID(ctx context.Context, arg db.SetHyperlaneTransferIDParams) (db.OrderSettlement, error)
+
 	InTx(ctx context.Context, fn func(ctx context.Context, q db.Querier) error, opts *sql.TxOptions) error
 }
 
 type Relayer interface {
-	SubmitTxToRelay(ctx context.Context, txHash string, sourceChainID string, maxRelayTxFeeUUSDC *big.Int) error
+	SubmitTxToRelay(ctx context.Context, txHash string, sourceChainID string, maxRelayTxFeeUUSDC *big.Int) (ID int64, err error)
 }
 
 type OrderSettler struct {
@@ -194,7 +196,8 @@ func (r *OrderSettler) submitInitiatedSettlementsForRelay(ctx context.Context) e
 		// these batches are grouped by initiation hash, so just choose the
 		// first one since they are all the same
 		hash := batch[0].InitiateSettlementTx.String
-		if err := r.relayBatch(ctx, hash, batch); err != nil {
+		ID, err := r.relayBatch(ctx, hash, batch)
+		if err != nil {
 			// continue to try and relay other settlements if one fails to be
 			// submitted
 			lmt.Logger(ctx).Error(
@@ -204,6 +207,18 @@ func (r *OrderSettler) submitInitiatedSettlementsForRelay(ctx context.Context) e
 				zap.String("settlementPayoutChainID", batch.SourceChainID()),
 				zap.String("settlementInitiationChainID", batch.DestinationChainID()),
 			)
+		} else {
+			for _, settlement := range batch {
+				_, err := r.db.SetHyperlaneTransferID(ctx, db.SetHyperlaneTransferIDParams{
+					HyperlaneTransferID:               sql.NullInt64{ID, true},
+					SourceChainID:                     settlement.SourceChainID,
+					OrderID:                           settlement.OrderID,
+					SourceChainGatewayContractAddress: settlement.SourceChainGatewayContractAddress,
+				})
+				if err != nil {
+					return err
+				}
+			}
 		}
 	}
 
@@ -217,7 +232,7 @@ func (r *OrderSettler) relayBatch(
 	ctx context.Context,
 	txHash string,
 	batch types.SettlementBatch,
-) error {
+) (int64, error) {
 	// the orders destination chain is where the settlement is initiated
 	settlementInitiationChainID := batch.DestinationChainID()
 
@@ -226,7 +241,7 @@ func (r *OrderSettler) relayBatch(
 
 	maxTxFeeUUSDC, err := r.maxBatchTxFeeUUSDC(ctx, batch)
 	if err != nil {
-		return fmt.Errorf("calculating max batch (hash: %s) tx fee in uusdc: %w", txHash, err)
+		return 0, fmt.Errorf("calculating max batch (hash: %s) tx fee in uusdc: %w", txHash, err)
 	}
 	if maxTxFeeUUSDC.Cmp(big.NewInt(0)) <= 0 {
 		lmt.Logger(ctx).Warn(
@@ -254,7 +269,7 @@ func (r *OrderSettler) relaySettlement(
 	settlementInitiationChainID string,
 	settlementPayoutChainID string,
 	maxTxFeeUUSDC *big.Int,
-) error {
+) (int64, error) {
 	var (
 		maxRetries = 5
 		baseDelay  = 2 * time.Second
@@ -262,14 +277,14 @@ func (r *OrderSettler) relaySettlement(
 	)
 
 	for i := 0; i < maxRetries; i++ {
-		if err = r.relayer.SubmitTxToRelay(ctx, txHash, settlementInitiationChainID, maxTxFeeUUSDC); err == nil {
-			return nil
+		if ID, err := r.relayer.SubmitTxToRelay(ctx, txHash, settlementInitiationChainID, maxTxFeeUUSDC); err == nil {
+			return ID, nil
 		}
 		delay := math.Pow(2, float64(i))
 		time.Sleep(time.Duration(delay) * baseDelay)
 	}
 
-	return fmt.Errorf(
+	return 0, fmt.Errorf(
 		"submitting settlement tx hash %s to be relayed from chain %s to chain %s: %w",
 		txHash, settlementInitiationChainID, settlementPayoutChainID, err,
 	)

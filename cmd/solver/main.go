@@ -35,7 +35,6 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/keys"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
-	"github.com/skip-mev/go-fast-solver/transfermonitor"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -162,14 +161,14 @@ func main() {
 		return nil
 	})
 
-	eg.Go(func() error {
-		transferMonitor := transfermonitor.NewTransferMonitor(db.New(dbConn), *quickStart, cfg.TransferMonitorConfig.PollInterval)
-		err := transferMonitor.Start(ctx)
-		if err != nil {
-			return fmt.Errorf("creating transfer monitor: %w", err)
-		}
-		return nil
-	})
+	//eg.Go(func() error {
+	//	transferMonitor := transfermonitor.NewTransferMonitor(db.New(dbConn), *quickStart, cfg.TransferMonitorConfig.PollInterval)
+	//	err := transferMonitor.Start(ctx)
+	//	if err != nil {
+	//		return fmt.Errorf("creating transfer monitor: %w", err)
+	//	}
+	//	return nil
+	//})
 
 	eg.Go(func() error {
 		gasMonitor := gasmonitor.NewGasMonitor(clientManager)
