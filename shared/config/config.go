@@ -286,6 +286,9 @@ type CosmosConfig struct {
 	// MaxFillSize is the maximum amount of USDC that can be processed in a single
 	// order fill. Orders exceeding this size will be abandoned
 	MaxFillSize *big.Int `yaml:"max_fill_size"`
+	// MinRefundSize is the minimum amount of USDC the solver will initiate refunds
+	// for. Orders exceeding this will abandoned
+	MinRefundSize *big.Int `yaml:"min_refund_size"`
 }
 
 type EVMConfig struct {

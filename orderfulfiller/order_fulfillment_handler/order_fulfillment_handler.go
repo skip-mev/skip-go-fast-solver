@@ -3,6 +3,7 @@ package order_fulfillment_handler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -406,6 +407,46 @@ func (r *orderFulfillmentHandler) checkBlockConfirmations(ctx context.Context, s
 	}
 }
 
+func (r *orderFulfillmentHandler) checkRefundAmount(ctx context.Context, order db.Order) error {
+	destinationChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(order.DestinationChainID)
+	if err != nil {
+		return err
+	}
+
+	amountIn, ok := new(big.Int).SetString(order.AmountIn, 10)
+	if !ok {
+		return fmt.Errorf("could not convert order amount in %s to *big.Int", order.AmountIn)
+	}
+
+	if amountIn.Cmp(destinationChainConfig.Cosmos.MinRefundSize) < 0 {
+		abandonmentReason := "transfer amount is below configured min refund size for chain " + order.DestinationChainID
+
+		_, err = r.db.SetOrderStatus(ctx, db.SetOrderStatusParams{
+			SourceChainID:                     order.SourceChainID,
+			OrderID:                           order.OrderID,
+			SourceChainGatewayContractAddress: order.SourceChainGatewayContractAddress,
+			OrderStatus:                       dbtypes.OrderStatusAbandoned,
+			OrderStatusMessage:                sql.NullString{String: abandonmentReason, Valid: true},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to set fill status to abandoned: %w", err)
+		}
+
+		lmt.Logger(ctx).Info(
+			"abandoning transaction, "+abandonmentReason,
+			zap.String("orderID", order.OrderID),
+			zap.String("sourceChainID", order.SourceChainID),
+			zap.String("orderAmountIn", order.AmountIn),
+			zap.String("minAllowedFillSize", destinationChainConfig.Cosmos.MinFillSize.String()),
+			zap.String("maxAllowedFillSize", destinationChainConfig.Cosmos.MaxFillSize.String()),
+		)
+
+		metrics.FromContext(ctx).IncFillOrderStatusChange(order.SourceChainID, destinationChainConfig.ChainID, dbtypes.OrderStatusAbandoned)
+		return errors.New(abandonmentReason)
+	}
+	return nil
+}
+
 func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.Order) (string, error) {
 	destinationChainBridgeClient, err := r.clientManager.GetClient(ctx, order.DestinationChainID)
 	if err != nil {
@@ -414,6 +455,10 @@ func (r *orderFulfillmentHandler) InitiateTimeout(ctx context.Context, order db.
 
 	destinationChainGatewayContractAddress, err := config.GetConfigReader(ctx).GetGatewayContractAddress(order.DestinationChainID)
 	if err != nil {
+		return "", err
+	}
+
+	if err = r.checkRefundAmount(ctx, order); err != nil {
 		return "", err
 	}
 
