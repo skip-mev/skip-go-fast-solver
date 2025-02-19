@@ -69,122 +69,126 @@ fund_rebalancer:
     transfer_cost_cap_uusdc: <transfer_cost_cap_uusdc> # e.g. 2000000
 
 chains:
-#  1:
-#    chain_name: "ethereum"
-#    chain_id: "1"
-#    type: "evm"
-#    environment: "mainnet"
-#    gas_token_symbol: "ETH"
-#    gas_token_decimals: 18
-#    gas_token_coingecko_id: "ethereum"
-#    hyperlane_domain: "1"
-#    fast_transfer_contract_address: 0xe7935104c9670015b21c6300e5b95d2f75474cda
-#    quick_start_num_blocks_back: 300000
-#    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-#    max_rebalancing_gas_cost_uusdc: "20000000"
-#    solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
-#    usdc_denom: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
-#    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
-#    min_fee_bps: <min_fee_bps> # e.g. 100
-#    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
-#    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
-#    evm:
-#      rpc: <ethereum_rpc_server_url> # e.g. "https://eth.llamarpc.com"
-#      rpc_basic_auth_var: <server_password>
-#      signer_gas_balance:
-#        warning_threshold_wei: <warning_threshold_wei> # e.g. 1720000000000000000
-#        critical_threshold_wei: <critical_threshold_wei> # e.g. 580000000000000000
-#    relayer:
-#      mailbox_address: "0xc005dc82818d67AF737725bD4bf75435d065D239"
-#      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
-#      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
-#
-#  43114:
-#    chain_name: "avalanche"
-#    chain_id: "43114"
-#    type: "evm"
-#    environment: "mainnet"
-#    gas_token_symbol: "AVAX"
-#    gas_token_decimals: 18
-#    gas_token_coingecko_id: "avalanche-2"
-#    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-#    hyperlane_domain: "43114"
-#    quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
-#    fast_transfer_contract_address: "0xD415B02A7E91dBAf92EAa4721F9289CFB7f4E1cF"
-#    solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
-#    usdc_denom: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
-#    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
-#    min_fee_bps: <min_fee_bps> # e.g. 100
-#    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
-#    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
-#    evm:
-#      rpc: <avalanche_rpc_server_url> # e.g. "https://api.avax.network/ext/bc/C/rpc"
-#      rpc_basic_auth_var: <server_password>
-#      signer_gas_balance:
-#        warning_threshold_wei: <warning_threshold_wei> # e.g. 1720000000000000000
-#        critical_threshold_wei: <critical_threshold_wei> # e.g. 580000000000000000
-#    relayer:
-#      mailbox_address: "0xFf06aFcaABaDDd1fb08371f9ccA15D73D51FeBD6"
-#      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
-#      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
-#
-#  10:
-#    chain_name: "optimism"
-#    chain_id: "10"
-#    type: "evm"
-#    environment: "mainnet"
-#    gas_token_symbol: "ETH"
-#    gas_token_decimals: 18
-#    gas_token_coingecko_id: "ethereum"
-#    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-#    hyperlane_domain: "10"
-#    quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
-#    fast_transfer_contract_address: "0x0f479de4fd3144642f1af88e3797b1821724f703"
-#    solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
-#    usdc_denom: "0x0b2c639c533813f4aa9d7837caf62653d097ff85"
-#    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
-#    min_fee_bps: <min_fee_bps> # e.g. 100
-#    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
-#    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
-#    evm:
-#      rpc: <optimism_rpc_server_url> # e.g. "https://mainnet.optimism.io"
-#      rpc_basic_auth_var: <server_password>
-#      signer_gas_balance:
-#        warning_threshold_wei: <warning_threshold_wei> # e.g. 180000000000000000
-#        critical_threshold_wei: <critical_threshold_wei> # e.g. 60000000000000000
-#    relayer:
-#      mailbox_address: "0xd4C1905BB1D26BC93DAC913e13CaCC278CdCC80D"
-#      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
-#      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
-#
-#  42161:
-#    chain_name: "arbitrum"
-#    chain_id: "42161"
-#    type: "evm"
-#    environment: "mainnet"
-#    gas_token_symbol: "ETH"
-#    gas_token_decimals: 18
-#    gas_token_coingecko_id: "etheruem"
-#    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-#    hyperlane_domain: "42161"
-#    quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
-#    fast_transfer_contract_address: "0x23cb6147e5600c23d1fb5543916d3d5457c9b54c"
-#    solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
-#    usdc_denom: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
-#    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
-#    min_fee_bps: <min_fee_bps> # e.g. 100
-#    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
-#    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
-#    evm:
-#      rpc: <arbitrum_rpc_server_url> # e.g. "https://arb1.arbitrum.io/rpc"
-#      rpc_basic_auth_var: <server_password>
-#      signer_gas_balance:
-#        warning_threshold_wei: <warning_threshold_wei> # e.g. 180000000000000000
-#        critical_threshold_wei: <critical_threshold_wei> # e.g. 60000000000000000
-#    relayer:
-#      mailbox_address: "0x979Ca5202784112f4738403dBec5D0F3B9daabB9"
-#      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
-#      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
+  1:
+    chain_name: "ethereum"
+    chain_id: "1"
+    type: "evm"
+    environment: "mainnet"
+    gas_token_symbol: "ETH"
+    gas_token_decimals: 18
+    gas_token_coingecko_id: "ethereum"
+    hyperlane_domain: "1"
+    fast_transfer_contract_address: 0xe7935104c9670015b21c6300e5b95d2f75474cda
+    quick_start_num_blocks_back: 300000
+    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
+    max_rebalancing_gas_cost_uusdc: "20000000"
+    solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    usdc_denom: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    settlement_rebatch_timeout: 1h
+    evm:
+      rpc: <ethereum_rpc_server_url> # e.g. "https://eth.llamarpc.com"
+      rpc_basic_auth_var: <server_password>
+      signer_gas_balance:
+        warning_threshold_wei: <warning_threshold_wei> # e.g. 1720000000000000000
+        critical_threshold_wei: <critical_threshold_wei> # e.g. 580000000000000000
+    relayer:
+      mailbox_address: "0xc005dc82818d67AF737725bD4bf75435d065D239"
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
+
+  43114:
+    chain_name: "avalanche"
+    chain_id: "43114"
+    type: "evm"
+    environment: "mainnet"
+    gas_token_symbol: "AVAX"
+    gas_token_decimals: 18
+    gas_token_coingecko_id: "avalanche-2"
+    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
+    hyperlane_domain: "43114"
+    quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
+    fast_transfer_contract_address: "0xD415B02A7E91dBAf92EAa4721F9289CFB7f4E1cF"
+    solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    usdc_denom: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    settlement_rebatch_timeout: 1h
+    evm:
+      rpc: <avalanche_rpc_server_url> # e.g. "https://api.avax.network/ext/bc/C/rpc"
+      rpc_basic_auth_var: <server_password>
+      signer_gas_balance:
+        warning_threshold_wei: <warning_threshold_wei> # e.g. 1720000000000000000
+        critical_threshold_wei: <critical_threshold_wei> # e.g. 580000000000000000
+    relayer:
+      mailbox_address: "0xFf06aFcaABaDDd1fb08371f9ccA15D73D51FeBD6"
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
+
+  10:
+    chain_name: "optimism"
+    chain_id: "10"
+    type: "evm"
+    environment: "mainnet"
+    gas_token_symbol: "ETH"
+    gas_token_decimals: 18
+    gas_token_coingecko_id: "ethereum"
+    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
+    hyperlane_domain: "10"
+    quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
+    fast_transfer_contract_address: "0x0f479de4fd3144642f1af88e3797b1821724f703"
+    solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    usdc_denom: "0x0b2c639c533813f4aa9d7837caf62653d097ff85"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    settlement_rebatch_timeout: 1h
+    evm:
+      rpc: <optimism_rpc_server_url> # e.g. "https://mainnet.optimism.io"
+      rpc_basic_auth_var: <server_password>
+      signer_gas_balance:
+        warning_threshold_wei: <warning_threshold_wei> # e.g. 180000000000000000
+        critical_threshold_wei: <critical_threshold_wei> # e.g. 60000000000000000
+    relayer:
+      mailbox_address: "0xd4C1905BB1D26BC93DAC913e13CaCC278CdCC80D"
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
+
+  42161:
+    chain_name: "arbitrum"
+    chain_id: "42161"
+    type: "evm"
+    environment: "mainnet"
+    gas_token_symbol: "ETH"
+    gas_token_decimals: 18
+    gas_token_coingecko_id: "etheruem"
+    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
+    hyperlane_domain: "42161"
+    quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
+    fast_transfer_contract_address: "0x23cb6147e5600c23d1fb5543916d3d5457c9b54c"
+    solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    usdc_denom: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    settlement_rebatch_timeout: 1h
+    evm:
+      rpc: <arbitrum_rpc_server_url> # e.g. "https://arb1.arbitrum.io/rpc"
+      rpc_basic_auth_var: <server_password>
+      signer_gas_balance:
+        warning_threshold_wei: <warning_threshold_wei> # e.g. 180000000000000000
+        critical_threshold_wei: <critical_threshold_wei> # e.g. 60000000000000000
+    relayer:
+      mailbox_address: "0x979Ca5202784112f4738403dBec5D0F3B9daabB9"
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
 
   osmosis-1:
     chain_name: "osmosis"
@@ -207,7 +211,6 @@ chains:
       grpc_tls_enabled: <grpc_tls_enabled> # e.g. false
       min_fill_size: <min_fill_size> # e.g. 5000000
       max_fill_size: <max_fill_size> # e.g. 10000000000
-      min_refund_size: 10000
       signer_gas_balance:
         warning_threshold_wei: <warning_threshold_wei> # e.g. 42860000
         critical_threshold_wei: <critical_threshold_wei> # e.g. 14290000
@@ -219,35 +222,36 @@ chains:
       mailbox_address: "osmo1r6u37zv47ke4d2k9tkzun72ch466w6594kv8gqgrtmsvf7qxpm9sj95v98"
       profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
       relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
-#
-#  8453:
-#    chain_name: "base"
-#    chain_id: "8453"
-#    type: "evm"
-#    environment: "mainnet"
-#    gas_token_symbol: "ETH"
-#    gas_token_decimals: 18
-#    gas_token_coingecko_id: "ethereum"
-#    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
-#    hyperlane_domain: "8453"
-#    quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
-#    fast_transfer_contract_address: "0x43d090025aaa6c8693b71952b910ac55ccb56bbb"
-#    solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
-#    usdc_denom: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
-#    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
-#    min_fee_bps: <min_fee_bps> # e.g. 100
-#    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
-#    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
-#    evm:
-#      rpc: <base_mainnet_rpc_server_url> # e.g. "https://mainnet.base.org"
-#      rpc_basic_auth_var: <server_password>
-#      signer_gas_balance:
-#        warning_threshold_wei: <warning_threshold_wei> # e.g. 180000000000000000
-#        critical_threshold_wei: <critical_threshold_wei> # e.g. 60000000000000000
-#    relayer:
-#      mailbox_address: "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
-#      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
-#      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
+
+  8453:
+    chain_name: "base"
+    chain_id: "8453"
+    type: "evm"
+    environment: "mainnet"
+    gas_token_symbol: "ETH"
+    gas_token_decimals: 18
+    gas_token_coingecko_id: "ethereum"
+    num_block_confirmations_before_fill: <num_block_confirmations_before_fill> # e.g. 1
+    hyperlane_domain: "8453"
+    quick_start_num_blocks_back: <quick_start_num_blocks_back> # e.g. 1000
+    fast_transfer_contract_address: "0x43d090025aaa6c8693b71952b910ac55ccb56bbb"
+    solver_address: <solver_address> # e.g. "0x8EB49E3D65d74967CC0Fe987FA2d015ae816352E"
+    usdc_denom: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    #### SEE shared/config/config.go for guidance on how to set the below three values per chain ####
+    min_fee_bps: <min_fee_bps> # e.g. 100
+    batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
+    min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    settlement_rebatch_timeout: 1h
+    evm:
+      rpc: <base_mainnet_rpc_server_url> # e.g. "https://mainnet.base.org"
+      rpc_basic_auth_var: <server_password>
+      signer_gas_balance:
+        warning_threshold_wei: <warning_threshold_wei> # e.g. 180000000000000000
+        critical_threshold_wei: <critical_threshold_wei> # e.g. 60000000000000000
+    relayer:
+      mailbox_address: "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D"
+      profitable_relay_timeout: <profitability_relay_timeout> # e.g. "5m"
+      relay_cost_cap_uusdc: <relay_cost_cap_uusdc> # e.g. "1000000" uusdc
 
   137:
     chain_name: "polygon"
@@ -267,6 +271,7 @@ chains:
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    settlement_rebatch_timeout: 1h
     evm:
       rpc: <polygon_mainnet_rpc_server_url> # e.g. "https://polygon-rpc.com"
       rpc_basic_auth_var: <server_password>

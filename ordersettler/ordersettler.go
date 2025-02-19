@@ -100,7 +100,7 @@ func (r *OrderSettler) Run(ctx context.Context) {
 			continue
 		}
 
-		if _, err := r.cancelSettlementRelays(ctx); err != nil {
+		if err := r.cancelSettlementRelays(ctx); err != nil {
 			lmt.Logger(ctx).Error("error canceling settlement relays", zap.Error(err))
 		}
 
@@ -370,38 +370,47 @@ func (r *OrderSettler) PendingSettlementBatches(ctx context.Context) ([]types.Se
 	return types.IntoSettlementBatchesByChains(uniniatedSettlements), nil
 }
 
-func (r *OrderSettler) cancelSettlementRelays(ctx context.Context) ([]db.OrderSettlement, error) {
+func (r *OrderSettler) cancelSettlementRelays(ctx context.Context) error {
 	pendingSettlements, err := r.db.GetAllOrderSettlementsWithSettlementStatus(ctx, dbtypes.SettlementStatusPending)
 	if err != nil {
-		return nil, fmt.Errorf("getting orders pending settlement: %w", err)
+		return fmt.Errorf("getting orders pending settlement: %w", err)
 	}
 	initiatedSettlements, err := r.db.GetAllOrderSettlementsWithSettlementStatus(ctx, dbtypes.SettlementStatusSettlementInitiated)
 	if err != nil {
-		return nil, fmt.Errorf("getting orders pending settlement: %w", err)
+		return fmt.Errorf("getting orders pending settlement: %w", err)
 	}
-	var initiatedSettlementsByDestinationChain map[string][]db.OrderSettlement
-	var unitiatedSettlementsByDestinationChain map[string][]db.OrderSettlement
+	initiatedSettlementsByDestinationChain := make(map[string][]db.OrderSettlement)
+	unitiatedSettlementsByDestinationChain := make(map[string][]db.OrderSettlement)
 	for _, settlement := range pendingSettlements {
 		if !settlement.InitiateSettlementTx.Valid {
 			unitiatedSettlementsByDestinationChain[settlement.DestinationChainID] = append(unitiatedSettlementsByDestinationChain[settlement.DestinationChainID], settlement)
 		} else {
-			initiatedSettlementsByDestinationChain[settlement.DestinationChainID] = append(initiatedSettlementsByDestinationChain[settlement.DestinationChainID], settlement)
+			if settlement.HyperlaneTransferID.Valid {
+				initiatedSettlementsByDestinationChain[settlement.DestinationChainID] = append(initiatedSettlementsByDestinationChain[settlement.DestinationChainID], settlement)
+			}
 		}
 	}
 	for _, settlement := range initiatedSettlements {
-		initiatedSettlementsByDestinationChain[settlement.DestinationChainID] = append(initiatedSettlementsByDestinationChain[settlement.DestinationChainID], settlement)
+		if settlement.HyperlaneTransferID.Valid {
+			initiatedSettlementsByDestinationChain[settlement.DestinationChainID] = append(initiatedSettlementsByDestinationChain[settlement.DestinationChainID], settlement)
+		}
 	}
 	var settlementsToCancel []db.OrderSettlement
 	for destinationChain, settlements := range initiatedSettlementsByDestinationChain {
+		// check that there are new settlements to rebatch with
 		if len(unitiatedSettlementsByDestinationChain[destinationChain]) > 0 {
 			settlementsToCancel = append(settlementsToCancel, settlements...)
 		}
 	}
 	for _, settlement := range settlementsToCancel {
-		if time.Since(settlement.InitiateSettlementTxTime.Time) > 10*time.Minute {
-			ok, err := r.relayer.CancelRelay(ctx, settlement.SourceChainID, settlement.InitiateSettlementTx.String)
+		chainCfg, err := config.GetConfigReader(ctx).GetChainConfig(settlement.SourceChainID)
+		if err != nil {
+			return fmt.Errorf("getting chain config for settlement destination chain %s: %w", settlement.DestinationChainID, err)
+		}
+		if chainCfg.SettlementRebatchTimeout > 0 && time.Since(settlement.InitiateSettlementTxTime.Time) > chainCfg.SettlementRebatchTimeout {
+			ok, err := r.relayer.CancelRelay(ctx, settlement.DestinationChainID, settlement.InitiateSettlementTx.String)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			if ok {
 				_, err := r.db.ClearInitiateSettlement(ctx, db.ClearInitiateSettlementParams{
@@ -410,12 +419,17 @@ func (r *OrderSettler) cancelSettlementRelays(ctx context.Context) ([]db.OrderSe
 					InitiateSettlementTx: settlement.InitiateSettlementTx,
 				})
 				if err != nil {
-					return nil, err
+					return err
 				}
+				lmt.Logger(ctx).Info(
+					"cancelled relay for settlement",
+					zap.String("orderID", settlement.OrderID),
+					zap.String("sourceChainID", settlement.SourceChainID),
+					zap.String("initiateSettlementTx", settlement.InitiateSettlementTx.String))
 			}
 		}
 	}
-	return settlementsToCancel, nil
+	return nil
 }
 
 // ShouldInitiateSettlement returns true if a settlement should be initiated

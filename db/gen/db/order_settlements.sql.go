@@ -12,7 +12,7 @@ import (
 
 const clearInitiateSettlement = `-- name: ClearInitiateSettlement :many
 UPDATE order_settlements
-SET updated_at=CURRENT_TIMESTAMP, initiate_settlement_tx = null, hyperlane_transfer_id = null, settlement_status = ?
+SET updated_at=CURRENT_TIMESTAMP, initiate_settlement_tx = null, hyperlane_transfer_id = null, initiate_settlement_tx_time = null, settlement_status = ?
 WHERE destination_chain_id=? AND initiate_settlement_tx=?
     RETURNING id, created_at, updated_at, source_chain_id, destination_chain_id, source_chain_gateway_contract_address, amount, profit, order_id, initiate_settlement_tx, complete_settlement_tx, settlement_status, settlement_status_message, hyperlane_transfer_id, initiate_settlement_tx_time
 `
@@ -277,14 +277,13 @@ func (q *Queries) SetHyperlaneTransferID(ctx context.Context, arg SetHyperlaneTr
 
 const setInitiateSettlementTx = `-- name: SetInitiateSettlementTx :one
 UPDATE order_settlements
-SET updated_at=CURRENT_TIMESTAMP, initiate_settlement_tx = ?, initiate_settlement_tx_time = ?
+SET updated_at=CURRENT_TIMESTAMP, initiate_settlement_tx_time=CURRENT_TIMESTAMP, initiate_settlement_tx = ?
 WHERE source_chain_id = ? AND order_id = ? AND source_chain_gateway_contract_address = ?
     RETURNING id, created_at, updated_at, source_chain_id, destination_chain_id, source_chain_gateway_contract_address, amount, profit, order_id, initiate_settlement_tx, complete_settlement_tx, settlement_status, settlement_status_message, hyperlane_transfer_id, initiate_settlement_tx_time
 `
 
 type SetInitiateSettlementTxParams struct {
 	InitiateSettlementTx              sql.NullString
-	InitiateSettlementTxTime          sql.NullTime
 	SourceChainID                     string
 	OrderID                           string
 	SourceChainGatewayContractAddress string
@@ -293,7 +292,6 @@ type SetInitiateSettlementTxParams struct {
 func (q *Queries) SetInitiateSettlementTx(ctx context.Context, arg SetInitiateSettlementTxParams) (OrderSettlement, error) {
 	row := q.db.QueryRowContext(ctx, setInitiateSettlementTx,
 		arg.InitiateSettlementTx,
-		arg.InitiateSettlementTxTime,
 		arg.SourceChainID,
 		arg.OrderID,
 		arg.SourceChainGatewayContractAddress,

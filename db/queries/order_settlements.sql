@@ -17,7 +17,7 @@ SELECT * FROM order_settlements WHERE source_chain_id = ? AND source_chain_gatew
 
 -- name: SetInitiateSettlementTx :one
 UPDATE order_settlements
-SET updated_at=CURRENT_TIMESTAMP, initiate_settlement_tx = ?, initiate_settlement_tx_time = ?
+SET updated_at=CURRENT_TIMESTAMP, initiate_settlement_tx_time=CURRENT_TIMESTAMP, initiate_settlement_tx = ?
 WHERE source_chain_id = ? AND order_id = ? AND source_chain_gateway_contract_address = ?
     RETURNING *;
 

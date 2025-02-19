@@ -4,7 +4,7 @@
     "address": "Wallet address on chain",
     "private_key": "Wallet private key"
   },
-  "137": {
+  "11155111": {
     "name": "Ethereum Testnet (Sepolia)",
     "address": "0x6D053B2Db4D202a96a20E17e246351A8aE8Cd1D7",
     "private_key": "0x4c0883a69102937d6231471b5dbb6204fe512961708279cd05b31be13ffb9e05"

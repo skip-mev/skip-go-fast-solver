@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/transfermonitor"
 	"os/signal"
 	"syscall"
 	"time"
@@ -161,14 +162,14 @@ func main() {
 		return nil
 	})
 
-	//eg.Go(func() error {
-	//	transferMonitor := transfermonitor.NewTransferMonitor(db.New(dbConn), *quickStart, cfg.TransferMonitorConfig.PollInterval)
-	//	err := transferMonitor.Start(ctx)
-	//	if err != nil {
-	//		return fmt.Errorf("creating transfer monitor: %w", err)
-	//	}
-	//	return nil
-	//})
+	eg.Go(func() error {
+		transferMonitor := transfermonitor.NewTransferMonitor(db.New(dbConn), *quickStart, cfg.TransferMonitorConfig.PollInterval)
+		err := transferMonitor.Start(ctx)
+		if err != nil {
+			return fmt.Errorf("creating transfer monitor: %w", err)
+		}
+		return nil
+	})
 
 	eg.Go(func() error {
 		gasMonitor := gasmonitor.NewGasMonitor(clientManager)
