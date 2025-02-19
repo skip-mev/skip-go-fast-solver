@@ -4,10 +4,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/big"
-
 	dbtypes "github.com/skip-mev/go-fast-solver/db"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
+	"math/big"
 
 	"strings"
 

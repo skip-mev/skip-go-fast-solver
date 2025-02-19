@@ -10,6 +10,7 @@ import (
 )
 
 type Querier interface {
+	ClearInitiateSettlement(ctx context.Context, arg ClearInitiateSettlementParams) ([]OrderSettlement, error)
 	GetAllHyperlaneTransfersWithTransferStatus(ctx context.Context, transferStatus string) ([]HyperlaneTransfer, error)
 	GetAllOrderSettlementsWithSettlementStatus(ctx context.Context, settlementStatus string) ([]OrderSettlement, error)
 	GetAllOrdersWithOrderStatus(ctx context.Context, orderStatus string) ([]Order, error)

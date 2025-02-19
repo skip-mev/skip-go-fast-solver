@@ -52,6 +52,42 @@ func NewRelayerRunner(db Database, hyperlaneClient Client, relayer Relayer) *Rel
 	}
 }
 
+func (r *RelayerRunner) updateTransferStatusIfPending(ctx context.Context, chainID, transactionHash, status, statusMessage string) (db.HyperlaneTransfer, error) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	hyperlaneTransfer, err := r.db.GetHyperlaneTransferByMessageSentTx(ctx, db.GetHyperlaneTransferByMessageSentTxParams{
+		SourceChainID: chainID,
+		MessageSentTx: transactionHash,
+	})
+	if err != nil {
+		return db.HyperlaneTransfer{}, err
+	}
+	if hyperlaneTransfer.TransferStatus == dbtypes.TransferStatusPending {
+		params := db.SetMessageStatusParams{
+			TransferStatus:     status,
+			SourceChainID:      hyperlaneTransfer.SourceChainID,
+			DestinationChainID: hyperlaneTransfer.DestinationChainID,
+			MessageID:          hyperlaneTransfer.MessageID,
+		}
+		if statusMessage != "" {
+			params.TransferStatusMessage = sql.NullString{Valid: true, String: statusMessage}
+		}
+		hyperlaneTransfer, err = r.db.SetMessageStatus(ctx, params)
+		if err != nil {
+			return db.HyperlaneTransfer{}, err
+		}
+	}
+	return hyperlaneTransfer, nil
+}
+
+func (r *RelayerRunner) CancelRelay(ctx context.Context, chainID, transactionHash string) (bool, error) {
+	transfer, err := r.updateTransferStatusIfPending(ctx, chainID, transactionHash, dbtypes.TransferStatusCancelled, "")
+	if err != nil {
+		return false, err
+	}
+	return transfer.TransferStatus == dbtypes.TransferStatusCancelled, nil
+}
+
 func (r *RelayerRunner) Run(ctx context.Context) error {
 	ticker := time.NewTicker(relayInterval)
 	for {
@@ -109,14 +145,13 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 							zap.String("txHash", transfer.MessageSentTx),
 							zap.Error(err),
 						)
-
-						if _, err := r.db.SetMessageStatus(ctx, db.SetMessageStatusParams{
-							TransferStatus:        dbtypes.TransferStatusAbandoned,
-							SourceChainID:         transfer.SourceChainID,
-							DestinationChainID:    transfer.DestinationChainID,
-							MessageID:             transfer.MessageID,
-							TransferStatusMessage: sql.NullString{String: err.Error(), Valid: true},
-						}); err != nil {
+						if _, err := r.updateTransferStatusIfPending(
+							ctx,
+							transfer.MessageSentTx,
+							transfer.SourceChainID,
+							dbtypes.TransferStatusAbandoned,
+							err.Error(),
+						); err != nil {
 							lmt.Logger(ctx).Error(
 								"error updating invalid transfer status",
 								zap.Int64("transferId", transfer.ID),
@@ -177,11 +212,21 @@ func (r *RelayerRunner) relayTransfer(ctx context.Context, transfer db.Hyperlane
 	}
 
 	r.lock.Lock()
+	defer r.lock.Unlock()
+	transferFromDB, err := r.db.GetHyperlaneTransferByMessageSentTx(ctx, db.GetHyperlaneTransferByMessageSentTxParams{
+		MessageSentTx: transfer.MessageSentTx,
+		SourceChainID: transfer.SourceChainID,
+	})
+	if err != nil {
+		return "", "", "", err
+	}
+	if transferFromDB.TransferStatus != dbtypes.TransferStatusPending {
+		return "", "", "", errors.New("transfer is not pending")
+	}
 	destinationTxHash, destinationChainID, rawTx, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx, costCap)
 	if err != nil {
 		return "", "", "", fmt.Errorf("relaying pending hyperlane transfer with tx hash %s from chainID %s: %w", transfer.MessageSentTx, transfer.SourceChainID, err)
 	}
-	r.lock.Unlock()
 
 	return destinationTxHash, destinationChainID, rawTx, err
 }
@@ -204,12 +249,7 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 		metrics.FromContext(ctx).IncHyperlaneMessages(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusSuccess)
 		metrics.FromContext(ctx).ObserveHyperlaneLatency(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusSuccess, time.Since(transfer.CreatedAt))
 
-		if _, err := r.db.SetMessageStatus(ctx, db.SetMessageStatusParams{
-			TransferStatus:     dbtypes.TransferStatusSuccess,
-			SourceChainID:      transfer.SourceChainID,
-			DestinationChainID: transfer.DestinationChainID,
-			MessageID:          transfer.MessageID,
-		}); err != nil {
+		if _, err := r.updateTransferStatusIfPending(ctx, transfer.SourceChainID, transfer.MessageSentTx, dbtypes.TransferStatusSuccess, ""); err != nil {
 			return false, fmt.Errorf("setting message status to success: %w", err)
 		}
 		lmt.Logger(ctx).Info(

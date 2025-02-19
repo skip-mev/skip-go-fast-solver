@@ -32,6 +32,7 @@ const (
 	TransferStatusPending   string = "PENDING"
 	TransferStatusSuccess   string = "SUCCESS"
 	TransferStatusAbandoned string = "ABANDONED"
+	TransferStatusCancelled string = "CANCELLED"
 
 	GET    string = "GET"
 	INSERT string = "INSERT"

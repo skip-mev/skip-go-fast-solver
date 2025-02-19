@@ -61,6 +61,7 @@ type OrderSettlement struct {
 	SettlementStatus                  string
 	SettlementStatusMessage           sql.NullString
 	HyperlaneTransferID               sql.NullInt64
+	InitiateSettlementTxTime          sql.NullTime
 }
 
 type RebalanceTransfer struct {

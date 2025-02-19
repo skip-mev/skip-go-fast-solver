@@ -52,10 +52,13 @@ type Database interface {
 	SetHyperlaneTransferID(ctx context.Context, arg db.SetHyperlaneTransferIDParams) (db.OrderSettlement, error)
 
 	InTx(ctx context.Context, fn func(ctx context.Context, q db.Querier) error, opts *sql.TxOptions) error
+
+	ClearInitiateSettlement(ctx context.Context, arg db.ClearInitiateSettlementParams) ([]db.OrderSettlement, error)
 }
 
 type Relayer interface {
 	SubmitTxToRelay(ctx context.Context, txHash string, sourceChainID string, maxRelayTxFeeUUSDC *big.Int) (ID int64, err error)
+	CancelRelay(ctx context.Context, chainID, transactionHash string) (bool, error)
 }
 
 type OrderSettler struct {
@@ -95,6 +98,10 @@ func (r *OrderSettler) Run(ctx context.Context) {
 		if err := r.createPendingSettlements(ctx); err != nil {
 			lmt.Logger(ctx).Error("error finding new settlements", zap.Error(err))
 			continue
+		}
+
+		if _, err := r.cancelSettlementRelays(ctx); err != nil {
+			lmt.Logger(ctx).Error("error canceling settlement relays", zap.Error(err))
 		}
 
 		if err := r.settleOrders(ctx); err != nil {
@@ -361,6 +368,54 @@ func (r *OrderSettler) PendingSettlementBatches(ctx context.Context) ([]types.Se
 		}
 	}
 	return types.IntoSettlementBatchesByChains(uniniatedSettlements), nil
+}
+
+func (r *OrderSettler) cancelSettlementRelays(ctx context.Context) ([]db.OrderSettlement, error) {
+	pendingSettlements, err := r.db.GetAllOrderSettlementsWithSettlementStatus(ctx, dbtypes.SettlementStatusPending)
+	if err != nil {
+		return nil, fmt.Errorf("getting orders pending settlement: %w", err)
+	}
+	initiatedSettlements, err := r.db.GetAllOrderSettlementsWithSettlementStatus(ctx, dbtypes.SettlementStatusSettlementInitiated)
+	if err != nil {
+		return nil, fmt.Errorf("getting orders pending settlement: %w", err)
+	}
+	var initiatedSettlementsByDestinationChain map[string][]db.OrderSettlement
+	var unitiatedSettlementsByDestinationChain map[string][]db.OrderSettlement
+	for _, settlement := range pendingSettlements {
+		if !settlement.InitiateSettlementTx.Valid {
+			unitiatedSettlementsByDestinationChain[settlement.DestinationChainID] = append(unitiatedSettlementsByDestinationChain[settlement.DestinationChainID], settlement)
+		} else {
+			initiatedSettlementsByDestinationChain[settlement.DestinationChainID] = append(initiatedSettlementsByDestinationChain[settlement.DestinationChainID], settlement)
+		}
+	}
+	for _, settlement := range initiatedSettlements {
+		initiatedSettlementsByDestinationChain[settlement.DestinationChainID] = append(initiatedSettlementsByDestinationChain[settlement.DestinationChainID], settlement)
+	}
+	var settlementsToCancel []db.OrderSettlement
+	for destinationChain, settlements := range initiatedSettlementsByDestinationChain {
+		if len(unitiatedSettlementsByDestinationChain[destinationChain]) > 0 {
+			settlementsToCancel = append(settlementsToCancel, settlements...)
+		}
+	}
+	for _, settlement := range settlementsToCancel {
+		if time.Since(settlement.InitiateSettlementTxTime.Time) > 10*time.Minute {
+			ok, err := r.relayer.CancelRelay(ctx, settlement.SourceChainID, settlement.InitiateSettlementTx.String)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				_, err := r.db.ClearInitiateSettlement(ctx, db.ClearInitiateSettlementParams{
+					SettlementStatus:     dbtypes.SettlementStatusPending,
+					DestinationChainID:   settlement.DestinationChainID,
+					InitiateSettlementTx: settlement.InitiateSettlementTx,
+				})
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	return settlementsToCancel, nil
 }
 
 // ShouldInitiateSettlement returns true if a settlement should be initiated
