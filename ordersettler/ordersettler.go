@@ -217,7 +217,7 @@ func (r *OrderSettler) submitInitiatedSettlementsForRelay(ctx context.Context) e
 		} else {
 			for _, settlement := range batch {
 				_, err := r.db.SetHyperlaneTransferID(ctx, db.SetHyperlaneTransferIDParams{
-					HyperlaneTransferID:               sql.NullInt64{ID, true},
+					HyperlaneTransferID:               sql.NullInt64{Int64: ID, Valid: true},
 					SourceChainID:                     settlement.SourceChainID,
 					OrderID:                           settlement.OrderID,
 					SourceChainGatewayContractAddress: settlement.SourceChainGatewayContractAddress,
