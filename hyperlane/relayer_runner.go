@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
@@ -39,6 +40,9 @@ type RelayerRunner struct {
 	db           Database
 	hyperlane    Client
 	relayHandler Relayer
+	// this lock synchronizes transfer state updates so that a transfer is not cancelled
+	// while it's state is being updated to abandoned or success
+	lock sync.Mutex
 }
 
 func NewRelayerRunner(db Database, hyperlaneClient Client, relayer Relayer) *RelayerRunner {
@@ -46,7 +50,44 @@ func NewRelayerRunner(db Database, hyperlaneClient Client, relayer Relayer) *Rel
 		db:           db,
 		hyperlane:    hyperlaneClient,
 		relayHandler: relayer,
+		lock:         sync.Mutex{},
 	}
+}
+
+func (r *RelayerRunner) updateTransferStatusIfPending(ctx context.Context, chainID, transactionHash, status, statusMessage string) (db.HyperlaneTransfer, error) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	hyperlaneTransfer, err := r.db.GetHyperlaneTransferByMessageSentTx(ctx, db.GetHyperlaneTransferByMessageSentTxParams{
+		SourceChainID: chainID,
+		MessageSentTx: transactionHash,
+	})
+	if err != nil {
+		return db.HyperlaneTransfer{}, err
+	}
+	if hyperlaneTransfer.TransferStatus == dbtypes.TransferStatusPending {
+		params := db.SetMessageStatusParams{
+			TransferStatus:     status,
+			SourceChainID:      hyperlaneTransfer.SourceChainID,
+			DestinationChainID: hyperlaneTransfer.DestinationChainID,
+			MessageID:          hyperlaneTransfer.MessageID,
+		}
+		if statusMessage != "" {
+			params.TransferStatusMessage = sql.NullString{Valid: true, String: statusMessage}
+		}
+		hyperlaneTransfer, err = r.db.SetMessageStatus(ctx, params)
+		if err != nil {
+			return db.HyperlaneTransfer{}, err
+		}
+	}
+	return hyperlaneTransfer, nil
+}
+
+func (r *RelayerRunner) CancelRelay(ctx context.Context, chainID, transactionHash string) (bool, error) {
+	transfer, err := r.updateTransferStatusIfPending(ctx, chainID, transactionHash, dbtypes.TransferStatusCancelled, "")
+	if err != nil {
+		return false, err
+	}
+	return transfer.TransferStatus == dbtypes.TransferStatusCancelled, nil
 }
 
 func (r *RelayerRunner) Run(ctx context.Context) error {
@@ -106,14 +147,13 @@ func (r *RelayerRunner) Run(ctx context.Context) error {
 							zap.String("txHash", transfer.MessageSentTx),
 							zap.Error(err),
 						)
-
-						if _, err := r.db.SetMessageStatus(ctx, db.SetMessageStatusParams{
-							TransferStatus:        dbtypes.TransferStatusAbandoned,
-							SourceChainID:         transfer.SourceChainID,
-							DestinationChainID:    transfer.DestinationChainID,
-							MessageID:             transfer.MessageID,
-							TransferStatusMessage: sql.NullString{String: err.Error(), Valid: true},
-						}); err != nil {
+						if _, err := r.updateTransferStatusIfPending(
+							ctx,
+							transfer.MessageSentTx,
+							transfer.SourceChainID,
+							dbtypes.TransferStatusAbandoned,
+							err.Error(),
+						); err != nil {
 							lmt.Logger(ctx).Error(
 								"error updating invalid transfer status",
 								zap.Int64("transferId", transfer.ID),
@@ -173,6 +213,20 @@ func (r *RelayerRunner) relayTransfer(ctx context.Context, transfer db.Hyperlane
 		return "", "", "", fmt.Errorf("getting relay cost cap for transfer from %s to %s: %w", transfer.SourceChainID, transfer.DestinationChainID, err)
 	}
 
+	// we take the lock here to ensure that we block on the cancel relay function completing
+	// before we check the transfer is in a pending state and then relay the transfer
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	transferFromDB, err := r.db.GetHyperlaneTransferByMessageSentTx(ctx, db.GetHyperlaneTransferByMessageSentTxParams{
+		MessageSentTx: transfer.MessageSentTx,
+		SourceChainID: transfer.SourceChainID,
+	})
+	if err != nil {
+		return "", "", "", err
+	}
+	if transferFromDB.TransferStatus != dbtypes.TransferStatusPending {
+		return "", "", "", errors.New("transfer is not pending")
+	}
 	destinationTxHash, destinationChainID, rawTx, err := r.relayHandler.Relay(ctx, transfer.SourceChainID, transfer.MessageSentTx, costCap)
 	if err != nil {
 		return "", "", "", fmt.Errorf("relaying pending hyperlane transfer with tx hash %s from chainID %s: %w", transfer.MessageSentTx, transfer.SourceChainID, err)
@@ -199,12 +253,7 @@ func (r *RelayerRunner) checkHyperlaneTransferStatus(ctx context.Context, transf
 		metrics.FromContext(ctx).IncHyperlaneMessages(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusSuccess)
 		metrics.FromContext(ctx).ObserveHyperlaneLatency(transfer.SourceChainID, transfer.DestinationChainID, dbtypes.TransferStatusSuccess, time.Since(transfer.CreatedAt))
 
-		if _, err := r.db.SetMessageStatus(ctx, db.SetMessageStatusParams{
-			TransferStatus:     dbtypes.TransferStatusSuccess,
-			SourceChainID:      transfer.SourceChainID,
-			DestinationChainID: transfer.DestinationChainID,
-			MessageID:          transfer.MessageID,
-		}); err != nil {
+		if _, err := r.updateTransferStatusIfPending(ctx, transfer.SourceChainID, transfer.MessageSentTx, dbtypes.TransferStatusSuccess, ""); err != nil {
 			return false, fmt.Errorf("setting message status to success: %w", err)
 		}
 		lmt.Logger(ctx).Info(
@@ -263,32 +312,32 @@ func (r *RelayerRunner) SubmitTxToRelay(
 	txHash string,
 	sourceChainID string,
 	maxTxFeeUUSDC *big.Int,
-) error {
-	alreadySubmitted, err := r.TxAlreadySubmitted(ctx, txHash, sourceChainID)
+) (int64, error) {
+	alreadySubmitted, hyperlaneTransfer, err := r.TxAlreadySubmitted(ctx, txHash, sourceChainID)
 	if err != nil {
-		return fmt.Errorf("checking if tx %s has already been submitted: %w", txHash, err)
+		return 0, fmt.Errorf("checking if tx %s has already been submitted: %w", txHash, err)
 	}
 	if alreadySubmitted {
-		return nil
+		return hyperlaneTransfer.ID, nil
 	}
 
 	sourceChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(sourceChainID)
 	if err != nil {
-		return fmt.Errorf("getting source chain config for chainID %s: %w", sourceChainID, err)
+		return 0, fmt.Errorf("getting source chain config for chainID %s: %w", sourceChainID, err)
 	}
 
 	dispatch, _, err := r.hyperlane.GetHyperlaneDispatch(ctx, sourceChainConfig.HyperlaneDomain, sourceChainID, txHash)
 	if err != nil {
-		return fmt.Errorf("parsing tx results: %w", err)
+		return 0, fmt.Errorf("parsing tx results: %w", err)
 	}
 
 	destinationChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(dispatch.DestinationDomain)
 	if err != nil {
-		return fmt.Errorf("getting destination chainID by hyperlane domain %s: %w", dispatch.DestinationDomain, err)
+		return 0, fmt.Errorf("getting destination chainID by hyperlane domain %s: %w", dispatch.DestinationDomain, err)
 	}
 	costCap, err := r.getRelayCostCap(ctx, destinationChainID, maxTxFeeUUSDC, time.Now())
 	if err != nil {
-		return fmt.Errorf("getting relay cost cap for hyperlane relay from %s to %s: %w", sourceChainID, destinationChainID, err)
+		return 0, fmt.Errorf("getting relay cost cap for hyperlane relay from %s to %s: %w", sourceChainID, destinationChainID, err)
 	}
 
 	insert := db.InsertHyperlaneTransferParams{
@@ -300,31 +349,32 @@ func (r *RelayerRunner) SubmitTxToRelay(
 		MaxTxFeeUusdc:      sql.NullString{String: costCap.String(), Valid: true},
 	}
 
-	if _, err := r.db.InsertHyperlaneTransfer(ctx, insert); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("inserting hyperlane transfer: %w", err)
+	hyperlaneTransfer, err = r.db.InsertHyperlaneTransfer(ctx, insert)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return 0, fmt.Errorf("inserting hyperlane transfer: %w", err)
 	}
 	metrics.FromContext(ctx).IncHyperlaneMessages(sourceChainID, destinationChainID, dbtypes.TransferStatusPending)
 
-	return nil
+	return hyperlaneTransfer.ID, nil
 }
 
 // TxAlreadySubmitted returns true if txHash hash already been submitted to
 // be hyperlane transferred.
-func (r *RelayerRunner) TxAlreadySubmitted(ctx context.Context, txHash string, sourceChainID string) (bool, error) {
+func (r *RelayerRunner) TxAlreadySubmitted(ctx context.Context, txHash string, sourceChainID string) (bool, db.HyperlaneTransfer, error) {
 	query := db.GetHyperlaneTransferByMessageSentTxParams{
 		MessageSentTx: txHash,
 		SourceChainID: sourceChainID,
 	}
-	_, err := r.db.GetHyperlaneTransferByMessageSentTx(ctx, query)
+	hyperlaneTransfer, err := r.db.GetHyperlaneTransferByMessageSentTx(ctx, query)
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			return false, nil
+			return false, db.HyperlaneTransfer{}, nil
 		default:
-			return false, fmt.Errorf("getting hyperlane transfers by message sent tx %s: %w", txHash, err)
+			return false, db.HyperlaneTransfer{}, fmt.Errorf("getting hyperlane transfers by message sent tx %s: %w", txHash, err)
 		}
 	}
-	return true, nil
+	return true, hyperlaneTransfer, nil
 }
 
 func (r *RelayerRunner) getRelayCostCap(ctx context.Context, destinationChainID string, maxTxFeeUUSDC *big.Int, createdAt time.Time) (*big.Int, error) {

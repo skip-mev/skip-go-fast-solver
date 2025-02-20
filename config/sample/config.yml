@@ -88,6 +88,7 @@ chains:
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    settlement_rebatch_timeout: 1h
     evm:
       rpc: <ethereum_rpc_server_url> # e.g. "https://eth.llamarpc.com"
       rpc_basic_auth_var: <server_password>
@@ -117,6 +118,7 @@ chains:
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    settlement_rebatch_timeout: 1h
     evm:
       rpc: <avalanche_rpc_server_url> # e.g. "https://api.avax.network/ext/bc/C/rpc"
       rpc_basic_auth_var: <server_password>
@@ -146,6 +148,7 @@ chains:
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    settlement_rebatch_timeout: 1h
     evm:
       rpc: <optimism_rpc_server_url> # e.g. "https://mainnet.optimism.io"
       rpc_basic_auth_var: <server_password>
@@ -175,6 +178,7 @@ chains:
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    settlement_rebatch_timeout: 1h
     evm:
       rpc: <arbitrum_rpc_server_url> # e.g. "https://arb1.arbitrum.io/rpc"
       rpc_basic_auth_var: <server_password>
@@ -237,6 +241,7 @@ chains:
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    settlement_rebatch_timeout: 1h
     evm:
       rpc: <base_mainnet_rpc_server_url> # e.g. "https://mainnet.base.org"
       rpc_basic_auth_var: <server_password>
@@ -266,6 +271,7 @@ chains:
     min_fee_bps: <min_fee_bps> # e.g. 100
     batch_uusdc_settle_up_threshold: <batch_uusdc_settle_up_threshold> # e.g. 5000000
     min_profit_margin_bps: <min_profit_margin_bps> # e.g. 50
+    settlement_rebatch_timeout: 1h
     evm:
       rpc: <polygon_mainnet_rpc_server_url> # e.g. "https://polygon-rpc.com"
       rpc_basic_auth_var: <server_password>

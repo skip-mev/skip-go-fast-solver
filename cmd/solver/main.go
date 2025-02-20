@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/skip-mev/go-fast-solver/transfermonitor"
 	"os/signal"
 	"syscall"
 	"time"
@@ -35,7 +36,6 @@ import (
 	"github.com/skip-mev/go-fast-solver/shared/keys"
 	"github.com/skip-mev/go-fast-solver/shared/lmt"
 	"github.com/skip-mev/go-fast-solver/shared/metrics"
-	"github.com/skip-mev/go-fast-solver/transfermonitor"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
