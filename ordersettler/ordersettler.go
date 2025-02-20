@@ -410,7 +410,7 @@ func (r *OrderSettler) cancelSettlementRelays(ctx context.Context) error {
 		if chainCfg.SettlementRebatchTimeout > 0 && time.Since(settlement.InitiateSettlementTxTime.Time) > chainCfg.SettlementRebatchTimeout {
 			ok, err := r.relayer.CancelRelay(ctx, settlement.DestinationChainID, settlement.InitiateSettlementTx.String)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to cancel relay for settlement tx %s on chain %s: %w", settlement.InitiateSettlementTx.String, settlement.DestinationChainID, err)
 			}
 			if ok {
 				_, err := r.db.ClearInitiateSettlement(ctx, db.ClearInitiateSettlementParams{

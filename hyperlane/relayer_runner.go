@@ -40,7 +40,9 @@ type RelayerRunner struct {
 	db           Database
 	hyperlane    Client
 	relayHandler Relayer
-	lock         sync.Mutex
+	// this lock synchronizes transfer state updates so that a transfer is not cancelled
+	// while it's state is being updated to abandoned or success
+	lock sync.Mutex
 }
 
 func NewRelayerRunner(db Database, hyperlaneClient Client, relayer Relayer) *RelayerRunner {
@@ -211,6 +213,8 @@ func (r *RelayerRunner) relayTransfer(ctx context.Context, transfer db.Hyperlane
 		return "", "", "", fmt.Errorf("getting relay cost cap for transfer from %s to %s: %w", transfer.SourceChainID, transfer.DestinationChainID, err)
 	}
 
+	// we take the lock here to ensure that we block on the cancel relay function completing
+	// before we check the transfer is in a pending state and then relay the transfer
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	transferFromDB, err := r.db.GetHyperlaneTransferByMessageSentTx(ctx, db.GetHyperlaneTransferByMessageSentTxParams{
@@ -345,7 +349,7 @@ func (r *RelayerRunner) SubmitTxToRelay(
 		MaxTxFeeUusdc:      sql.NullString{String: costCap.String(), Valid: true},
 	}
 
-	hyperlaneTransfer, err = r.db.InsertHyperlaneTransfer(ctx, insert) // TODO what is hyperlaneTransfer.ID when error is sql.ErrNoRows?
+	hyperlaneTransfer, err = r.db.InsertHyperlaneTransfer(ctx, insert)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return 0, fmt.Errorf("inserting hyperlane transfer: %w", err)
 	}
