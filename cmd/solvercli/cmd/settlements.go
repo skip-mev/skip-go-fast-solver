@@ -48,13 +48,14 @@ var settlementsCmd = &cobra.Command{
 		cosmosTxExecutor := cosmos.DefaultSerializedCosmosTxExecutor()
 		cctpClientManager := clientmanager.NewClientManager(keyStore, cosmosTxExecutor)
 
-		pendingSettlements, err := ordersettler.DetectPendingSettlements(ctx, cctpClientManager, nil)
+		pendingSettlements, err := ordersettler.DetectPendingSettlements(ctx, cctpClientManager, make(map[string]bool))
 		if err != nil {
 			lmt.Logger(ctx).Fatal("Failed to get pending settlements", zap.Error(err))
 		}
 
 		groupedSettlements := make(map[chainPair]*groupedSettlement)
 		for _, settlement := range pendingSettlements {
+			lmt.Logger(ctx).Info("Found pending settlement", zap.Any("settlement", settlement))
 			pair := chainPair{
 				source:      settlement.SourceChainID,
 				destination: settlement.DestinationChainID,
