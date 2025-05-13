@@ -40,3 +40,8 @@ func Logger(ctx context.Context) *zap.Logger {
 	}
 	return logger
 }
+
+func With(ctx context.Context, fields ...zap.Field) context.Context {
+	logger := Logger(ctx).With(fields...)
+	return context.WithValue(ctx, loggerContextKey{}, logger)
+}

@@ -17,7 +17,7 @@ SELECT * FROM order_settlements WHERE source_chain_id = ? AND source_chain_gatew
 
 -- name: SetInitiateSettlementTx :one
 UPDATE order_settlements
-SET updated_at=CURRENT_TIMESTAMP, initiate_settlement_tx = ?
+SET updated_at=CURRENT_TIMESTAMP, initiate_settlement_tx_time=CURRENT_TIMESTAMP, initiate_settlement_tx = ?
 WHERE source_chain_id = ? AND order_id = ? AND source_chain_gateway_contract_address = ?
     RETURNING *;
 
@@ -31,4 +31,16 @@ WHERE source_chain_id = ? AND order_id = ? AND source_chain_gateway_contract_add
 UPDATE order_settlements
 SET updated_at=CURRENT_TIMESTAMP, settlement_status = ?, settlement_status_message = ?
 WHERE source_chain_id = ? AND order_id = ? AND source_chain_gateway_contract_address = ?
+    RETURNING *;
+
+-- name: SetHyperlaneTransferID :one
+UPDATE order_settlements
+SET updated_at=CURRENT_TIMESTAMP, hyperlane_transfer_id = ?
+WHERE source_chain_id = ? AND order_id = ? AND source_chain_gateway_contract_address = ?
+    RETURNING *;
+
+-- name: ClearInitiateSettlement :many
+UPDATE order_settlements
+SET updated_at=CURRENT_TIMESTAMP, initiate_settlement_tx = null, hyperlane_transfer_id = null, initiate_settlement_tx_time = null, settlement_status = ?
+WHERE destination_chain_id=? AND initiate_settlement_tx=?
     RETURNING *;

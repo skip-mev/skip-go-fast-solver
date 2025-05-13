@@ -219,6 +219,14 @@ type ChainConfig struct {
 	// never land on chain. The solver will log an error if it sees this
 	// occurring.
 	MinProfitMarginBPS int `yaml:"min_profit_margin_bps"`
+
+	// SettlementRebatchTimeout is used to determine when a settlement
+	// that has already been initiated but pending relay should attempt to be
+	// rebatched. If there are newer incoming settlements that can be batched with
+	// an existing settlement that has passed its SettlementRebatchTimeout, the
+	// existing settlement will have its relay cancelled. It will then be batched with
+	// the newer settlement in a new initiate settlement transaction.
+	SettlementRebatchTimeout time.Duration `yaml:"settlement_rebatch_timeout"`
 }
 
 type RelayerConfig struct {

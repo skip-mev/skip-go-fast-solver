@@ -115,6 +115,7 @@ chains:
     min_fee_bps: 10
     batch_uusdc_settle_up_threshold: <settle_up_threshold> # 1/2 of destination inventory evenly distributed across source chains
     min_profit_margin_bps: 8
+    settlement_rebatch_timeout: 1h
     evm:
       rpc: <avalanche_rpc_server_url>
       rpc_basic_auth_var: <env_var_with_server_password>
@@ -143,6 +144,7 @@ chains:
     min_fee_bps: 10
     batch_uusdc_settle_up_threshold: <settle_up_threshold> # 1/2 of destination inventory evenly distributed across source chains
     min_profit_margin_bps: 8
+    settlement_rebatch_timeout: 1h
     evm:
       rpc: <optimism_rpc_server_url>
       rpc_basic_auth_var: <env_var_with_server_password>
@@ -171,6 +173,7 @@ chains:
     min_fee_bps: 10
     batch_uusdc_settle_up_threshold: <settle_up_threshold> # 1/2 of destination inventory evenly distributed across source chains
     min_profit_margin_bps: 8
+    settlement_rebatch_timeout: 1h
     evm:
       rpc: <arbitrum_rpc_server_url> # e.g. "https://arb1.arbitrum.io/rpc"
       rpc_basic_auth_var: <env_var_with_server_password>
@@ -233,6 +236,7 @@ chains:
     min_fee_bps: 10
     batch_uusdc_settle_up_threshold: <settle_up_threshold> # 1/2 of destination inventory evenly distributed across source chains
     min_profit_margin_bps: 8
+    settlement_rebatch_timeout: 1h
     evm:
       rpc: <base_mainnet_rpc_server_url> # e.g. "https://mainnet.base.org"
       rpc_basic_auth_var: <env_var_with_server_password>
@@ -261,6 +265,7 @@ chains:
     min_fee_bps: 10
     batch_uusdc_settle_up_threshold: <settle_up_threshold> # 1/2 of destination inventory evenly distributed across source chains
     min_profit_margin_bps: 8
+    settlement_rebatch_timeout: 1h
     evm:
       rpc: <polygon_mainnet_rpc_server_url> # e.g. "https://polygon-rpc.com"
       rpc_basic_auth_var: <env_var_with_server_password>

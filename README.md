@@ -99,21 +99,21 @@ Now you can run the solver commands from anywhere. Available commands:
 
 ```shell
 solver submit-transfer \
-  --config <configFilePath> \
-  --token <usdc address> \
-  --recipient <destination address> \
-  --amount <usdc amount> \
-  --source-chain-id <source chain id> \
-  --destination-chain-id <destination chain id> \
-  --gateway <gateway contract> \
-  --private-key <private key> \
-  --deadline-hours <timeout in hours>
+  --token <usdc_address> \
+  --recipient <destination_address> \
+  --amount-in <amount_in> \
+  --amount-out <amount_out> \
+  --source-chain-id <source_chain_id> \
+  --destination-chain-id <destination_chain_id> \
+  --gateway <fast_transfer_gateway_contract> \
+  --private-key <private_key> \
+  --deadline-hours <timeout_in_hours>
 ```
 
 **relay**: Manually relay a hyperlane transaction
 
 ```shell
-solver relay --origin-chain-id <chain_id> --origin-tx-hash <tx_hash>
+solver relay --origin-chain-id <chain_id> --origin-tx-hash <settlement_tx_hash>
 ```
 
 **balances**: Get current on-chain balances (USDC, gas token, and custom assets requested)
@@ -148,6 +148,16 @@ solver initiate-timeout --order-id <order_id> --tx-hash <order_tx_hash> --source
 # The above only initiates a timeout tx. To relay the transaction, get the timeout tx hash returned by the
 # command above and call the relay CLI command
 solver relay --origin-chain-id <chain_id> --origin-tx-hash <timeout_tx_hash>
+```
+
+**settle-orders**: settle all pending order batches immediately without any threshold checks (ignoring configured BatchUUSDCSettleUpThreshold)
+
+```shell
+solver settle-orders
+
+# The above only initiates batch settlements. To relay the settlement transactions, you need to relay the settlements
+# individually using the relay CLI command
+solver relay --origin-chain-id <chain_id> --origin-tx-hash <settlement_tx_hash>
 ```
 
 **profit**: Calculate solver total profit

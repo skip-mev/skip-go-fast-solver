@@ -237,6 +237,16 @@ func (r *FundRebalancer) MoveFundsToChain(
 			continue
 		}
 
+		ctx = lmt.With(
+			ctx,
+			zap.String("destinationChainID", rebalanceToChainID),
+			zap.String("sourceChainID", rebalanceFromChainID),
+		)
+		lmt.Logger(ctx).Debug(
+			fmt.Sprintf("chain %s has %s uusdc to space for rebalancing to chain %s", rebalanceFromChainID, usdcToSpare.String(), rebalanceToChainID),
+			zap.String("uusdcToSpare", usdcToSpare.String()),
+		)
+
 		neededVsSpareDiff := new(big.Int).Sub(remainingUSDCNeeded, usdcToSpare)
 
 		var usdcToRebalance *big.Int
@@ -252,20 +262,25 @@ func (r *FundRebalancer) MoveFundsToChain(
 			usdcToRebalance = usdcToSpare
 		}
 
+		ctx = lmt.With(ctx, zap.String("rebalanceAmountUUSDC", usdcToRebalance.String()))
+		lmt.Logger(ctx).Debug(fmt.Sprintf("attempting to move %s uusdc from chain %s to chain %s", usdcToRebalance.String(), rebalanceFromChainID, rebalanceToChainID))
+
 		txns, err := r.GetRebalanceTxns(ctx, usdcToRebalance, rebalanceFromChainID, rebalanceToChainID)
 		if err != nil {
-			return nil, nil, fmt.Errorf("getting txns required for fund rebalancing: %w", err)
+			return nil, nil, fmt.Errorf("getting txns required for fund rebalancing %s uusdc from chain %s to chain %s: %w", usdcToRebalance.String(), rebalanceFromChainID, rebalanceToChainID, err)
 		}
 		if len(txns) != 1 {
-			return nil, nil, fmt.Errorf("only single transaction transfers are supported")
+			return nil, nil, fmt.Errorf("only single transaction transfers are supported to rebalance %s uusdc from chain %s to chain %s, instead got a %d tx transfer", usdcToRebalance.String(), rebalanceFromChainID, rebalanceToChainID, len(txns))
 		}
 		txn := txns[0]
 
 		approvalHash, rawTx, err := r.ApproveTxn(ctx, rebalanceFromChainID, txn)
 		if err != nil {
-			return nil, nil, fmt.Errorf("approving rebalance txn from %s: %w", rebalanceFromChainID, err)
+			return nil, nil, fmt.Errorf("approving txn for rebalance of %s uusdc from chain %s to chain %s: %w", usdcToRebalance.String(), rebalanceFromChainID, rebalanceToChainID, err)
 		}
 		if approvalHash != "" {
+			lmt.Logger(ctx).Debug("submitted approval tx", zap.String("txHash", approvalHash))
+
 			// not we are not linking this submitted tx to the rebalance since the rebalance
 			// has not yet been created
 			approveTx := db.InsertSubmittedTxParams{
@@ -280,9 +295,9 @@ func (r *FundRebalancer) MoveFundsToChain(
 			}
 		}
 
-		txnWithMetadata, err := r.TxnWithMetadata(ctx, rebalanceFromChainID, rebalanceFromChainID, usdcToRebalance, txn)
+		txnWithMetadata, err := r.TxnWithMetadata(ctx, rebalanceFromChainID, rebalanceToChainID, usdcToRebalance, txn)
 		if err != nil {
-			return nil, nil, fmt.Errorf("getting transaction metadata: %w", err)
+			return nil, nil, fmt.Errorf("getting transaction metadata to rebalance funds from chain %s: %w", rebalanceFromChainID, err)
 		}
 
 		chainFundRebalancingConfig, err := config.GetConfigReader(ctx).GetFundRebalancingConfig(rebalanceFromChainID)
@@ -293,7 +308,7 @@ func (r *FundRebalancer) MoveFundsToChain(
 		if chainFundRebalancingConfig.MaxRebalancingGasCostUUSDC != "" {
 			gasAcceptable, gasCostUUSDC, err := r.isGasAcceptable(ctx, txnWithMetadata, rebalanceFromChainID)
 			if err != nil {
-				return nil, nil, fmt.Errorf("checking if total rebalancing gas cost is acceptable: %w", err)
+				return nil, nil, fmt.Errorf("checking if total rebalancing gas cost is acceptable on chain %s: %w", rebalanceFromChainID, err)
 			}
 			if !gasAcceptable {
 				maxCost, ok := new(big.Int).SetString(chainFundRebalancingConfig.MaxRebalancingGasCostUUSDC, 10)
@@ -302,7 +317,6 @@ func (r *FundRebalancer) MoveFundsToChain(
 				}
 				lmt.Logger(ctx).Info(
 					"skipping rebalance from chain "+rebalanceFromChainID+" due to high rebalancing gas cost",
-					zap.String("destinationChainID", rebalanceToChainID),
 					zap.String("estimatedGasCostUUSDC", gasCostUUSDC),
 					zap.String("maxRebalancingGasCostUUSDC", maxCost.String()),
 				)
@@ -365,8 +379,17 @@ func (r *FundRebalancer) ApproveTxn(
 		return "", "", fmt.Errorf("checking if ERC20 approval is necessary for rebalance txn from %s: %w", chainID, err)
 	}
 	if !needsApproal {
+		lmt.Logger(ctx).Debug(
+			"fund rebalance does not need erc20 approval",
+			zap.Any("rebalanceTxn", txn),
+		)
 		return "", "", nil
 	}
+
+	lmt.Logger(ctx).Debug(
+		"fund rebalance requires erc20 approval",
+		zap.Any("rebalanceTxn", txn),
+	)
 
 	hash, rawTx, err := r.ERC20Approval(ctx, txn)
 	if err != nil {
@@ -706,6 +729,11 @@ func (r *FundRebalancer) NeedsERC20Approval(
 	if !ok {
 		return false, fmt.Errorf("converting approval amount %s to *big.Int", approval.Amount)
 	}
+
+	lmt.Logger(ctx).Debug(
+		fmt.Sprintf("fund rebalance from chain %s has is approved for %s uusdc and needs %s uusdc approval", evmTx.ChainID, allowance.String(), necessaryApprovalAmount.String()),
+	)
+
 	return allowance.Cmp(necessaryApprovalAmount) < 0, nil
 }
 
