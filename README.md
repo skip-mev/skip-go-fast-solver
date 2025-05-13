@@ -140,6 +140,16 @@ solver rebalances
 solver settlements
 ```
 
+**initiate-timeout**: Initiate timeout for an expired order
+
+```shell
+solver initiate-timeout --order-id <order_id> --tx-hash <order_tx_hash> --source-chain-id <chain_id> --destination-chain-id <chain_id>
+
+# The above only initiates a timeout tx. To relay the transaction, get the timeout tx hash returned by the
+# command above and call the relay CLI command
+solver relay --origin-chain-id <chain_id> --origin-tx-hash <timeout_tx_hash>
+```
+
 **settle-orders**: settle all pending order batches immediately without any threshold checks (ignoring configured BatchUUSDCSettleUpThreshold)
 
 ```shell
