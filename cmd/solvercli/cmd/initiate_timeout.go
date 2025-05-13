@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/hex"
 	"fmt"
-	"math/big"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -172,10 +171,16 @@ func getEVMOrderDetails(ctx context.Context, chainConfig config.ChainConfig, cha
 	}
 
 	var orderIDBytes common.Hash
+	var order fast_transfer_gateway.FastTransferOrder
 	for _, log := range receipt.Logs {
 		if len(log.Topics) > 0 {
 			if log.Topics[0] == contractABI.Events["OrderSubmitted"].ID {
 				orderIDBytes = log.Topics[1]
+				parsedEvent, err := gateway.ParseOrderSubmitted(*log)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse order submitted event: %w", err)
+				}
+				order = fast_transfer_gateway.DecodeOrder(parsedEvent.Order)
 				fmt.Println("DEBUG: Found OrderSubmitted event, raw order ID bytes:", log.Topics[1].Hex())
 				fmt.Println("DEBUG: Event Data:", hex.EncodeToString(log.Data))
 				break
@@ -206,28 +211,17 @@ func getEVMOrderDetails(ctx context.Context, chainConfig config.ChainConfig, cha
 	if method.Name != "submitOrder" {
 		return nil, fmt.Errorf("transaction is not a submitOrder transaction (got %s)", method.Name)
 	}
-
-	args, err := method.Inputs.Unpack(tx.Data()[4:])
-	if err != nil {
-		return nil, fmt.Errorf("failed to unpack transaction data: %w", err)
-	}
-
-	sender := args[0].([32]byte)
-	recipient := args[1].([32]byte)
-	amountIn := args[2].(*big.Int)
-	amountOut := args[3].(*big.Int)
-	timeoutTimestamp := args[5].(uint64)
-
+	
 	return &db.Order{
 		OrderID:                           orderID,
 		SourceChainID:                     chainID,
 		DestinationChainID:                destinationChainID,
-		TimeoutTimestamp:                  time.Unix(int64(timeoutTimestamp), 0),
-		Sender:                            sender[:],
-		Recipient:                         recipient[:],
-		AmountIn:                          amountIn.String(),
-		AmountOut:                         amountOut.String(),
-		Nonce:                             int64(tx.Nonce()),
+		TimeoutTimestamp:                  time.Unix(int64(order.TimeoutTimestamp), 0),
+		Sender:                            order.Sender[:],
+		Recipient:                         order.Recipient[:],
+		AmountIn:                          order.AmountIn.String(),
+		AmountOut:                         order.AmountOut.String(),
+		Nonce:                             int64(order.Nonce),
 		SourceChainGatewayContractAddress: gatewayAddr,
 	}, nil
 }
