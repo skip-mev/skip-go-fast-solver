@@ -454,8 +454,8 @@ func (r *OrderSettler) ShouldInitiateSettlement(ctx context.Context, batch types
 			err,
 		)
 	}
-
-	return value.Cmp(settlementThreshold) >= 0, nil
+	exceedsBatchSettlementCountThreshold := sourceChainConfig.BatchSettlementCountThreshold > 0 && len(batch.OrderIDs()) >= sourceChainConfig.BatchSettlementCountThreshold
+	return value.Cmp(settlementThreshold) >= 0 || exceedsBatchSettlementCountThreshold, nil
 }
 
 // SettleBatches tries to settle a list settlement batches and update the

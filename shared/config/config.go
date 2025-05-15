@@ -227,6 +227,15 @@ type ChainConfig struct {
 	// existing settlement will have its relay cancelled. It will then be batched with
 	// the newer settlement in a new initiate settlement transaction.
 	SettlementRebatchTimeout time.Duration `yaml:"settlement_rebatch_timeout"`
+
+	// If there are a number of pending settlements for a chain that is greater than or equal to
+	// BatchSettlementCountThreshold, the solver will initiate a batch settlement. This prevents a situation where a
+	// solver accumulates a large number of settlements while gas is low and then is unable to settle them when gas price
+	// spikes. Even if they fill new orders at the higher gas prices which have a larger fee attached, there can be
+	// so many accumulated settlements, that the larger fee cannot fully subsidize the settlement costs for the batch.
+	// Thus we set a number for BatchSettlementCountThreshold to prevent the accumulation of a large number of pending
+	// settlements.
+	BatchSettlementCountThreshold int `yaml:"batch_settlement_count_threshold"`
 }
 
 type RelayerConfig struct {
