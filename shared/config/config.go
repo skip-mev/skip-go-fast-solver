@@ -303,6 +303,9 @@ type CosmosConfig struct {
 	// MaxFillSize is the maximum amount of USDC that can be processed in a single
 	// order fill. Orders exceeding this size will be abandoned
 	MaxFillSize *big.Int `yaml:"max_fill_size"`
+	// If OnlyFillDyDxOrders is true, the solver will only fill orders that have DyDx
+	// as the final transfer destination
+	OnlyFillDyDxOrders bool `yaml:"only_fill_dydx_orders"`
 }
 
 type EVMConfig struct {

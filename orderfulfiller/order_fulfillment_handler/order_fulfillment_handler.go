@@ -3,6 +3,8 @@ package order_fulfillment_handler
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/big"
@@ -180,6 +182,14 @@ func (r *orderFulfillmentHandler) FillOrder(
 		return "", nil
 	}
 
+	if destinationChainConfig.Cosmos != nil && destinationChainConfig.Cosmos.OnlyFillDyDxOrders {
+		if destinationisDyDx, err := r.checkDestinationIsDyDx(ctx, order); err != nil {
+			return "", fmt.Errorf("checking if destination is DyDx %s: %w", order.OrderID, err)
+		} else if !destinationisDyDx {
+			return "", nil
+		}
+	}
+
 	if acceptableFee, err := r.checkFeeAmount(ctx, order); err != nil {
 		return "", fmt.Errorf("checking fee amount for order %s: %w", order.OrderID, err)
 	} else if !acceptableFee {
@@ -245,6 +255,81 @@ func (r *orderFulfillmentHandler) checkOrderAssetBalance(ctx context.Context, de
 		)
 		return false, nil
 	}
+	return true, nil
+}
+
+type PacketForwardInfo struct {
+	Channel string `json:"channel"`
+	Memo    string `json:"memo"`
+}
+
+type Memo struct {
+	ForwardingInfo *PacketForwardInfo `json:"forward"`
+}
+
+type IBCInfo struct {
+	SourceChannel string `json:"source_channel"`
+	Memo          string `json:"memo"`
+}
+
+type IBCTransfer struct {
+	IBCInfo IBCInfo `json:"ibc_info"`
+}
+
+type Action struct {
+	IBCTransfer *IBCTransfer `json:"ibc_transfer"`
+}
+
+type ActionWithRecover struct {
+	Action Action `json:"action"`
+}
+
+type GoFastData struct {
+	ActionWithRecover *ActionWithRecover `json:"action_with_recover"`
+}
+
+func (r *orderFulfillmentHandler) checkDestinationIsDyDx(ctx context.Context, orderFill db.Order) (destinationIsDyDx bool, err error) {
+	orderFillData := orderFill.Data
+	if !orderFillData.Valid || orderFillData.String == "" {
+		return false, nil
+	}
+
+	orderFillBytes, err := hex.DecodeString(orderFillData.String)
+	if err != nil {
+		return false, err
+	}
+
+	var goFastData GoFastData
+	err = json.Unmarshal(orderFillBytes, &goFastData)
+	if err != nil {
+		return false, err
+	}
+
+	if goFastData.ActionWithRecover == nil || goFastData.ActionWithRecover.Action.IBCTransfer == nil || goFastData.ActionWithRecover.Action.IBCTransfer.IBCInfo.Memo == "" {
+		return false, nil
+	}
+
+	var memo Memo
+	err = json.Unmarshal([]byte(goFastData.ActionWithRecover.Action.IBCTransfer.IBCInfo.Memo), &memo)
+	if err != nil {
+		return false, err
+	}
+
+	// First IBC hop is to Noble
+	if goFastData.ActionWithRecover.Action.IBCTransfer.IBCInfo.SourceChannel != "channel-750" {
+		return false, nil
+	}
+
+	// Second IBC hop is to DyDx
+	if memo.ForwardingInfo.Channel != "channel-33" {
+		return false, nil
+	}
+
+	// There are no additional transfers after DyDx
+	if memo.ForwardingInfo.Memo != "" {
+		return false, nil
+	}
+
 	return true, nil
 }
 
