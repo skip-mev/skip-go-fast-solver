@@ -217,6 +217,7 @@ chains:
         critical_threshold_wei: <critical_threshold_wei> # e.g. 14290000
       gas_price: 0.0025
       gas_denom: "uosmo"
+      only_fill_dydx_orders: false
     relayer:
       validator_announce_contract_address: "osmo147r8mfdsngswujgkr4tln9rhcrzz6yq0xn448ksd96mlcmp9wg6stvznke"
       merkle_hook_contract_address: "osmo1e765uc5mctl7rz8dzl9decl5ghgxggeqyxutkjp2xkggrg6zma3qgdq2g4"
