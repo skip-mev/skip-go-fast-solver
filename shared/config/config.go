@@ -236,6 +236,10 @@ type ChainConfig struct {
 	// Thus we set a number for BatchSettlementCountThreshold to prevent the accumulation of a large number of pending
 	// settlements.
 	BatchSettlementCountThreshold int `yaml:"batch_settlement_count_threshold"`
+
+	// When SkipSettlementProfitabilityChecks is set to true, the solver will skip profitability checks when relaying
+	// settlements.
+	SkipSettlementProfitabilityChecks bool `yaml:"skip_settlement_profitability_checks"`
 }
 
 type RelayerConfig struct {
