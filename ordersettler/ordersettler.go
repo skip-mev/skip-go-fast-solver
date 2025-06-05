@@ -246,17 +246,25 @@ func (r *OrderSettler) relayBatch(
 	// the orders source chain is where the settlement is paid out to the solver
 	settlementPayoutChainID := batch.SourceChainID()
 
-	maxTxFeeUUSDC, err := r.maxBatchTxFeeUUSDC(ctx, batch)
+	settlementPayoutChainConfig, err := config.GetConfigReader(ctx).GetChainConfig(settlementPayoutChainID)
 	if err != nil {
-		return 0, fmt.Errorf("calculating max batch (hash: %s) tx fee in uusdc: %w", txHash, err)
+		return 0, fmt.Errorf("getting chain config for settlement payout chain %s: %w", settlementPayoutChainID, err)
 	}
-	if maxTxFeeUUSDC.Cmp(big.NewInt(0)) <= 0 {
-		lmt.Logger(ctx).Warn(
-			"max tx fee to maintain configured profit margin when relaying settlement is less than or equal to 0. this settlement will not be relayed until it is timed out. min profit margin should be lowered based on current batch size and min fee bps to settlements can be relayed",
-			zap.String("maxTxFeeUUSDC", maxTxFeeUUSDC.String()),
-			zap.String("settlementInitiationChainID", batch.DestinationChainID()),
-			zap.String("settlementPayoutChainID", batch.SourceChainID()),
-		)
+
+	var maxTxFeeUUSDC *big.Int
+	if !settlementPayoutChainConfig.SkipSettlementProfitabilityChecks {
+		maxTxFeeUUSDC, err = r.maxBatchTxFeeUUSDC(ctx, batch)
+		if err != nil {
+			return 0, fmt.Errorf("calculating max batch (hash: %s) tx fee in uusdc: %w", txHash, err)
+		}
+		if maxTxFeeUUSDC.Cmp(big.NewInt(0)) <= 0 {
+			lmt.Logger(ctx).Warn(
+				"max tx fee to maintain configured profit margin when relaying settlement is less than or equal to 0. this settlement will not be relayed until it is timed out. min profit margin should be lowered based on current batch size and min fee bps to settlements can be relayed",
+				zap.String("maxTxFeeUUSDC", maxTxFeeUUSDC.String()),
+				zap.String("settlementInitiationChainID", batch.DestinationChainID()),
+				zap.String("settlementPayoutChainID", batch.SourceChainID()),
+			)
+		}
 	}
 
 	return r.relaySettlement(
