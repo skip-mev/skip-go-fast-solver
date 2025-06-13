@@ -632,12 +632,6 @@ func ValidateChainConfig(chain ChainConfig) error {
 		if chain.BatchUUSDCSettleUpThreshold == "" {
 			return fmt.Errorf("batch_uusdc_settle_up_threshold is required")
 		}
-		if chain.MinFeeBps == 0 {
-			return fmt.Errorf("min_fee_bps is required")
-		}
-		if chain.MinProfitMarginBPS == 0 {
-			return fmt.Errorf("min_profit_margin_bps is required")
-		}
 
 		if chain.EVM == nil {
 			return fmt.Errorf("evm config is required for evm chain type")
