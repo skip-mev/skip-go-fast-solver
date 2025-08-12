@@ -440,9 +440,10 @@ func (c *CosmosBridgeClient) InitiateBatchSettlement(ctx context.Context, batch 
 }
 
 type OrderFillEvent struct {
-	Filler     string
-	FillAmount *big.Int
-	TxHash     string
+	Filler       string
+	FillAmount   *big.Int
+	TxHash       string
+	SourceDomain uint32
 }
 
 // QueryOrderFillEvent gets order fill information. Note that the time
@@ -474,8 +475,9 @@ func (c *CosmosBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayCon
 	}
 
 	var fill struct {
-		Filler  string `json:"filler"`
-		OrderID string `json:"order_id"`
+		Filler       string `json:"filler"`
+		OrderID      string `json:"order_id"`
+		SourceDomain uint32 `json:"source_domain"`
 	}
 	if err := json.Unmarshal(resp.Data, &fill); err != nil {
 		return nil, time.Time{}, fmt.Errorf("failed to unmarshal response: %w", err)
@@ -504,7 +506,12 @@ func (c *CosmosBridgeClient) QueryOrderFillEvent(ctx context.Context, gatewayCon
 		return nil, time.Time{}, fmt.Errorf("fetching time stamp from query header: %w", err)
 	}
 
-	return &OrderFillEvent{Filler: fill.Filler, FillAmount: fillAmount, TxHash: tx.Hash.String()}, ts, nil
+	return &OrderFillEvent{
+		Filler:       fill.Filler,
+		FillAmount:   fillAmount,
+		TxHash:       tx.Hash.String(),
+		SourceDomain: fill.SourceDomain,
+	}, ts, nil
 }
 
 func (c *CosmosBridgeClient) blockTimeFromHeightHeader(ctx context.Context, header metadata.MD) (time.Time, error) {
