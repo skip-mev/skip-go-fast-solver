@@ -3,8 +3,10 @@ package cmd
 import (
 	"fmt"
 	"os/signal"
+	"slices"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/skip-mev/go-fast-solver/db/gen/db"
 	"github.com/skip-mev/go-fast-solver/ordersettler/types"
@@ -18,6 +20,16 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 )
+
+var orders = []string{
+	"405a634a74c386ce00e9416b01a4786939720c46e4906e924089a6c5e0bdb8ce",
+	"9a5b13ccd1536bd3bfa23b9da09f33a751f21e5777ec05c43c6c6549cef99a26",
+	"2bfc4c87599f2a72f22a1842f4f175df817acf8c0b864c4e101ea575fbb5bdd8",
+	"c347d99507a22f1fb3edb4b24abe99fb637768ad7ef43cbf8ae75d92e3f452de",
+	"4a52a4ed1c4c71193a4c2961c325833efe874de0fea4c3d1fc9249996fa7ce83",
+	"5010ef3e16aac1ef7ef7140e56e15e41b0e031ddb129f05609561d90b98aef63",
+	"00f0c7f98dc75942c682ea51a37f18f98d32d78d80bf9027f32343cacdb9675d",
+}
 
 var settleCmd = &cobra.Command{
 	Use:     "settle-orders",
@@ -102,6 +114,9 @@ func settleOrders(cmd *cobra.Command, args []string) {
 
 		// For each fill, check if it needs settlement
 		for _, fill := range fills {
+			if !slices.Contains(orders, fill.OrderID) {
+				continue
+			}
 			sourceChainID, err := config.GetConfigReader(ctx).GetChainIDByHyperlaneDomain(strconv.Itoa(int(fill.SourceDomain)))
 			if err != nil {
 				lmt.Logger(ctx).Error("failed to get source chain ID",
@@ -172,6 +187,16 @@ func settleOrders(cmd *cobra.Command, args []string) {
 		fmt.Printf("Source Chain: %s\n", batch.SourceChainID())
 		fmt.Printf("Destination Chain: %s\n", batch.DestinationChainID())
 		fmt.Printf("Number of Orders: %d\n", len(batch.OrderIDs()))
+		fmt.Printf("Order IDs:\n")
+		for _, orderID := range batch.OrderIDs() {
+			fmt.Printf("  - %s\n", orderID)
+		}
 		fmt.Printf("Transaction Hash: %s\n", txHash)
+
+		// Sleep between batches to avoid sequence number issues
+		if i < len(batches)-1 {
+			fmt.Println("Waiting 10 seconds before next batch...")
+			time.Sleep(10 * time.Second)
+		}
 	}
 }
