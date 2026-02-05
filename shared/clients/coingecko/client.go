@@ -7,6 +7,8 @@ import (
 	"fmt"
 	utils "github.com/skip-mev/go-fast-solver/shared/clients/utils"
 	"github.com/skip-mev/go-fast-solver/shared/config"
+	"github.com/skip-mev/go-fast-solver/shared/lmt"
+	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"time"
@@ -28,9 +30,35 @@ func DefaultCoingeckoClient(config config.CoingeckoConfig) *CoingeckoClient {
 }
 
 func (c *CoingeckoClient) GetSimplePrice(ctx context.Context, coingeckoID string, currency string) (float64, error) {
+	lmt.Logger(ctx).Info("coingecko GetSimplePrice called",
+		zap.String("coingeckoID", coingeckoID),
+		zap.String("currency", currency),
+	)
+	start := time.Now()
+	price, err := c.getSimplePrice(ctx, coingeckoID, currency)
+	elapsed := time.Since(start)
+	if err != nil {
+		lmt.Logger(ctx).Warn("coingecko GetSimplePrice failed",
+			zap.String("coingeckoID", coingeckoID),
+			zap.String("currency", currency),
+			zap.Duration("responseTime", elapsed),
+			zap.Error(err),
+		)
+		return 0, err
+	}
+	lmt.Logger(ctx).Info("coingecko GetSimplePrice completed",
+		zap.String("coingeckoID", coingeckoID),
+		zap.String("currency", currency),
+		zap.Duration("responseTime", elapsed),
+		zap.Float64("price", price),
+	)
+	return price, nil
+}
+
+func (c *CoingeckoClient) getSimplePrice(ctx context.Context, coingeckoID string, currency string) (float64, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/simple/price", nil)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("creating request: %w", err)
 	}
 
 	query := req.URL.Query()
@@ -43,23 +71,23 @@ func (c *CoingeckoClient) GetSimplePrice(ctx context.Context, coingeckoID string
 
 	res, err := c.client.Do(req)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("executing request: %w", err)
 	}
 
 	if res.StatusCode != 200 {
-		return 0, errors.New("error requesting resource from server")
+		return 0, fmt.Errorf("unexpected status code %d from server", res.StatusCode)
 	}
 
 	jsonBytes, err := io.ReadAll(res.Body)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("reading response body: %w", err)
 	}
 
 	prices := map[string]struct {
 		USD float64 `json:"usd"`
 	}{}
 	if err := json.Unmarshal(jsonBytes, &prices); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("unmarshaling response: %w", err)
 	}
 
 	price, ok := prices[coingeckoID]
