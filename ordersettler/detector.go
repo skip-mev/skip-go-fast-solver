@@ -29,6 +29,9 @@ func DetectPendingSettlements(
 	clientManager *clientmanager.ClientManager,
 	ordersSeen map[string]bool,
 ) ([]PendingSettlement, error) {
+	if ordersSeen == nil {
+		ordersSeen = make(map[string]bool)
+	}
 	var pendingSettlements []PendingSettlement
 
 	cosmosChains, err := config.GetConfigReader(ctx).GetAllChainConfigsOfType(config.ChainType_COSMOS)
