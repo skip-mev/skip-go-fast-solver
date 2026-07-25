@@ -17,8 +17,10 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     env:
       registry_url: 494494944992.dkr.ecr.us-east-2.amazonaws.com/skip-mev/${{ matrix.image.name }}
+      clk_dev_registry_url: 894792044932.dkr.ecr.us-east-2.amazonaws.com/skip-mev/${{ matrix.image.name }}
       repo_name: skip-mev/${{ matrix.image.name }}
     steps:
       - name: Check out the PR commit head
@@ -38,6 +40,20 @@ jobs:
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
+      - name: Create ECR repository if it does not exist
+        run: |
+          aws ecr describe-repositories --region us-east-2 --repository-names $repo_name || aws ecr create-repository --repository-name $repo_name --region us-east-2
+      - name: Configure AWS Credentials (new CLK Dev ECR)
+        uses: aws-actions/configure-aws-credentials@v4.0.2
+        with:
+          aws-region: us-east-2
+          role-session-name: ${{ github.run_id }}-new
+          role-to-assume: arn:aws:iam::894792044932:role/GithubImagePusher
+      - name: Login to Amazon ECR (new CLK Dev ECR)
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Create ECR repository if it does not exist (new CLK Dev ECR)
+        run: |
+          aws ecr describe-repositories --region us-east-2 --repository-names $repo_name || aws ecr create-repository --repository-name $repo_name --region us-east-2
       - name: Log in to the Container registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567
         with:
@@ -48,9 +64,6 @@ jobs:
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Create ECR repository if it does not exist
-        run: |
-          aws ecr describe-repositories --region us-east-2 --repository-names $repo_name || aws ecr create-repository --repository-name $repo_name --region us-east-2
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
@@ -60,6 +73,7 @@ jobs:
           # list of Docker images to use as base name for tags
           images: |
             ${{ env.registry_url }}
+            ${{ env.clk_dev_registry_url }}
             ghcr.io/skip-mev/${{ matrix.image.name }}
           tags: |
             type=ref,event=pr
