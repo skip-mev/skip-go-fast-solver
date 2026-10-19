@@ -1,5 +1,5 @@
-FROM golang:1.22-bullseye AS build
-RUN apt-get update && apt-get install -y make gcc libc6-dev libsqlite3-dev wget libgcc1
+FROM golang:1.22-bookworm AS build
+RUN apt-get update && apt-get install -y make gcc libc6-dev libsqlite3-dev wget libgcc-s1
 
 WORKDIR /solver
 
@@ -17,7 +17,7 @@ RUN wget -P /lib https://github.com/CosmWasm/wasmvm/releases/download/v2.1.0/lib
 
 RUN cp /lib/x86_64-linux-gnu/libgcc_s.so.1 /lib/ || cp /lib/aarch64-linux-gnu/libgcc_s.so.1 /lib/
 
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 RUN apt-get update && \
     apt-get install -y ca-certificates sqlite3 && \
