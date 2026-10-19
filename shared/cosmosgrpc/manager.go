@@ -1,13 +1,16 @@
 package cosmosgrpc
 
 import (
+	"crypto/tls"
 	"fmt"
+	"sync"
+
 	cosmosgrpc "github.com/cosmos/gogoproto/grpc"
 	"github.com/skip-mev/go-fast-solver/shared/config"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-	"sync"
 )
 
 type CosmosGRPCClientConnManager interface {
@@ -45,5 +48,12 @@ func DefaultCosmosGRPCCLientConn(ctx context.Context, chainID string) (cosmosgrp
 		return nil, fmt.Errorf("getting config for chain %s: %w", chainID, err)
 	}
 
-	return grpc.DialContext(ctx, chainConfig.Cosmos.GRPC, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	creds := insecure.NewCredentials()
+	if chainConfig.Cosmos.GRPCTLSEnabled {
+		creds = credentials.NewTLS(&tls.Config{
+			InsecureSkipVerify: true,
+		})
+	}
+
+	return grpc.DialContext(ctx, chainConfig.Cosmos.GRPC, grpc.WithTransportCredentials(creds))
 }
